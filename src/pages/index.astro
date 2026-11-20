@@ -1,16 +1,30 @@
 ---
+import PantheonViewer from '../components/PantheonViewer.astro';
 ---
 
-<html lang="en">
+<html lang="fr">
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
+		<title>Panthéon interactif</title>
+		<style is:global>
+			html,
+			body {
+				margin: 0;
+				height: 100%;
+				overscroll-behavior: none;
+			}
+			main {
+				height: 100dvh;
+			}
+		</style>
 	</head>
 	<body>
-		<h1>Astro</h1>
+		<main>
+			<PantheonViewer />
+		</main>
 	</body>
 </html>
