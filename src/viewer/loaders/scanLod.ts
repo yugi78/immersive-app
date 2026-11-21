@@ -1,5 +1,6 @@
 import {
   DoubleSide,
+  PerspectiveCamera,
   Frustum,
   Group,
   ImageBitmapLoader,
@@ -11,7 +12,6 @@ import {
   Texture,
   Vector3,
   type BufferGeometry,
-  type PerspectiveCamera,
   type WebGLRenderer,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -234,14 +234,34 @@ export async function createScanLod(opts: ScanLodOptions) {
       });
   }
 
-  /** Choisit le niveau de chaque tuile pour la caméra donnée (appelé à chaque image). */
-  function update(cam: PerspectiveCamera, now = performance.now()) {
+  // Caméra virtuelle placée à la destination d'une transition (visite guidée).
+  const aheadCam = new PerspectiveCamera();
+  const aheadFrustum = new Frustum();
+
+  /**
+   * Choisit le niveau de chaque tuile pour la caméra donnée (appelé à chaque image).
+   * `lookahead` : destination d'une transition ; les tuiles vues depuis là passent
+   * en haute définition en priorité, avant même l'arrivée.
+   */
+  function update(cam: PerspectiveCamera, lookahead?: { position: Vector3; target: Vector3 } | null, now = performance.now()) {
     if (now - lastUpdate < 150) return;
     lastUpdate = now;
     projView.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     frustum.setFromProjectionMatrix(projView);
     const viewH = opts.renderer.domElement.height; // pixels réels (pixelRatio inclus)
     const k = viewH / (2 * Math.tan((cam.fov * Math.PI) / 360));
+    if (lookahead) {
+      aheadCam.fov = cam.fov;
+      aheadCam.aspect = cam.aspect;
+      aheadCam.near = cam.near;
+      aheadCam.far = cam.far;
+      aheadCam.updateProjectionMatrix();
+      aheadCam.position.copy(lookahead.position);
+      aheadCam.lookAt(lookahead.target);
+      aheadCam.updateMatrixWorld();
+      projView.multiplyMatrices(aheadCam.projectionMatrix, aheadCam.matrixWorldInverse);
+      aheadFrustum.setFromProjectionMatrix(projView);
+    }
 
     // 1. Taille à l'écran (px) de chaque tuile, qu'elle soit dans le champ ou non :
     //    une tuile proche hors champ garde sa définition (pas de rechargement en
@@ -250,7 +270,15 @@ export async function createScanLod(opts: ScanLodOptions) {
     for (const t of tiles) {
       const d = Math.max(cam.position.distanceTo(t.sphere.center) - t.sphere.radius, 0.01);
       t.screenPx = ((2 * t.sphere.radius) / d) * k;
-      priority.set(t, frustum.intersectsSphere(t.sphere) ? t.screenPx : t.screenPx * 0.1);
+      let p = frustum.intersectsSphere(t.sphere) ? t.screenPx : t.screenPx * 0.1;
+      if (lookahead && aheadFrustum.intersectsSphere(t.sphere)) {
+        const da = Math.max(lookahead.position.distanceTo(t.sphere.center) - t.sphere.radius, 0.01);
+        const aheadPx = ((2 * t.sphere.radius) / da) * k;
+        t.screenPx = Math.max(t.screenPx, aheadPx);
+        // Destination servie avant la vue courante.
+        p = Math.max(p, aheadPx * 4);
+      }
+      priority.set(t, p);
     }
     // 2. Budget : les plus grandes à l'écran servies en premier.
     const order = [...tiles].sort((a, b) => priority.get(b)! - priority.get(a)!);

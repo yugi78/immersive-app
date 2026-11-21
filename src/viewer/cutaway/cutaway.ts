@@ -98,17 +98,19 @@ ${fragmentPars}`)
     });
   }
 
-  /** À appeler chaque image : met à jour l'axe et l'intensité selon la distance caméra–cible. */
-  function update(camera: Vector3, target: Vector3) {
+  /**
+   * À appeler chaque image : met à jour l'axe et l'intensité selon la distance caméra–cible.
+   * `target` est l'extrémité du cylindre (cible d'orbite, ou focus d'une œuvre pendant
+   * l'entrée de la visite) ; `scale` (0–1) éteint progressivement la découpe (visite).
+   */
+  function update(camera: Vector3, target: Vector3, scale = 1) {
     uniforms.uCutCam.value.copy(camera);
     uniforms.uCutTarget.value.copy(target);
     const d = camera.distanceTo(target);
     // Transition progressive : 0 au-delà de fadeStartDistance, 1 en dessous de fadeEndDistance.
-    uniforms.uCutStrength.value = MathUtils.clamp(
-      (cfg.fadeStartDistance - d) / Math.max(cfg.fadeStartDistance - cfg.fadeEndDistance, 1e-3),
-      0,
-      1,
-    );
+    uniforms.uCutStrength.value =
+      MathUtils.clamp((cfg.fadeStartDistance - d) / Math.max(cfg.fadeStartDistance - cfg.fadeEndDistance, 1e-3), 0, 1) *
+      MathUtils.clamp(scale, 0, 1);
   }
 
   /** Modifie des réglages à chaud (tirettes, back-office) et répercute sur les uniforms. */

@@ -12,6 +12,7 @@ const NUMBER_KEYS = {
   mist: ['startDistance', 'endDistance'],
   clay: ['hue', 'saturation', 'contrast', 'brightness', 'gamma'],
   dof: ['focusDistance', 'focusRange', 'aperture', 'maxBlur'],
+  tour: ['cutFadeStart', 'resumeDelayMs'],
 } as const;
 
 /** Cases à cocher, par section. */
@@ -25,10 +26,68 @@ const COLOR_KEYS = {
   mist: ['color'],
 } as const;
 
+const num = (v: unknown, n: string): number => {
+  if (typeof v !== 'number' || !Number.isFinite(v)) throw new Error(`${n} doit être un nombre`);
+  return v;
+};
+const vec3 = (v: unknown, n: string): [number, number, number] => {
+  if (!Array.isArray(v) || v.length !== 3) throw new Error(`${n} doit être [x, y, z]`);
+  return [num(v[0], `${n}.x`), num(v[1], `${n}.y`), num(v[2], `${n}.z`)];
+};
+const str = (v: unknown, n: string, re?: RegExp): string => {
+  if (typeof v !== 'string' || (re && !re.test(v))) throw new Error(`${n} invalide`);
+  return v;
+};
+
+/** Valeurs structurées (objets, listes), validées en entier. */
+const OBJECT_KEYS: Record<string, Record<string, Check>> = {
+  tour: {
+    durations: (v, n) => {
+      const d = (v ?? {}) as Record<string, unknown>;
+      const keys = ['enterMs', 'betweenMs', 'exitMs', 'segmentMs'];
+      const out: Record<string, number> = {};
+      for (const k of keys) {
+        out[k] = num(d[k], `${n}.${k}`);
+        if (out[k] < 0) throw new Error(`${n}.${k} doit être positif`);
+      }
+      return out;
+    },
+    hub: (v, n) => ({ position: vec3((v as { position?: unknown })?.position, `${n}.position`) }),
+    works: (v, n) => {
+      if (!Array.isArray(v)) throw new Error(`${n} doit être une liste`);
+      const ids = new Set<string>();
+      const slugs = new Set<string>();
+      return v.map((w, i) => {
+        const p = `${n}[${i}]`;
+        const id = str(w?.id, `${p}.id`, /^[\w-]{1,40}$/);
+        const slug = str(w?.slug, `${p}.slug`, /^[a-z0-9]+(-[a-z0-9]+)*$/);
+        if (ids.has(id)) throw new Error(`${p}.id en double : ${id}`);
+        if (slugs.has(slug)) throw new Error(`${p}.slug en double : ${slug}`);
+        ids.add(id);
+        slugs.add(slug);
+        if (!Array.isArray(w.cameraPoints)) throw new Error(`${p}.cameraPoints doit être une liste`);
+        const content = w.content ?? {};
+        if (typeof content !== 'object' || Array.isArray(content)) throw new Error(`${p}.content doit être un objet`);
+        return {
+          id,
+          title: str(w.title, `${p}.title`),
+          slug,
+          focus: vec3(w.focus, `${p}.focus`),
+          cameraPoints: w.cameraPoints.map((c: unknown, j: number) => vec3(c, `${p}.cameraPoints[${j}]`)),
+          content,
+        };
+      });
+    },
+  },
+};
+
 export type Patch = Record<string, Record<string, unknown>>;
 
 type Check = (v: unknown, name: string) => unknown;
 const RULES: [Record<string, readonly string[]>, Check][] = [
+  ...Object.entries(OBJECT_KEYS).flatMap(([section, checks]) =>
+    Object.entries(checks).map(([key, check]): [Record<string, readonly string[]>, Check] => [{ [section]: [key] }, check]),
+  ),
   [NUMBER_KEYS, (v, n) => {
     if (typeof v !== 'number' || !Number.isFinite(v)) throw new Error(`${n} doit être un nombre`);
     return v;

@@ -119,5 +119,80 @@
       117.862426758,
       1
     ]
+  },
+  "tour": {
+    "durations": {
+      "enterMs": 3500,
+      "betweenMs": 3000,
+      "exitMs": 3000,
+      "segmentMs": 6000
+    },
+    "cutFadeStart": 0.75,
+    "resumeDelayMs": 4000,
+    "hub": {
+      "position": [
+        7,
+        66,
+        121
+      ]
+    },
+    "works": [
+      {
+        "id": "w-exemple1",
+        "title": "Exemple nord",
+        "slug": "exemple-nord",
+        "focus": [
+          -22.6,
+          68,
+          119
+        ],
+        "cameraPoints": [
+          [
+            -4,
+            66,
+            114
+          ],
+          [
+            -7,
+            66,
+            119
+          ],
+          [
+            -4,
+            66,
+            124
+          ]
+        ],
+        "content": {}
+      },
+      {
+        "id": "w-exemple2",
+        "title": "Exemple sud",
+        "slug": "exemple-sud",
+        "focus": [
+          53,
+          70,
+          119
+        ],
+        "cameraPoints": [
+          [
+            34,
+            66,
+            114
+          ],
+          [
+            37,
+            66,
+            119
+          ],
+          [
+            34,
+            66,
+            124
+          ]
+        ],
+        "content": {}
+      }
+    ]
   }
 }

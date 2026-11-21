@@ -1,5 +1,5 @@
 import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer } from 'three';
-import { defaultConfig, type AssetItem, type SceneConfig } from './config/types';
+import { defaultConfig, type AssetItem, type SceneConfig, type TourConfig } from './config/types';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
 import { createMist } from './scene/mist';
@@ -14,6 +14,8 @@ import { computeReference, type SceneReference } from './scene/reference';
 import { prepareAsset } from './scene/prepare';
 import { createRenderer } from './scene/renderer';
 import { createProgress } from './ui/progress';
+import { createTour, type Tour } from './tour/tour';
+import { createTourControls } from './ui/tourControls';
 import './ui/viewer.css';
 
 /** Fond de repérage des fuites (mode debug). */
@@ -25,6 +27,8 @@ export interface ViewerOptions {
   debug?: boolean;
   /** Démarre directement en vue orbitale, sans l'animation d'ouverture (back-office). */
   skipIntro?: boolean;
+  /** Hash d'URL par œuvre (#slug) : lu au chargement et mis à jour en visite. Faux dans le back-office. */
+  urlHash?: boolean;
 }
 
 export type CutawaySettings = SceneConfig['cutaway'];
@@ -44,6 +48,10 @@ export interface Viewer {
   setClay(patch: Partial<ClaySettings>): void;
   /** Modifie le flou de profondeur de champ à chaud (dont l'activation). */
   setDof(patch: Partial<DofSettings>): void;
+  /** Remplace les données de la visite guidée à chaud (back-office). */
+  setTour(tour: TourConfig): void;
+  /** Visite guidée : démarrer, naviguer, quitter. */
+  tour: Pick<Tour, 'start' | 'goTo' | 'next' | 'prev' | 'stop' | 'togglePause' | 'status' | 'onChange' | 'cancel'>;
   dispose(): void;
 }
 
@@ -195,6 +203,38 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     }, 500);
   }
 
+  // Visite guidée. La vue orbitale par défaut (retour en fin de visite) suit la
+  // hauteur du focus réglée dans le back-office.
+  let focusOffset = cfg.focus.heightOffset;
+  let tourCfg: TourConfig = structuredClone(cfg.tour);
+  const home = () => ({
+    position: orbitStart.clone().setY(orbitStart.y + focusOffset - cfg.focus.heightOffset),
+    target: reference.focus.clone(),
+  });
+  const tour = createTour({
+    camera,
+    dom: renderer.domElement,
+    config: () => tourCfg,
+    home,
+    orbitTarget: () => orbit.controls.target,
+  });
+  // En visite, l'orbite est coupée (la visite pilote la caméra).
+  tour.onChange((s) => {
+    if (s.state !== 'idle') {
+      orbit.controls.enabled = false;
+      orbit.controls.autoRotate = false;
+    }
+  });
+  let tourUi: ReturnType<typeof createTourControls> | null = null;
+  // Commandes créées à la fin de l'intro (pas de visite pendant l'ouverture).
+  function onIntroDone() {
+    orbit.start();
+    tourUi = createTourControls(container, tour, { hash: opts.urlHash ?? true });
+    tourUi.setWorks(tourCfg.works.map((w) => w.slug));
+    const i = tourUi.initialIndex();
+    if (i >= 0) tour.start(i);
+  }
+
   // Flou de profondeur de champ (désactivable) ; moins d'échantillons sur mobile.
   const dof = createDof(renderer, cfg.dof, isMobile() ? 16 : 32);
 
@@ -228,23 +268,31 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
 
   function frame(delta: number) {
     if (!intro.done) {
-      if (intro.update(delta)) orbit.start();
+      if (intro.update(delta)) onIntroDone();
+    } else if (tour.active) {
+      // Fin de la sortie : la caméra est à la position orbitale par défaut.
+      if (tour.update(delta)) {
+        orbit.controls.target.copy(home().target);
+        orbit.start();
+      }
     } else {
       orbit.update(delta);
     }
-    cutaway.update(camera.position, orbit.controls.target);
+    // Découpe : extrémité et intensité pilotées par la visite (entrée / sortie).
+    if (tour.active) cutaway.update(camera.position, tour.cutTarget, tour.cutScale);
+    else cutaway.update(camera.position, orbit.controls.target);
     camera.updateMatrixWorld();
-    scan.update(camera);
-    // Mise au point automatique : sur la cible d'orbite, suit le zoom.
-    dof.render(scene, camera, camera.position.distanceTo(orbit.controls.target));
+    // En transition, la destination est préchargée en haute définition.
+    scan.update(camera, tour.active ? tour.lookahead() : null);
+    // Mise au point automatique : sur la cible d'orbite (ou l'œuvre visée), suit le zoom.
+    const focusPoint = tour.active ? tour.lookTarget : orbit.controls.target;
+    dof.render(scene, camera, camera.position.distanceTo(focusPoint));
   }
 
   renderer.domElement.style.visibility = '';
   progress.hide();
 
-  if (debug) Object.assign(window, { __viewer: { scene, camera, renderer, controls: orbit.controls, reference, cutaway, setLeakBackground, intro, frame, scan, dof } });
-
-  let focusOffset = cfg.focus.heightOffset;
+  if (debug) Object.assign(window, { __viewer: { scene, camera, renderer, controls: orbit.controls, reference, cutaway, setLeakBackground, intro, frame, scan, dof, tour } });
 
   return {
     reference,
@@ -269,7 +317,14 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     setClay(patch) {
       clayGrade.set(patch);
     },
+    setTour(next) {
+      tourCfg = structuredClone(next);
+      tourUi?.setWorks(tourCfg.works.map((w) => w.slug));
+    },
+    tour,
     dispose() {
+      tour.dispose();
+      tourUi?.dispose();
       renderer.setAnimationLoop(null);
       ro.disconnect();
       timer.dispose();
