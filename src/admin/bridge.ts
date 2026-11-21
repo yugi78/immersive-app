@@ -8,6 +8,10 @@ import type { Viewer } from '../viewer';
 let viewer: Viewer | null = null;
 let gizmoKey: string | null = null;
 let boundsWork: number | null = null;
+/** Œuvres dont les champs sont affichés (dépliées), avec un compteur : Puck peut
+ *  rendre un même champ deux fois. La dernière ouverte est l'œuvre active. */
+const openWorks: number[] = [];
+let activeWork: number | null = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
 
@@ -38,6 +42,21 @@ export const bridge = {
     boundsWork = w;
     notify();
   },
+  /** À appeler au montage des champs d'une œuvre ; renvoie la fonction de démontage. */
+  openWork(w: number) {
+    openWorks.push(w);
+    activeWork = w;
+    notify();
+    return () => {
+      const k = openWorks.lastIndexOf(w);
+      if (k >= 0) openWorks.splice(k, 1);
+      activeWork = openWorks.length ? openWorks[openWorks.length - 1] : null;
+      notify();
+    };
+  },
+  get activeWork() {
+    return activeWork;
+  },
   subscribe(l: () => void) {
     listeners.add(l);
     return () => {
@@ -48,6 +67,8 @@ export const bridge = {
 
 /** Viewer courant (null tant que l'aperçu charge). */
 export const useViewer = () => useSyncExternalStore(bridge.subscribe, () => viewer);
+/** Œuvre dépliée dans la liste (repères affichés dans la 3D), ou null. */
+export const useActiveWork = () => useSyncExternalStore(bridge.subscribe, () => activeWork);
 /** Œuvre dont la boîte est en édition. */
 export const useBoundsWork = () => useSyncExternalStore(bridge.subscribe, () => boundsWork);
 /** Repère actuellement attaché au gizmo. */

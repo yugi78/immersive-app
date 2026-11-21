@@ -19,6 +19,13 @@ export interface AssetItem {
 /** Point en mètres, repère monde de la scène. */
 export type Vec3 = [number, number, number];
 
+/** Boîte orientée : centre, dimensions (m) et rotation autour de la verticale (degrés). */
+export interface TourBounds {
+  center: Vec3;
+  size: Vec3;
+  rotationY: number;
+}
+
 /** Œuvre de la visite guidée. */
 export interface TourWork {
   /** Identifiant stable, généré à la création, jamais modifié. */
@@ -34,7 +41,7 @@ export interface TourWork {
    * Zone permise à la caméra quand l'utilisateur prend la main sur l'œuvre
    * (orbite autour du focus) : évite de traverser les murs. Absente : pas de limite.
    */
-  bounds?: { min: Vec3; max: Vec3 };
+  bounds?: TourBounds;
   /** Contenu descriptif (à venir). */
   content: Record<string, unknown>;
 }

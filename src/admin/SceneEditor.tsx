@@ -1,12 +1,14 @@
-import { FieldGroup, FieldTab, Puck, type Config, type Data } from '@puckeditor/core';
+import { createUsePuck, FieldGroup, FieldTab, Puck, type Config, type Data } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import { useEffect, useRef, useState } from 'react';
 import { createViewer, type Viewer } from '../viewer';
-import { defaultConfig, type TourConfig, type Vec3 } from '../viewer/config/types';
+import { defaultConfig, type TourBounds, type TourConfig, type Vec3 } from '../viewer/config/types';
 import { newWorkId, uniqueSlugs } from '../viewer/tour/slug';
-import { bridge } from './bridge';
+import { bridge, useActiveWork, useViewer } from './bridge';
 import { checkbox, colorField, slider } from './fields';
-import { boundsField, cameraPointsField, pointField, previewField } from './tourFields';
+import { boundsField, cameraPointsField, focusOffsetField, pointField, previewField } from './tourFields';
+
+const usePuckState = createUsePuck();
 
 /**
  * Back-office Puck : réglages de scène (hauteur du focus, découpe) avec aperçu
@@ -15,7 +17,8 @@ import { boundsField, cameraPointsField, pointField, previewField } from './tour
  */
 
 type SceneProps = {
-  focusHeightOffset: number;
+  /** [x, hauteur, z] : décalage du focus depuis le centre de la bbox. */
+  focusOffset: Vec3;
   cutRadius: number;
   cutFeather: number;
   cutFadeStart: number;
@@ -57,12 +60,12 @@ type TourWorkItem = {
   title: string;
   focus: Vec3;
   cameraPoints: Vec3[];
-  bounds?: { min: Vec3; max: Vec3 } | null;
+  bounds?: TourBounds | null;
   content?: Record<string, unknown>;
 };
 
 const SCENE_KEYS = [
-  'focusHeightOffset',
+  'focusOffset',
   'cutRadius',
   'cutFeather',
   'cutFadeStart',
@@ -158,7 +161,7 @@ function ViewerPreview(props: SceneProps) {
   latest.current = props;
 
   const apply = (v: Viewer, p: SceneProps) => {
-    v.setFocusHeightOffset(p.focusHeightOffset);
+    v.setFocusOffset(p.focusOffset);
     v.setCutaway({
       radius: p.cutRadius,
       feather: p.cutFeather,
@@ -172,7 +175,7 @@ function ViewerPreview(props: SceneProps) {
     v.setDof(dofPatch(p));
     const tour = tourFromProps(p);
     v.setTour(tour);
-    v.editor?.setHelpers(tour, p.showTourHelpers);
+    v.editor?.setHelpers(tour);
     v.editor?.setFly(p.flyEnabled, p.flySpeed);
   };
 
@@ -196,6 +199,14 @@ function ViewerPreview(props: SceneProps) {
     if (viewer.current) apply(viewer.current, props);
   }, [props]);
 
+  // Repères 3D affichés selon l'onglet Puck ouvert et l'œuvre dépliée.
+  const tab = usePuckState((s) => s.appState.ui.fieldTab);
+  const activeWork = useActiveWork();
+  const live = useViewer();
+  useEffect(() => {
+    live?.editor?.setView({ tab: String(tab ?? 'Scène'), activeWork, tourHelpers: props.showTourHelpers });
+  }, [live, tab, activeWork, props.showTourHelpers]);
+
   return <div ref={el} className="pantheon-viewer" style={{ height: 'calc(100vh - 140px)', minHeight: 360 }} />;
 }
 
@@ -203,7 +214,7 @@ const config: Config<{}, Record<string, unknown>> = {
   components: {},
   root: {
     fields: {
-      focusHeightOffset: slider('Hauteur du focus / centre bbox', -40, 60, 0.5),
+      focusOffset: focusOffsetField,
       cutRadius: slider('Rayon de découpe', 5, 200, 1),
       cutFeather: slider('Dégradé du bord', 0, 15, 0.5),
       cutFadeStart: slider('Début du fondu (distance)', 20, 800, 5),
@@ -227,7 +238,7 @@ const config: Config<{}, Record<string, unknown>> = {
       tourEnterS: slider('Entrée (orbite → première œuvre)', 0.5, 15, 0.1, 's'),
       tourBetweenS: slider('Entre deux œuvres', 0.5, 15, 0.1, 's'),
       tourExitS: slider('Sortie (retour à l’orbite)', 0.5, 15, 0.1, 's'),
-      tourLoopSpeed: slider('Vitesse du parcours sur l’œuvre (boucle)', 0.05, 5, 0.05, 'm/s'),
+      tourLoopSpeed: slider('Vitesse de la caméra sur l’œuvre (mouvement entre les points)', 0.05, 5, 0.05, 'm/s'),
       tourCutFadeStart: slider('Extinction de la découpe à l’entrée (fraction du trajet)', 0.3, 0.98, 0.01, null),
       tourResumeS: slider('Reprise du parcours après une prise en main', 0.5, 20, 0.5, 's'),
       tourHub: pointField('Point central (passage entre deux œuvres)', { key: () => 'hub', pick: true, capture: true }),
@@ -280,7 +291,7 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.dofMaxBlur}
           </FieldGroup>
         </FieldTab>
-        <FieldTab label="Caméra orbitale">{fields.focusHeightOffset}</FieldTab>
+        <FieldTab label="Caméra orbitale">{fields.focusOffset}</FieldTab>
         <FieldTab label="Découpe">
           {fields.cutRadius}
           {fields.cutFeather}
@@ -293,16 +304,18 @@ const config: Config<{}, Record<string, unknown>> = {
           <FieldGroup label="Œuvres" defaultExpanded>
             {fields.tourWorks}
           </FieldGroup>
+          <FieldGroup label="Mouvement sur l’œuvre" defaultExpanded>
+            {fields.tourLoopSpeed}
+            {fields.tourResumeS}
+          </FieldGroup>
           <FieldGroup label="Point central" defaultExpanded>
             {fields.tourHub}
           </FieldGroup>
-          <FieldGroup label="Durées et comportement" defaultExpanded>
+          <FieldGroup label="Transitions" defaultExpanded>
             {fields.tourEnterS}
             {fields.tourBetweenS}
             {fields.tourExitS}
-            {fields.tourLoopSpeed}
             {fields.tourCutFadeStart}
-            {fields.tourResumeS}
           </FieldGroup>
         </FieldTab>
         <FieldTab label="Debug">
@@ -320,7 +333,7 @@ const { focus, cutaway, mist, clay, dof, tour } = defaultConfig;
 const initialData: Data<{}, Record<string, unknown>> = {
   root: {
     props: {
-      focusHeightOffset: focus.heightOffset,
+      focusOffset: [focus.offsetX ?? 0, focus.heightOffset, focus.offsetZ ?? 0] as Vec3,
       cutRadius: cutaway.radius,
       cutFeather: cutaway.feather,
       cutFadeStart: cutaway.fadeStartDistance,
@@ -368,7 +381,7 @@ export default function SceneEditor() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          focus: { heightOffset: p.focusHeightOffset },
+          focus: { offsetX: p.focusOffset[0], heightOffset: p.focusOffset[1], offsetZ: p.focusOffset[2] },
           cutaway: {
             radius: p.cutRadius,
             feather: p.cutFeather,

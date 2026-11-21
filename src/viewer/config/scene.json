@@ -46,7 +46,9 @@
     "maxPixelRatioMobile": 2
   },
   "focus": {
-    "heightOffset": -17.5
+    "heightOffset": -17.5,
+    "offsetX": 0,
+    "offsetZ": 0
   },
   "camera": {
     "fov": 40,
@@ -132,9 +134,9 @@
     "resumeDelayMs": 2000,
     "hub": {
       "position": [
-        7,
+        15.11,
         66,
-        121
+        118.84
       ]
     },
     "works": [
@@ -164,34 +166,65 @@
             117.62
           ]
         ],
+        "bounds": {
+          "center": [
+            15.23,
+            76.7,
+            116.2
+          ],
+          "size": [
+            20.67,
+            19.2,
+            21.58
+          ],
+          "rotationY": 0
+        },
         "content": {}
       },
       {
         "id": "w-exemple2",
-        "title": "Exemple sud",
-        "slug": "exemple-sud",
+        "title": "La Patrie",
+        "slug": "la-patrie",
         "focus": [
-          53,
-          70,
-          119
+          20.91,
+          83.99,
+          129.66
         ],
         "cameraPoints": [
           [
-            34,
-            66,
-            114
+            17.12,
+            76.71,
+            119.22
           ],
           [
-            37,
-            66,
-            119
+            23.63,
+            71.91,
+            112.47
           ],
           [
-            34,
-            66,
-            124
+            9.69,
+            71.91,
+            116.95
+          ],
+          [
+            5.18,
+            78.02,
+            125.07
           ]
         ],
+        "bounds": {
+          "center": [
+            14.4,
+            77.95,
+            121.06
+          ],
+          "size": [
+            22.45,
+            16.08,
+            21.19
+          ],
+          "rotationY": 0
+        },
         "content": {}
       }
     ]

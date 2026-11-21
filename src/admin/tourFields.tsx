@@ -1,6 +1,6 @@
 import { FieldLabel, type CustomField } from '@puckeditor/core';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import type { Vec3 } from '../viewer/config/types';
+import type { TourBounds, Vec3 } from '../viewer/config/types';
 import { bridge, useBoundsWork, useGizmoKey, useViewer } from './bridge';
 
 /**
@@ -57,36 +57,56 @@ function XYZ({ value, onChange, readOnly }: { value: Vec3; onChange: (v: Vec3) =
   );
 }
 
-/** Bouton « Gizmo » : attache le repère `key` au gizmo ; les déplacements appellent onMove. */
-function GizmoButton({ markerKey, onMove }: { markerKey: string; onMove: (v: Vec3) => void }) {
+/**
+ * Bouton « Gizmo » : attache le repère `markerKey` au gizmo ; les déplacements
+ * appellent onMove. Avec `onRotate` : gizmo de rotation autour de la verticale.
+ */
+function GizmoButton({
+  markerKey,
+  onMove,
+  onRotate,
+  label = 'Gizmo',
+}: {
+  markerKey: string;
+  onMove?: (v: Vec3) => void;
+  onRotate?: (deg: number) => void;
+  label?: string;
+}) {
   const viewer = useViewer();
-  const active = useGizmoKey() === markerKey;
+  const id = `${markerKey}|${onRotate ? 'rotate' : 'move'}`;
+  const active = useGizmoKey() === id;
   const moveRef = useRef(onMove);
   moveRef.current = onMove;
+  const rotRef = useRef(onRotate);
+  rotRef.current = onRotate;
   // Détache le gizmo si le champ disparaît (œuvre repliée, point supprimé).
-  useEffect(() => () => {
-    if (bridge.gizmoKey === markerKey) {
-      bridge.viewer?.editor?.detachGizmo(markerKey);
-      bridge.setGizmoKey(null);
-    }
-  }, [markerKey]);
+  useEffect(
+    () => () => {
+      if (bridge.gizmoKey === id) {
+        bridge.viewer?.editor?.detachGizmo(markerKey);
+        bridge.setGizmoKey(null);
+      }
+    },
+    [id, markerKey],
+  );
   return (
     <Button
       on={active}
       disabled={!viewer?.editor}
-      title="Déplacer ce point dans la vue 3D"
+      title={onRotate ? 'Tourner dans la vue 3D (autour de la verticale)' : 'Déplacer dans la vue 3D'}
       onClick={() => {
         const ed = viewer?.editor;
         if (!ed) return;
         if (active) {
           ed.detachGizmo();
           bridge.setGizmoKey(null);
-        } else if (ed.attachGizmo(markerKey, (v) => moveRef.current(v))) {
-          bridge.setGizmoKey(markerKey);
+          return;
         }
+        const ok = ed.attachGizmo(markerKey, (v) => moveRef.current?.(v), onRotate ? { rotate: (d) => rotRef.current?.(d) } : {});
+        if (ok) bridge.setGizmoKey(id);
       }}
     >
-      Gizmo
+      {label}
     </Button>
   );
 }
@@ -226,7 +246,7 @@ export const cameraPointsField: CustomField<Vec3[]> = {
   render: (p) => <CameraPointsUI value={p.value} onChange={p.onChange} name={p.name} readOnly={p.readOnly} />,
 };
 
-type Bounds = { min: Vec3; max: Vec3 };
+type Bounds = TourBounds;
 
 function BoundsUI({ value, onChange, name, readOnly }: { value: Bounds | null; onChange: (v: Bounds | null) => void; name: string; readOnly?: boolean }) {
   const viewer = useViewer();
@@ -235,7 +255,7 @@ function BoundsUI({ value, onChange, name, readOnly }: { value: Bounds | null; o
   const editing = useBoundsWork() === work;
   const latest = useRef(onChange);
   latest.current = onChange;
-  const centerKey = `bounds:${work}`;
+  const boxKey = `bounds:${work}`;
   const setEditing = (on: boolean) => {
     if (!ed) return;
     bridge.setBoundsWork(on ? work : null);
@@ -253,9 +273,10 @@ function BoundsUI({ value, onChange, name, readOnly }: { value: Bounds | null; o
     [work],
   );
 
+  const label = 'Zone permise à la caméra (prise en main)';
   if (!value) {
     return (
-      <FieldLabel label="Zone permise à la caméra (prise en main)" readOnly={readOnly}>
+      <FieldLabel label={label} readOnly={readOnly}>
         <div style={{ display: 'grid', gap: 6, font: '12px system-ui', color: '#59606b' }}>
           Aucune limite : l'orbite autour du focus peut traverser les murs.
           <Button
@@ -274,24 +295,44 @@ function BoundsUI({ value, onChange, name, readOnly }: { value: Bounds | null; o
       </FieldLabel>
     );
   }
-  // Déplacement de toute la boîte par son centre (gizmo) : la taille est conservée.
-  const moveCenter = (c: Vec3) => {
-    const half = value.max.map((v, k) => (v - value.min[k]) / 2);
-    const r = (v: number) => Math.round(v * 100) / 100;
-    onChange({ min: c.map((v, k) => r(v - half[k])) as Vec3, max: c.map((v, k) => r(v + half[k])) as Vec3 });
-  };
+  const small: CSSProperties = { font: '11px system-ui', color: '#59606b' };
   return (
-    <FieldLabel label="Zone permise à la caméra (prise en main)" readOnly={readOnly}>
+    <FieldLabel label={label} readOnly={readOnly}>
       <div style={{ display: 'grid', gap: 6 }}>
-        <span style={{ font: '11px system-ui', color: '#59606b' }}>Min</span>
-        <XYZ value={value.min} onChange={(min) => onChange({ ...value, min })} readOnly={readOnly} />
-        <span style={{ font: '11px system-ui', color: '#59606b' }}>Max</span>
-        <XYZ value={value.max} onChange={(max) => onChange({ ...value, max })} readOnly={readOnly} />
+        <span style={small}>Centre</span>
+        <XYZ value={value.center} onChange={(center) => onChange({ ...value, center })} readOnly={readOnly} />
+        <span style={small}>Dimensions (m)</span>
+        <XYZ value={value.size} onChange={(size) => onChange({ ...value, size: size.map((v) => Math.max(v, 0.2)) as Vec3 })} readOnly={readOnly} />
+        <label style={{ ...row, ...small }}>
+          Rotation (°)
+          <input
+            type="range"
+            min={-180}
+            max={180}
+            step={1}
+            value={value.rotationY ?? 0}
+            disabled={readOnly}
+            onChange={(e) => onChange({ ...value, rotationY: Number(e.currentTarget.value) })}
+            style={{ flex: 1 }}
+          />
+          <input
+            type="number"
+            step={1}
+            value={value.rotationY ?? 0}
+            disabled={readOnly}
+            onChange={(e) => {
+              const n = Number(e.currentTarget.value);
+              if (Number.isFinite(n)) onChange({ ...value, rotationY: n });
+            }}
+            style={{ width: 56 }}
+          />
+        </label>
         <div style={row}>
           <Button on={editing} disabled={!ed} title="Poignées sur les faces : glisser pour déplacer chaque face" onClick={() => setEditing(!editing)}>
             Poignées
           </Button>
-          <GizmoButton markerKey={centerKey} onMove={moveCenter} />
+          <GizmoButton markerKey={boxKey} label="Déplacer" onMove={(center) => onChange({ ...value, center })} />
+          <GizmoButton markerKey={boxKey} label="Tourner" onRotate={(rotationY) => onChange({ ...value, rotationY })} />
           <Button disabled={!ed} title="Recalculer autour du focus et des points caméra" onClick={() => onChange(ed!.suggestBounds(work))}>
             Ajuster aux points
           </Button>
@@ -320,6 +361,8 @@ export const boundsField: CustomField<Bounds | null> = {
 function PreviewUI({ name }: { name: string }) {
   const viewer = useViewer();
   const i = workIndex(name);
+  // Champs montés = œuvre dépliée : ses points, son tracé et sa boîte s'affichent.
+  useEffect(() => bridge.openWork(i), [i]);
   const ed = viewer?.editor;
   return (
     <FieldLabel label="Aperçu">
@@ -343,4 +386,32 @@ export const previewField: CustomField<null> = {
   type: 'custom',
   label: 'Aperçu',
   render: ({ name }) => <PreviewUI name={name} />,
+};
+
+function FocusOffsetUI({ value, onChange, readOnly }: { value: Vec3; onChange: (v: Vec3) => void; readOnly?: boolean }) {
+  const viewer = useViewer();
+  const c = viewer?.reference.center;
+  return (
+    <FieldLabel label="Point de focus (décalage depuis le centre de la bbox, m)" readOnly={readOnly}>
+      <div style={{ display: 'grid', gap: 6 }}>
+        <XYZ value={value} onChange={onChange} readOnly={readOnly} />
+        <div style={row}>
+          <GizmoButton
+            markerKey="orbitFocus"
+            onMove={(p) => c && onChange(p.map((v, k) => Math.round((v - c.getComponent(k)) * 100) / 100) as Vec3)}
+          />
+          <Button onClick={() => onChange([0, value?.[1] ?? 0, 0])} title="Recentrer horizontalement sur la bbox">
+            Recentrer X/Z
+          </Button>
+        </div>
+      </div>
+    </FieldLabel>
+  );
+}
+
+/** Décalage du point de focus de l'orbite : [x, hauteur, z]. */
+export const focusOffsetField: CustomField<Vec3> = {
+  type: 'custom',
+  label: 'Point de focus',
+  render: (p) => <FocusOffsetUI value={p.value} onChange={p.onChange} readOnly={p.readOnly} />,
 };

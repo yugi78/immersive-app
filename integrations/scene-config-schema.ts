@@ -7,7 +7,7 @@
  */
 
 const NUMBER_KEYS = {
-  focus: ['heightOffset'],
+  focus: ['heightOffset', 'offsetX', 'offsetZ'],
   cutaway: ['radius', 'feather', 'fadeStartDistance', 'fadeEndDistance', 'cameraRadius'],
   mist: ['startDistance', 'endDistance'],
   clay: ['hue', 'saturation', 'contrast', 'brightness', 'gamma'],
@@ -70,10 +70,13 @@ const OBJECT_KEYS: Record<string, Record<string, Check>> = {
         if (typeof content !== 'object' || Array.isArray(content)) throw new Error(`${p}.content doit être un objet`);
         let bounds;
         if (w.bounds != null) {
-          const min = vec3(w.bounds.min, `${p}.bounds.min`);
-          const max = vec3(w.bounds.max, `${p}.bounds.max`);
-          if (min.some((v, k) => v >= max[k])) throw new Error(`${p}.bounds : min doit être inférieur à max`);
-          bounds = { min, max };
+          const size = vec3(w.bounds.size, `${p}.bounds.size`);
+          if (size.some((v) => v <= 0)) throw new Error(`${p}.bounds.size doit être positif`);
+          bounds = {
+            center: vec3(w.bounds.center, `${p}.bounds.center`),
+            size,
+            rotationY: num(w.bounds.rotationY ?? 0, `${p}.bounds.rotationY`),
+          };
         }
         return {
           id,

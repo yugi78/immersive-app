@@ -1,5 +1,5 @@
-import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer } from 'three';
-import { defaultConfig, type AssetItem, type SceneConfig, type TourConfig } from './config/types';
+import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer, Vector3 } from 'three';
+import { defaultConfig, type AssetItem, type SceneConfig, type TourConfig, type Vec3 } from './config/types';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
 import { createMist } from './scene/mist';
@@ -41,8 +41,8 @@ export type DofSettings = SceneConfig['dof'];
 
 export interface Viewer {
   reference: SceneReference;
-  /** Remonte (ou abaisse) le point de focus par rapport au centre de la bbox, en mètres. */
-  setFocusHeightOffset(meters: number): void;
+  /** Décale le point de focus (cible d'orbite) depuis le centre de la bbox : [x, hauteur, z] en mètres. */
+  setFocusOffset(offset: Vec3): void;
   /** Modifie les réglages de découpe à chaud. */
   setCutaway(patch: Partial<CutawaySettings>): void;
   /** Modifie la brume d'arrière-plan à chaud. */
@@ -123,8 +123,10 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   // 1. Référence : bbox du Panthéon → cible d'orbite, centre de découpe, hauteur du sol.
   const refAsset = assets.find((a) => a.item.id === cfg.assets.reference.id);
   if (!refAsset) throw new Error(`Asset de référence introuvable : ${cfg.assets.reference.id}`);
-  const reference = computeReference(refAsset.root, cfg.focus.heightOffset);
-  if (debug) {
+  const focusCfg = { x: cfg.focus.offsetX ?? 0, y: cfg.focus.heightOffset, z: cfg.focus.offsetZ ?? 0 };
+  const reference = computeReference(refAsset.root, focusCfg);
+  // Repères bbox + focus (le back-office a les siens, déplaçables au gizmo).
+  if (debug && !opts.editor) {
     scene.add(new Box3Helper(reference.box, new Color('#e8590c')));
     // Repère du point de focus (partage le Vector3 : suit les réglages à chaud).
     const marker = new Mesh(new SphereGeometry(1.5, 16, 12), new MeshBasicMaterial({ color: '#e8590c', depthTest: false }));
@@ -212,10 +214,11 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
 
   // Visite guidée. La vue orbitale par défaut (retour en fin de visite) suit la
   // hauteur du focus réglée dans le back-office.
-  let focusOffset = cfg.focus.heightOffset;
+  const focusOffset = new Vector3(focusCfg.x, focusCfg.y, focusCfg.z);
+  const focusOffset0 = focusOffset.clone();
   let tourCfg: TourConfig = structuredClone(cfg.tour);
   const home = () => ({
-    position: orbitStart.clone().setY(orbitStart.y + focusOffset - cfg.focus.heightOffset),
+    position: orbitStart.clone().add(focusOffset).sub(focusOffset0),
     target: reference.focus.clone(),
   });
   const tour = createTour({
@@ -240,6 +243,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
         renderer,
         controls: orbit.controls,
         tour,
+        reference,
         pickTargets: [scan.root],
       })
     : null;
@@ -320,13 +324,16 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
 
   return {
     reference,
-    setFocusHeightOffset(meters) {
-      const dy = meters - focusOffset;
-      focusOffset = meters;
+    setFocusOffset([x, y, z]) {
+      const d = new Vector3(x, y, z).sub(focusOffset);
+      if (d.lengthSq() === 0) return;
+      focusOffset.set(x, y, z);
       // On translate cible et caméra ensemble : le cadrage suit, sans saut de distance.
-      reference.focus.y += dy;
-      orbit.controls.target.y += dy;
-      camera.position.y += dy;
+      reference.focus.add(d);
+      if (!tour.active && !editorTools?.flying) {
+        orbit.controls.target.add(d);
+        camera.position.add(d);
+      }
     },
     setCutaway(patch) {
       cutaway.set(patch);

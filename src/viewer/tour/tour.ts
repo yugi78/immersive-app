@@ -1,6 +1,6 @@
 import { MathUtils, Matrix4, Quaternion, Vector3, type PerspectiveCamera } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { TourConfig, TourWork } from '../config/types';
+import type { TourBounds, TourConfig, TourWork } from '../config/types';
 import { easeInOut, Path } from './path';
 
 export type TourState = 'idle' | 'enter' | 'loop' | 'transit' | 'exit';
@@ -208,8 +208,16 @@ export function createTour(opts: TourOptions) {
   const qDesired = new Quaternion();
   const mLook = new Matrix4();
   const onPath = new Vector3();
-  const bmin = new Vector3();
-  const bmax = new Vector3();
+  const local = new Vector3();
+  const half = new Vector3();
+  /** Ramène `p` dans la boîte orientée (repère local tourné autour de la verticale). */
+  function clampToBox(p: Vector3, b: TourBounds) {
+    const a = MathUtils.degToRad(b.rotationY ?? 0);
+    local.set(p.x - b.center[0], p.y - b.center[1], p.z - b.center[2]).applyAxisAngle(UP, -a);
+    half.set(b.size[0] / 2, b.size[1] / 2, b.size[2] / 2);
+    local.clamp(half.clone().negate(), half).applyAxisAngle(UP, a);
+    p.set(local.x + b.center[0], local.y + b.center[1], local.z + b.center[2]);
+  }
 
   /** Point du parcours de la boucle à la distance courante. */
   function loopPoint(p: Phase, out: Vector3) {
@@ -233,7 +241,7 @@ export function createTour(opts: TourOptions) {
         // L'utilisateur a la main : orbite autour du focus, limitée à la boîte de l'œuvre.
         userOrbit.update(dt);
         if (w?.bounds) {
-          camera.position.clamp(bmin.set(...w.bounds.min), bmax.set(...w.bounds.max));
+          clampToBox(camera.position, w.bounds);
           camera.lookAt(userOrbit.target);
         }
         if (!dragging && performance.now() - lastInteract > cfg.resumeDelayMs) {
