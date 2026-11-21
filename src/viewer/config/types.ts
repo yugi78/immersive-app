@@ -1,6 +1,13 @@
 import raw from './scene.json';
 
-export type AssetRole = 'context' | 'clay' | 'clay-cut' | 'scan';
+/**
+ * - context  : ville, sans découpe
+ * - clay     : maquette sans découpe (sol)
+ * - clay-cut : maquette découpée, faces arrière en couleur de coupe
+ * - cut-fill : tranche de coupe (recouvre le pied des murs coupés), unie dans la couleur de coupe
+ * - scan     : relevé photogrammétrique
+ */
+export type AssetRole = 'context' | 'clay' | 'clay-cut' | 'cut-fill' | 'scan';
 
 export interface AssetItem {
   id: string;

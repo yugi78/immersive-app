@@ -1,4 +1,4 @@
-import { NeutralToneMapping, Color, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
+import { NoToneMapping, Scene, SRGBColorSpace, WebGLRenderer } from 'three';
 import type { SceneConfig } from '../config/types';
 
 export const isMobile = () =>
@@ -9,12 +9,11 @@ export function createRenderer(container: HTMLElement, cfg: SceneConfig['rendere
   const maxDpr = isMobile() ? cfg.maxPixelRatioMobile : cfg.maxPixelRatioDesktop;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxDpr));
   renderer.outputColorSpace = SRGBColorSpace;
-  renderer.toneMapping = NeutralToneMapping;
-  renderer.toneMappingExposure = cfg.exposure;
+  renderer.toneMapping = NoToneMapping;
   renderer.setSize(container.clientWidth, container.clientHeight);
   container.appendChild(renderer.domElement);
 
   const scene = new Scene();
-  scene.background = new Color(cfg.background);
+  // Le fond est fixé par le viewer, synchronisé avec la couleur de la brume.
   return { renderer, scene };
 }

@@ -11,8 +11,8 @@ export function createCamera(cfg: SceneConfig['camera'], ref: SceneReference, as
   camera.position
     .set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az))
     .multiplyScalar(distance)
-    .add(ref.center);
-  camera.lookAt(ref.center);
+    .add(ref.focus);
+  camera.lookAt(ref.focus);
   return camera;
 }
 
@@ -28,12 +28,14 @@ export function createOrbit(
   ref: SceneReference,
 ) {
   const controls = new OrbitControls(camera, dom);
-  controls.target.copy(ref.center);
+  controls.target.copy(ref.focus);
   controls.enableDamping = true;
   controls.dampingFactor = cfg.dampingFactor;
   controls.minDistance = cfg.minDistance;
   controls.maxDistance = cfg.maxDistance;
-  controls.autoRotate = true;
+  // Désactivés jusqu'à la fin de l'intro (voir start()).
+  controls.enabled = false;
+  controls.autoRotate = false;
   controls.autoRotateSpeed = cfg.autoRotateSpeed;
   controls.screenSpacePanning = false;
 
@@ -65,5 +67,12 @@ export function createOrbit(
     controls.dispose();
   }
 
-  return { controls, update, dispose };
+  /** Donne la main à l'utilisateur, avec autoRotate lent. */
+  function start() {
+    controls.enabled = true;
+    controls.autoRotate = true;
+    controls.update();
+  }
+
+  return { controls, update, start, dispose };
 }

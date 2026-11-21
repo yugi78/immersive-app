@@ -1,0 +1,6 @@
+numpy>=2.0
+scipy>=1.14
+pillow>=10.4
+pygltflib>=1.16
+rectpack>=0.2.2
+trimesh>=4.4

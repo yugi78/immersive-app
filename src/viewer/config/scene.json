@@ -1,31 +1,68 @@
 {
   "assets": {
-    "reference": { "id": "pantheon", "url": "/models/cull_pantheon.glb" },
+    "reference": {
+      "id": "pantheon",
+      "url": "/models/cull_pantheon.glb"
+    },
     "items": [
-      { "id": "paris", "url": "/models/paris.glb", "role": "context" },
-      { "id": "pantheon", "url": "/models/cull_pantheon.glb", "role": "clay-cut" },
-      { "id": "sol", "url": "/models/sol_pantheon.glb", "role": "clay" },
-      { "id": "scan", "url": "/models/scan.glb", "role": "scan", "optional": true }
+      {
+        "id": "paris",
+        "url": "/models/paris.glb",
+        "role": "context"
+      },
+      {
+        "id": "pantheon",
+        "url": "/models/cull_pantheon.glb",
+        "role": "clay-cut"
+      },
+      {
+        "id": "sol",
+        "url": "/models/sol_pantheon.glb",
+        "role": "clay"
+      },
+      {
+        "id": "tranche",
+        "url": "/models/tranche.glb",
+        "role": "cut-fill"
+      }
     ],
     "decoders": {
       "basisTranscoderPath": "/libs/basis/"
     }
   },
+  "scan": {
+    "manifest": "/models/scan_lod/manifest.json",
+    "template": "/models/scan.glb",
+    "maxLevel": 2048,
+    "budgetMB": {
+      "mobile": 160,
+      "desktop": 320
+    },
+    "lodBias": 1,
+    "downgradeDelayMs": 1000
+  },
   "renderer": {
     "maxPixelRatioDesktop": 2,
-    "maxPixelRatioMobile": 2,
-    "background": "#dfe4ea",
-    "exposure": 1.7
+    "maxPixelRatioMobile": 2
   },
-  "lighting": {
-    "hemisphere": { "sky": "#ffffff", "ground": "#b9b4aa", "intensity": 2.4 },
-    "sun": { "color": "#fff6e8", "intensity": 1.6, "azimuthDeg": 140, "elevationDeg": 50 }
+  "focus": {
+    "heightOffset": -17.5
   },
   "camera": {
     "fov": 40,
     "near": 0.5,
     "far": 6000,
-    "start": { "distance": 90, "azimuthDeg": 200, "elevationDeg": 25 }
+    "start": {
+      "distance": 190,
+      "azimuthDeg": 200,
+      "elevationDeg": 25
+    }
+  },
+  "intro": {
+    "durationMs": 4500,
+    "startHeightAboveGround": 200,
+    "startDistance": 350,
+    "sweepDeg": 70
   },
   "orbit": {
     "minDistance": 15,
@@ -34,5 +71,53 @@
     "autoRotateSpeed": 0.4,
     "autoRotateResumeDelayMs": 4000,
     "groundMargin": 1.5
+  },
+  "cutaway": {
+    "radius": 80,
+    "feather": 4,
+    "fadeStartDistance": 400,
+    "fadeEndDistance": 210,
+    "cutColor": "#000000"
+  },
+  "mist": {
+    "startDistance": 160,
+    "endDistance": 770,
+    "color": "#d7d7e5"
+  },
+  "clay": {
+    "hue": 0,
+    "saturation": 1,
+    "contrast": 1.29,
+    "brightness": 0,
+    "gamma": 1.67
+  },
+  "dof": {
+    "enabled": true,
+    "autoFocus": true,
+    "focusDistance": 85,
+    "focusRange": 98,
+    "aperture": 2,
+    "maxBlur": 11.5
+  },
+  "scanTransform": {
+    "source": "/models/scan.glb → nœud « matrice_de_coordonee »",
+    "matrix": [
+      1.39382372288,
+      0,
+      1.40881949542,
+      0,
+      0,
+      1.98179638386,
+      0,
+      0,
+      -1.40881949542,
+      0,
+      1.39382372288,
+      0,
+      16.0762176514,
+      68.5246124268,
+      117.862426758,
+      1
+    ]
   }
 }

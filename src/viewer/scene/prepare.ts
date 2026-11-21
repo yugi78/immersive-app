@@ -1,13 +1,45 @@
-import { Group, Mesh, MeshStandardMaterial, type BufferGeometry, type Material, type Object3D } from 'three';
+import {
+  DoubleSide,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  type BufferGeometry,
+  type Material,
+  type Object3D,
+} from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { AssetRole } from '../config/types';
 
-/** Rendu clay : mat, non métallique, la texture bakée (AO) porte le modelé. */
-function toClay(mat: Material) {
-  if (mat instanceof MeshStandardMaterial) {
-    mat.roughness = 1;
-    mat.metalness = 0;
-  }
+/**
+ * Les textures sont bakées pour un affichage unlit (sans ombrage) : on remplace
+ * chaque matériau par un MeshBasicMaterial qui affiche la texture telle quelle.
+ */
+function toUnlit(mat: Material, role: AssetRole): MeshBasicMaterial {
+  const src = mat as Material & { map?: MeshBasicMaterial['map']; color?: MeshBasicMaterial['color'] };
+  const out = new MeshBasicMaterial({
+    name: mat.name,
+    map: src.map ?? null,
+    color: src.map ? 0xffffff : (src.color ?? 0xffffff),
+    // Maquette découpée en DoubleSide : ses faces arrière (épaisseur des murs coupés)
+    // sont rendues en couleur de coupe par le shader de découpe.
+    side: role === 'clay-cut' ? DoubleSide : mat.side,
+    transparent: mat.transparent,
+    alphaTest: mat.alphaTest,
+  });
+  mat.dispose();
+  return out;
+}
+
+function convertMaterials(root: Object3D, role: AssetRole) {
+  const cache = new Map<Material, MeshBasicMaterial>();
+  const conv = (m: Material) => {
+    let c = cache.get(m);
+    if (!c) cache.set(m, (c = toUnlit(m, role)));
+    return c;
+  };
+  root.traverse((o) => {
+    if (o instanceof Mesh) o.material = Array.isArray(o.material) ? o.material.map(conv) : conv(o.material);
+  });
 }
 
 /**
@@ -21,21 +53,20 @@ function mergeByMaterial(root: Object3D): Object3D {
   const leftovers: Mesh[] = [];
 
   root.traverse((o) => {
-    if (!(o instanceof Mesh) || Array.isArray(o.material)) {
-      if (o instanceof Mesh) leftovers.push(o);
+    if (!(o instanceof Mesh)) return;
+    if (Array.isArray(o.material)) {
+      leftovers.push(o);
       return;
     }
-    const g = o.geometry.clone().applyMatrix4(o.matrixWorld);
     const list = groups.get(o.material) ?? [];
-    list.push(g);
+    list.push(o.geometry.clone().applyMatrix4(o.matrixWorld));
     groups.set(o.material, list);
   });
 
   const out = new Group();
   out.name = root.name;
   for (const [mat, geos] of groups) {
-    const indexed = geos.every((g) => g.index);
-    const homogeneous = indexed ? geos : geos.map((g) => (g.index ? g.toNonIndexed() : g));
+    const homogeneous = geos.every((g) => g.index) ? geos : geos.map((g) => (g.index ? g.toNonIndexed() : g));
     const merged = mergeGeometries(homogeneous, false);
     if (!merged) {
       console.warn(`[viewer] fusion impossible pour ${root.name}, meshes conservés`);
@@ -55,9 +86,6 @@ function mergeByMaterial(root: Object3D): Object3D {
 }
 
 export function prepareAsset(root: Object3D, role: AssetRole): Object3D {
-  if (role === 'scan') return root;
-  root.traverse((o) => {
-    if (o instanceof Mesh) (Array.isArray(o.material) ? o.material : [o.material]).forEach(toClay);
-  });
-  return role === 'clay' || role === 'clay-cut' ? mergeByMaterial(root) : root;
+  convertMaterials(root, role);
+  return role === 'clay' || role === 'clay-cut' || role === 'cut-fill' ? mergeByMaterial(root) : root;
 }

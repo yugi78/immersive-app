@@ -22,3 +22,14 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# environnement Python des scripts du scan
+.venv/
+build/
+
+# Assets source ou d'essai non chargés par le site : restent en local,
+# jamais envoyés sur GitHub ni publiés sur Pages.
+public/models/3dtile/
+public/models/3dtile_opt/
+public/models/scan_hd.glb
+public/models/scan.glb

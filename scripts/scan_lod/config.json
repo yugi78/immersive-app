@@ -1,0 +1,20 @@
+{
+  "source": "public/models/scan_hd.glb",
+  "workDir": "build/scan_lod",
+  "outDir": "public/models/scan_lod",
+  "atlasDownscale": 2,
+  "tiles": 80,
+  "balance": "footprint",
+  "tileMax": 2048,
+  "minLevel": 128,
+  "pad": 8,
+  "cell": 4,
+  "jpegQuality": 92,
+  "attributes": [
+    "POSITION",
+    "NORMAL",
+    "TEXCOORD_0",
+    "COLOR_0",
+    "COLOR_1"
+  ]
+}
