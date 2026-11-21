@@ -45,7 +45,6 @@ export interface ScanLodOptions {
   /** Délai avant de redescendre de niveau (évite le clignotement en orbite). */
   downgradeDelayMs: number;
   renderer: WebGLRenderer;
-  camera: PerspectiveCamera;
   onProgress?: (ratio: number) => void;
 }
 
@@ -235,10 +234,10 @@ export async function createScanLod(opts: ScanLodOptions) {
       });
   }
 
-  function update(now = performance.now()) {
+  /** Choisit le niveau de chaque tuile pour la caméra donnée (appelé à chaque image). */
+  function update(cam: PerspectiveCamera, now = performance.now()) {
     if (now - lastUpdate < 150) return;
     lastUpdate = now;
-    const cam = opts.camera;
     projView.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     frustum.setFromProjectionMatrix(projView);
     const viewH = opts.renderer.domElement.height; // pixels réels (pixelRatio inclus)

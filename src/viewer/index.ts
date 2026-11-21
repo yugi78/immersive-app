@@ -57,13 +57,42 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   container.style.background = cfg.mist.color;
   const progress = createProgress(container);
 
+  // Maquette et scan téléchargés EN PARALLÈLE : le scan ne dépend que de sa
+  // propre matrice (scanTransform), pas de la maquette.
+  // Progression : 75 % pour la maquette, 25 % pour les tuiles du scan.
+  let assetsRatio = 0;
+  let scanRatio = 0;
+  const report = () => progress.set(assetsRatio * 0.75 + scanRatio * 0.25);
+
+  // Scan des plafonds : tuiles à LOD de texture (256 px d'emblée, 2048 ensuite en
+  // arrière-plan), placées par scanTransform ; elles reçoivent le même cylindre
+  // de découpe et la même couleur de coupe que la maquette.
+  const scanPromise = createScanLod({
+    manifestUrl: withBase(cfg.scan.manifest),
+    basisTranscoderPath: withBase(cfg.assets.decoders.basisTranscoderPath),
+    transform: cfg.scanTransform.matrix,
+    maxLevel: cfg.scan.maxLevel,
+    budgetMB: isMobile() ? cfg.scan.budgetMB.mobile : cfg.scan.budgetMB.desktop,
+    lodBias: cfg.scan.lodBias,
+    downgradeDelayMs: cfg.scan.downgradeDelayMs,
+    renderer,
+    onProgress: (r) => {
+      scanRatio = r;
+      report();
+    },
+  });
+  // Évite une « unhandled rejection » si la maquette échoue avant qu'on attende le scan.
+  scanPromise.catch(() => {});
+
   let assets;
   try {
     // URL de scene.json écrites depuis la racine : préfixées par la base du site.
     const items = cfg.assets.items.map((item) => ({ ...item, url: withBase(item.url) }));
     assets = await loadAssets(items, renderer, withBase(cfg.assets.decoders.basisTranscoderPath), {
-      // 75 % pour la maquette, 25 % pour les tuiles du scan (chargées ensuite).
-      onProgress: (r) => progress.set(r * 0.75),
+      onProgress: (r) => {
+        assetsRatio = r;
+        report();
+      },
     });
   } catch (err) {
     console.error('[viewer] échec du chargement', err);
@@ -144,22 +173,9 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   const orbit = createOrbit(camera, renderer.domElement, cfg.orbit, reference);
   const intro = createIntro(camera, opts.skipIntro ? { ...cfg.intro, durationMs: 0 } : cfg.intro, reference, orbitStart);
 
-  // Scan des plafonds : tuiles à LOD de texture, placées par scanTransform ;
-  // elles reçoivent le même cylindre de découpe et la même couleur de coupe.
-  let scan: Awaited<ReturnType<typeof createScanLod>>;
+  let scan: Awaited<typeof scanPromise>;
   try {
-    scan = await createScanLod({
-      manifestUrl: withBase(cfg.scan.manifest),
-      basisTranscoderPath: withBase(cfg.assets.decoders.basisTranscoderPath),
-      transform: cfg.scanTransform.matrix,
-      maxLevel: cfg.scan.maxLevel,
-      budgetMB: isMobile() ? cfg.scan.budgetMB.mobile : cfg.scan.budgetMB.desktop,
-      lodBias: cfg.scan.lodBias,
-      downgradeDelayMs: cfg.scan.downgradeDelayMs,
-      renderer,
-      camera,
-      onProgress: (r) => progress.set(0.75 + r * 0.25),
-    });
+    scan = await scanPromise;
   } catch (err) {
     console.error('[viewer] échec du chargement du scan', err);
     progress.error('Impossible de charger le scan.');
@@ -218,7 +234,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     }
     cutaway.update(camera.position, orbit.controls.target);
     camera.updateMatrixWorld();
-    scan.update();
+    scan.update(camera);
     // Mise au point automatique : sur la cible d'orbite, suit le zoom.
     dof.render(scene, camera, camera.position.distanceTo(orbit.controls.target));
   }
