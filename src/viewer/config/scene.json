@@ -2,27 +2,27 @@
   "assets": {
     "reference": {
       "id": "pantheon",
-      "url": "/models/cull_pantheon.glb"
+      "url": "/models/opt/cull_pantheon.glb"
     },
     "items": [
       {
         "id": "paris",
-        "url": "/models/paris.glb",
+        "url": "/models/opt/paris.glb",
         "role": "context"
       },
       {
         "id": "pantheon",
-        "url": "/models/cull_pantheon.glb",
+        "url": "/models/opt/cull_pantheon.glb",
         "role": "clay-cut"
       },
       {
         "id": "sol",
-        "url": "/models/sol_pantheon.glb",
+        "url": "/models/opt/sol_pantheon.glb",
         "role": "clay"
       },
       {
         "id": "tranche",
-        "url": "/models/tranche.glb",
+        "url": "/models/opt/tranche.glb",
         "role": "cut-fill"
       }
     ],

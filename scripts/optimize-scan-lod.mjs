@@ -10,7 +10,7 @@
 //   manifest  : recopié, chemins des textures en .ktx2 ; bbox inchangées (repère local).
 //
 // Prérequis : KTX-Software ≥ 4.3 (`ktx`) dans le PATH, ou son dossier dans KTX_BIN.
-// Variables : ETC1S_QUALITY (qlevel 1–255, défaut 192), ETC1S_EFFORT (clevel 0–6, défaut 4),
+// Variables : LEVELS (niveaux gardés, défaut 256,2048), ETC1S_QUALITY (qlevel 1–255, défaut 192), ETC1S_EFFORT (clevel 0–6, défaut 4),
 //             JOBS (encodages parallèles, défaut : nombre de cœurs).
 //
 //   node scripts/optimize-scan-lod.mjs public/models/scan_lod public/models/scan_lod_opt
@@ -32,6 +32,8 @@ const env = process.env;
 const QUALITY = env.ETC1S_QUALITY ?? '192';
 const EFFORT = env.ETC1S_EFFORT ?? '4';
 const JOBS = Number(env.JOBS ?? availableParallelism());
+// Niveaux conservés : base affichée au chargement + pleine définition en arrière-plan.
+const LEVELS = (env.LEVELS ?? '256,2048').split(',').map(Number);
 const ktx = env.KTX_BIN ? join(env.KTX_BIN, 'ktx') : 'ktx';
 try {
   execFileSync(ktx, ['--version']);
@@ -83,7 +85,10 @@ const texIn = {};
 const texOut = {};
 const tasks = [];
 const out = structuredClone(manifest);
+out.levels = manifest.levels.filter((l) => LEVELS.includes(l));
+if (out.levels.length === 0) throw new Error(`LEVELS=${LEVELS} : aucun niveau du manifest source`);
 for (const t of out.tiles) {
+  for (const level of Object.keys(t.textures)) if (!out.levels.includes(Number(level))) delete t.textures[level];
   for (const [level, file] of Object.entries(t.textures)) {
     const ktx2 = file.replace(/\.(jpe?g|png)$/i, '.ktx2');
     t.textures[level] = ktx2;

@@ -203,7 +203,8 @@ export async function createScanLod(opts: ScanLodOptions) {
   const frustum = new Frustum();
   const projView = new Matrix4();
   const budget = opts.budgetMB * 1024 * 1024;
-  const MAX_CONCURRENT = 3;
+  // Téléchargements de textures HD simultanés (en arrière-plan, après l’affichage).
+  const MAX_CONCURRENT = 6;
   let inFlight = 0;
   let lastUpdate = 0;
 
@@ -243,19 +244,25 @@ export async function createScanLod(opts: ScanLodOptions) {
     const viewH = opts.renderer.domElement.height; // pixels réels (pixelRatio inclus)
     const k = viewH / (2 * Math.tan((cam.fov * Math.PI) / 360));
 
-    // 1. Taille à l'écran (px) et niveau souhaité de chaque tuile.
+    // 1. Taille à l'écran (px) de chaque tuile, qu'elle soit dans le champ ou non :
+    //    une tuile proche hors champ garde sa définition (pas de rechargement en
+    //    orbite) ; elle passe seulement après les tuiles visibles pour le budget.
+    const priority = new Map<TileState, number>();
     for (const t of tiles) {
-      const visible = frustum.intersectsSphere(t.sphere);
       const d = Math.max(cam.position.distanceTo(t.sphere.center) - t.sphere.radius, 0.01);
-      t.screenPx = visible ? ((2 * t.sphere.radius) / d) * k : 0;
+      t.screenPx = ((2 * t.sphere.radius) / d) * k;
+      priority.set(t, frustum.intersectsSphere(t.sphere) ? t.screenPx : t.screenPx * 0.1);
     }
     // 2. Budget : les plus grandes à l'écran servies en premier.
-    const order = [...tiles].sort((a, b) => b.screenPx - a.screenPx);
+    const order = [...tiles].sort((a, b) => priority.get(b)! - priority.get(a)!);
     let used = 0;
     for (const t of order) {
       const wanted = t.screenPx * opts.lodBias;
-      let level = levels.find((l) => l >= wanted) ?? levels[levels.length - 1];
-      while (level > minLevel && used + textureBytes(level) > budget) level /= 2;
+      let i = levels.findIndex((l) => l >= wanted);
+      if (i < 0) i = levels.length - 1;
+      // Hors budget : niveau inférieur (pas forcément la moitié, ex. 2048 → 256).
+      while (i > 0 && used + textureBytes(levels[i]) > budget) i--;
+      const level = levels[i];
       if (level > minLevel) used += textureBytes(level);
 
       if (level > t.level) {

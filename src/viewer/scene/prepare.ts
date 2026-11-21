@@ -1,4 +1,5 @@
 import {
+  BufferAttribute,
   DoubleSide,
   Group,
   Mesh,
@@ -43,6 +44,24 @@ function convertMaterials(root: Object3D, role: AssetRole) {
 }
 
 /**
+ * Attributs en Float32 non normalisés : les GLB meshopt sont quantifiés (Int16
+ * normalisé, entrelacé), qu'on ne peut ni transformer (applyMatrix4) ni fusionner tels quels.
+ */
+function toFloat(geo: BufferGeometry): BufferGeometry {
+  const getters = ['getX', 'getY', 'getZ', 'getW'] as const;
+  for (const [name, attr] of Object.entries(geo.attributes)) {
+    if (attr instanceof BufferAttribute && attr.array instanceof Float32Array && !attr.normalized) continue;
+    const { count, itemSize } = attr;
+    const out = new Float32Array(count * itemSize);
+    for (let i = 0; i < count; i++) {
+      for (let c = 0; c < itemSize; c++) out[i * itemSize + c] = attr[getters[c]](i); // dénormalise
+    }
+    geo.setAttribute(name, new BufferAttribute(out, itemSize));
+  }
+  return geo;
+}
+
+/**
  * Fusionne tous les meshes partageant un même matériau en un seul, en appliquant
  * les transformations monde : limite les draw calls (cull_pantheon = 181 meshes).
  * Les coordonnées restent en mètres dans le repère d'origine, sans recentrage.
@@ -59,7 +78,7 @@ function mergeByMaterial(root: Object3D): Object3D {
       return;
     }
     const list = groups.get(o.material) ?? [];
-    list.push(o.geometry.clone().applyMatrix4(o.matrixWorld));
+    list.push(toFloat(o.geometry.clone()).applyMatrix4(o.matrixWorld));
     groups.set(o.material, list);
   });
 
