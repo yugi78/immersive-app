@@ -1,5 +1,8 @@
 import {
+  BoxGeometry,
   BufferGeometry,
+  EdgesGeometry,
+  LineSegments,
   Group,
   Line,
   LineBasicMaterial,
@@ -32,7 +35,8 @@ export interface EditorContext {
   pickTargets: Object3D[];
 }
 
-const COLORS = { hub: '#f59f00', focus: '#e03131', point: '#1c7ed6', active: '#ffffff', path: '#1c7ed6' };
+const COLORS = { hub: '#f59f00', focus: '#e03131', point: '#1c7ed6', bounds: '#2f9e44', active: '#ffffff', path: '#1c7ed6' };
+const AXIS_COLORS = ['#e03131', '#2f9e44', '#1c7ed6'];
 
 /**
  * Outils d'édition de la visite (back-office uniquement, chargés à la demande) :
@@ -50,7 +54,7 @@ export function createEditorTools(ctx: EditorContext) {
   const sphere = new SphereGeometry(1, 16, 12);
   const mat = (color: string, opacity = 1) =>
     new MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity });
-  const mats = { hub: mat(COLORS.hub), focus: mat(COLORS.focus), point: mat(COLORS.point), active: mat(COLORS.active) };
+  const mats = { hub: mat(COLORS.hub), focus: mat(COLORS.focus), point: mat(COLORS.point), bounds: mat(COLORS.bounds), active: mat(COLORS.active) };
   const lineMat = new LineBasicMaterial({ color: COLORS.path, depthTest: false, transparent: true, opacity: 0.8 });
   const markers = new Map<string, Mesh>();
 
@@ -65,8 +69,34 @@ export function createEditorTools(ctx: EditorContext) {
   }
 
   function keysOf(cfg: TourConfig) {
-    return ['hub', ...cfg.works.flatMap((w, i) => [`focus:${i}`, ...w.cameraPoints.map((_, j) => `cam:${i}:${j}`)])].join('|');
+    return [
+      'hub',
+      ...cfg.works.flatMap((w, i) => [`focus:${i}`, ...w.cameraPoints.map((_, j) => `cam:${i}:${j}`), ...(w.bounds ? [`bounds:${i}`] : [])]),
+    ].join('|');
   }
+  let lastCfg: TourConfig | null = null;
+
+  // Boîtes de limite (orbite sur l'œuvre) : volume semi-transparent + arêtes.
+  const boxGeo = new BoxGeometry(1, 1, 1);
+  const boxEdges = new EdgesGeometry(boxGeo);
+  const boxMat = new MeshBasicMaterial({ color: COLORS.bounds, transparent: true, opacity: 0.08, depthTest: false, depthWrite: false });
+  const boxLineMat = new LineBasicMaterial({ color: COLORS.bounds, transparent: true, opacity: 0.9, depthTest: false });
+  const boxes = new Map<number, Group>();
+  function placeBox(g: Group, b: { min: Vec3; max: Vec3 }) {
+    g.position.set((b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2);
+    g.scale.set(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]);
+  }
+  function box(i: number, b: { min: Vec3; max: Vec3 }) {
+    const g = new Group();
+    const fill = new Mesh(boxGeo, boxMat);
+    const edges = new LineSegments(boxEdges, boxLineMat);
+    fill.renderOrder = edges.renderOrder = 998;
+    g.add(fill, edges);
+    placeBox(g, b);
+    helpers.add(g);
+    boxes.set(i, g);
+  }
+  const center = (b: { min: Vec3; max: Vec3 }) => b.min.map((v, k) => (v + b.max[k]) / 2) as Vec3;
   let builtKeys = '';
   const lines: Line[] = [];
 
@@ -80,8 +110,15 @@ export function createEditorTools(ctx: EditorContext) {
    */
   function setHelpers(cfg: TourConfig, visible: boolean) {
     helpers.visible = visible;
+    lastCfg = cfg;
     const keys = keysOf(cfg);
     if (keys === builtKeys) {
+      cfg.works.forEach((w, i) => {
+        if (!w.bounds) return;
+        placeBox(boxes.get(i)!, w.bounds);
+        markers.get(`bounds:${i}`)!.position.set(...center(w.bounds));
+      });
+      placeHandles();
       markers.get('hub')!.position.set(...cfg.hub.position);
       cfg.works.forEach((w, i) => {
         markers.get(`focus:${i}`)!.position.set(...w.focus);
@@ -101,10 +138,15 @@ export function createEditorTools(ctx: EditorContext) {
       if (o instanceof Line) o.geometry.dispose();
     }
     markers.clear();
+    boxes.clear();
     marker('hub', cfg.hub.position, 'hub', 0.45);
     cfg.works.forEach((w, i) => {
       marker(`focus:${i}`, w.focus, 'focus', 0.35);
       w.cameraPoints.forEach((p, j) => marker(`cam:${i}:${j}`, p, 'point', 0.22));
+      if (w.bounds) {
+        box(i, w.bounds);
+        marker(`bounds:${i}`, center(w.bounds), 'bounds', 0.3);
+      }
       if (w.cameraPoints.length >= 2) {
         const line = new Line(pathLine(w.cameraPoints), lineMat);
         line.renderOrder = 999;
@@ -112,6 +154,7 @@ export function createEditorTools(ctx: EditorContext) {
         lines.push(line);
       }
     });
+    placeHandles();
     // Le gizmo suit le repère recréé (ou se détache si le point a disparu).
     if (gizmoKey && markers.has(gizmoKey)) {
       markers.get(gizmoKey)!.material = mats.active;
@@ -152,7 +195,8 @@ export function createEditorTools(ctx: EditorContext) {
     gizmoMove = null;
     gizmo.detach();
   }
-  const kindOf = (key: string): keyof typeof mats => (key === 'hub' ? 'hub' : key.startsWith('focus') ? 'focus' : 'point');
+  const kindOf = (key: string): keyof typeof mats =>
+    key === 'hub' ? 'hub' : key.startsWith('focus') ? 'focus' : key.startsWith('bounds') ? 'bounds' : 'point';
 
   // ---- Pointage sur le scan -------------------------------------------------
   const raycaster = new Raycaster();
@@ -175,6 +219,85 @@ export function createEditorTools(ctx: EditorContext) {
     res?.(v);
   }
   dom.addEventListener('pointerdown', onPick, { capture: true });
+
+  // ---- Poignées de la boîte : chaque face glisse le long de sa normale ---------
+  const handles = new Group();
+  handles.name = 'bounds-handles';
+  scene.add(handles);
+  const handleMats = AXIS_COLORS.map((c) => mat(c));
+  // Une poignée par face : axe (0 x, 1 y, 2 z) et côté (0 min, 1 max).
+  const faces = [0, 1, 2].flatMap((axis) => [0, 1].map((side) => ({ axis, side })));
+  const handleMeshes = faces.map(({ axis }) => {
+    const m = new Mesh(sphere, handleMats[axis]);
+    m.scale.setScalar(0.35);
+    m.renderOrder = 1001;
+    handles.add(m);
+    return m;
+  });
+  let boundsEdit: { work: number; onChange: (b: { min: Vec3; max: Vec3 }) => void } | null = null;
+  function placeHandles() {
+    const b = boundsEdit && lastCfg?.works[boundsEdit.work]?.bounds;
+    handles.visible = !!b && helpers.visible;
+    if (!b) return;
+    const c = center(b);
+    faces.forEach(({ axis, side }, k) => {
+      const p = [...c] as Vec3;
+      p[axis] = side ? b.max[axis] : b.min[axis];
+      handleMeshes[k].position.set(...p);
+    });
+  }
+  // Glisser une poignée : point de l'axe de la face le plus proche du rayon souris.
+  let faceDrag: { k: number; origin: Vector3; dir: Vector3; start: number; bounds: { min: Vec3; max: Vec3 } } | null = null;
+  const ndcOf = (e: PointerEvent) => {
+    const r = dom.getBoundingClientRect();
+    return new Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  };
+  function axisParam(e: PointerEvent, origin: Vector3, dir: Vector3) {
+    raycaster.setFromCamera(ndcOf(e), camera);
+    const o = raycaster.ray.origin;
+    const d = raycaster.ray.direction;
+    const w0 = origin.clone().sub(o);
+    const b = dir.dot(d);
+    const denom = 1 - b * b;
+    if (denom < 1e-6) return 0;
+    return (b * d.dot(w0) - dir.dot(w0)) / denom;
+  }
+  const onHandleDown = (e: PointerEvent) => {
+    if (!boundsEdit || !handles.visible || e.button !== 0 || pickResolve) return;
+    raycaster.setFromCamera(ndcOf(e), camera);
+    const hit = raycaster.intersectObjects(handleMeshes, false)[0];
+    if (!hit) return;
+    e.stopImmediatePropagation();
+    const k = handleMeshes.indexOf(hit.object as (typeof handleMeshes)[number]);
+    const dir = new Vector3().setComponent(faces[k].axis, 1);
+    const origin = handleMeshes[k].position.clone();
+    const b = lastCfg!.works[boundsEdit.work].bounds!;
+    faceDrag = { k, origin, dir, start: axisParam(e, origin, dir), bounds: { min: [...b.min] as Vec3, max: [...b.max] as Vec3 } };
+    controls.enabled = false;
+    try {
+      dom.setPointerCapture(e.pointerId);
+    } catch {
+      // Pointeur déjà relâché : le glisser s'arrêtera au prochain pointerup.
+    }
+  };
+  const onHandleMove = (e: PointerEvent) => {
+    if (!faceDrag || !boundsEdit) return;
+    const { axis, side } = faces[faceDrag.k];
+    const delta = axisParam(e, faceDrag.origin, faceDrag.dir) - faceDrag.start;
+    const next = { min: [...faceDrag.bounds.min] as Vec3, max: [...faceDrag.bounds.max] as Vec3 };
+    const round = (v: number) => Math.round(v * 100) / 100;
+    if (side) next.max[axis] = round(Math.max(faceDrag.bounds.max[axis] + delta, next.min[axis] + 0.2));
+    else next.min[axis] = round(Math.min(faceDrag.bounds.min[axis] + delta, next.max[axis] - 0.2));
+    boundsEdit.onChange(next);
+  };
+  const onHandleUp = () => {
+    if (!faceDrag) return;
+    faceDrag = null;
+    controls.enabled = !fly.enabled && !tour.active;
+  };
+  dom.addEventListener('pointerdown', onHandleDown, { capture: true });
+  dom.addEventListener('pointermove', onHandleMove);
+  dom.addEventListener('pointerup', onHandleUp);
 
   // ---- Vol libre --------------------------------------------------------------
   const fly = createFly(camera, dom);
@@ -236,6 +359,22 @@ export function createEditorTools(ctx: EditorContext) {
     setFly,
     attachGizmo,
     detachGizmo,
+    /** Affiche les poignées de la boîte de l'œuvre `work` ; null : masque. */
+    editBounds(work: number | null, onChange?: (b: { min: Vec3; max: Vec3 }) => void) {
+      boundsEdit = work === null || !onChange ? null : { work, onChange };
+      placeHandles();
+    },
+    /** Boîte englobant le focus et les points caméra de l'œuvre, avec une marge (m). */
+    suggestBounds(work: number, margin = 2): { min: Vec3; max: Vec3 } | null {
+      const w = lastCfg?.works[work];
+      if (!w) return null;
+      const pts = [w.focus, ...w.cameraPoints];
+      const r = (v: number) => Math.round(v * 100) / 100;
+      return {
+        min: [0, 1, 2].map((k) => r(Math.min(...pts.map((p) => p[k])) - margin)) as Vec3,
+        max: [0, 1, 2].map((k) => r(Math.max(...pts.map((p) => p[k])) + margin)) as Vec3,
+      };
+    },
     get gizmoKey() {
       return gizmoKey;
     },
@@ -264,6 +403,10 @@ export function createEditorTools(ctx: EditorContext) {
       offTour();
       finishPick(null);
       dom.removeEventListener('pointerdown', onPick, { capture: true });
+      dom.removeEventListener('pointerdown', onHandleDown, { capture: true });
+      dom.removeEventListener('pointermove', onHandleMove);
+      dom.removeEventListener('pointerup', onHandleUp);
+      scene.remove(handles);
       gizmo.detach();
       gizmo.dispose();
       fly.dispose();

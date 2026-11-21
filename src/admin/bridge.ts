@@ -7,6 +7,7 @@ import type { Viewer } from '../viewer';
  */
 let viewer: Viewer | null = null;
 let gizmoKey: string | null = null;
+let boundsWork: number | null = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
 
@@ -28,6 +29,15 @@ export const bridge = {
     gizmoKey = k;
     notify();
   },
+  /** Œuvre dont la boîte est en édition (poignées affichées). Puck peut rendre un
+   *  même champ deux fois : l'état est donc partagé ici, pas dans le composant. */
+  get boundsWork() {
+    return boundsWork;
+  },
+  setBoundsWork(w: number | null) {
+    boundsWork = w;
+    notify();
+  },
   subscribe(l: () => void) {
     listeners.add(l);
     return () => {
@@ -38,5 +48,7 @@ export const bridge = {
 
 /** Viewer courant (null tant que l'aperçu charge). */
 export const useViewer = () => useSyncExternalStore(bridge.subscribe, () => viewer);
+/** Œuvre dont la boîte est en édition. */
+export const useBoundsWork = () => useSyncExternalStore(bridge.subscribe, () => boundsWork);
 /** Repère actuellement attaché au gizmo. */
 export const useGizmoKey = () => useSyncExternalStore(bridge.subscribe, () => gizmoKey);

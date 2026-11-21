@@ -1,7 +1,7 @@
 import { FieldLabel, type CustomField } from '@puckeditor/core';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { Vec3 } from '../viewer/config/types';
-import { bridge, useGizmoKey, useViewer } from './bridge';
+import { bridge, useBoundsWork, useGizmoKey, useViewer } from './bridge';
 
 /**
  * Champs Puck de la visite guidée : point XYZ (pointage, capture, gizmo),
@@ -224,6 +224,97 @@ export const cameraPointsField: CustomField<Vec3[]> = {
   type: 'custom',
   label: 'Points caméra',
   render: (p) => <CameraPointsUI value={p.value} onChange={p.onChange} name={p.name} readOnly={p.readOnly} />,
+};
+
+type Bounds = { min: Vec3; max: Vec3 };
+
+function BoundsUI({ value, onChange, name, readOnly }: { value: Bounds | null; onChange: (v: Bounds | null) => void; name: string; readOnly?: boolean }) {
+  const viewer = useViewer();
+  const ed = viewer?.editor;
+  const work = workIndex(name);
+  const editing = useBoundsWork() === work;
+  const latest = useRef(onChange);
+  latest.current = onChange;
+  const centerKey = `bounds:${work}`;
+  const setEditing = (on: boolean) => {
+    if (!ed) return;
+    bridge.setBoundsWork(on ? work : null);
+    if (on) ed.editBounds(work, (b) => latest.current(b));
+    else ed.editBounds(null);
+  };
+  // Poignées masquées si l'œuvre est repliée (champ démonté).
+  useEffect(
+    () => () => {
+      if (bridge.boundsWork === work) {
+        bridge.viewer?.editor?.editBounds(null);
+        bridge.setBoundsWork(null);
+      }
+    },
+    [work],
+  );
+
+  if (!value) {
+    return (
+      <FieldLabel label="Zone permise à la caméra (prise en main)" readOnly={readOnly}>
+        <div style={{ display: 'grid', gap: 6, font: '12px system-ui', color: '#59606b' }}>
+          Aucune limite : l'orbite autour du focus peut traverser les murs.
+          <Button
+            disabled={!ed}
+            onClick={() => {
+              const b = ed!.suggestBounds(work);
+              if (b) {
+                onChange(b);
+                setEditing(true);
+              }
+            }}
+          >
+            Définir la boîte (autour des points)
+          </Button>
+        </div>
+      </FieldLabel>
+    );
+  }
+  // Déplacement de toute la boîte par son centre (gizmo) : la taille est conservée.
+  const moveCenter = (c: Vec3) => {
+    const half = value.max.map((v, k) => (v - value.min[k]) / 2);
+    const r = (v: number) => Math.round(v * 100) / 100;
+    onChange({ min: c.map((v, k) => r(v - half[k])) as Vec3, max: c.map((v, k) => r(v + half[k])) as Vec3 });
+  };
+  return (
+    <FieldLabel label="Zone permise à la caméra (prise en main)" readOnly={readOnly}>
+      <div style={{ display: 'grid', gap: 6 }}>
+        <span style={{ font: '11px system-ui', color: '#59606b' }}>Min</span>
+        <XYZ value={value.min} onChange={(min) => onChange({ ...value, min })} readOnly={readOnly} />
+        <span style={{ font: '11px system-ui', color: '#59606b' }}>Max</span>
+        <XYZ value={value.max} onChange={(max) => onChange({ ...value, max })} readOnly={readOnly} />
+        <div style={row}>
+          <Button on={editing} disabled={!ed} title="Poignées sur les faces : glisser pour déplacer chaque face" onClick={() => setEditing(!editing)}>
+            Poignées
+          </Button>
+          <GizmoButton markerKey={centerKey} onMove={moveCenter} />
+          <Button disabled={!ed} title="Recalculer autour du focus et des points caméra" onClick={() => onChange(ed!.suggestBounds(work))}>
+            Ajuster aux points
+          </Button>
+          <Button
+            title="Supprimer la limite"
+            onClick={() => {
+              setEditing(false);
+              onChange(null);
+            }}
+          >
+            ✕
+          </Button>
+        </div>
+      </div>
+    </FieldLabel>
+  );
+}
+
+/** Boîte limitant la caméra quand l'utilisateur prend la main sur l'œuvre. */
+export const boundsField: CustomField<Bounds | null> = {
+  type: 'custom',
+  label: 'Zone permise à la caméra',
+  render: (p) => <BoundsUI value={p.value} onChange={p.onChange} name={p.name} readOnly={p.readOnly} />,
 };
 
 function PreviewUI({ name }: { name: string }) {

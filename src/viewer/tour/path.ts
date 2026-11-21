@@ -12,11 +12,13 @@ export class Path {
   private curve: CatmullRomCurve3 | null;
   private single: Vector3;
 
-  constructor(points: Vector3[]) {
+  /** `closed` : boucle fermée (dernier point → premier, sans arrêt). */
+  constructor(points: Vector3[], closed = false) {
     // Points confondus retirés : ils donneraient une tangente nulle.
     const pts = points.filter((p, i) => i === 0 || p.distanceToSquared(points[i - 1]) > 1e-6);
+    if (closed && pts.length > 2 && pts[pts.length - 1].distanceToSquared(pts[0]) < 1e-6) pts.pop();
     this.single = pts[0].clone();
-    this.curve = pts.length >= 2 ? new CatmullRomCurve3(pts.map((p) => p.clone()), false, 'centripetal') : null;
+    this.curve = pts.length >= 2 ? new CatmullRomCurve3(pts.map((p) => p.clone()), closed, 'centripetal') : null;
     // Plus d'échantillons pour un paramétrage par longueur précis sur les longs trajets.
     if (this.curve) this.curve.arcLengthDivisions = 400;
   }

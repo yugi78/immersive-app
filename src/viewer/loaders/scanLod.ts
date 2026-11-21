@@ -264,24 +264,26 @@ export async function createScanLod(opts: ScanLodOptions) {
     }
 
     // 1. Taille à l'écran (px) de chaque tuile, qu'elle soit dans le champ ou non :
-    //    une tuile proche hors champ garde sa définition (pas de rechargement en
-    //    orbite) ; elle passe seulement après les tuiles visibles pour le budget.
-    const priority = new Map<TileState, number>();
+    //    une tuile proche hors champ garde sa définition si le budget le permet
+    //    (pas de rechargement en orbite).
+    // 2. Budget servi par paliers : d'abord les tuiles dans le champ (et celles de la
+    //    destination d'une transition), puis les autres ; à palier égal, les plus
+    //    grandes à l'écran. Sans ces paliers, à l'intérieur du Panthéon, les tuiles
+    //    qui entourent la caméra (hors champ, mais énormes à l'écran) prenaient tout
+    //    le budget et l'œuvre regardée restait en 256.
+    const tier = new Map<TileState, number>();
     for (const t of tiles) {
       const d = Math.max(cam.position.distanceTo(t.sphere.center) - t.sphere.radius, 0.01);
       t.screenPx = ((2 * t.sphere.radius) / d) * k;
-      let p = frustum.intersectsSphere(t.sphere) ? t.screenPx : t.screenPx * 0.1;
+      let level = frustum.intersectsSphere(t.sphere) ? 2 : 0;
       if (lookahead && aheadFrustum.intersectsSphere(t.sphere)) {
         const da = Math.max(lookahead.position.distanceTo(t.sphere.center) - t.sphere.radius, 0.01);
-        const aheadPx = ((2 * t.sphere.radius) / da) * k;
-        t.screenPx = Math.max(t.screenPx, aheadPx);
-        // Destination servie avant la vue courante.
-        p = Math.max(p, aheadPx * 4);
+        t.screenPx = Math.max(t.screenPx, ((2 * t.sphere.radius) / da) * k);
+        level = Math.max(level, 1);
       }
-      priority.set(t, p);
+      tier.set(t, level);
     }
-    // 2. Budget : les plus grandes à l'écran servies en premier.
-    const order = [...tiles].sort((a, b) => priority.get(b)! - priority.get(a)!);
+    const order = [...tiles].sort((a, b) => tier.get(b)! - tier.get(a)! || b.screenPx - a.screenPx);
     let used = 0;
     for (const t of order) {
       const wanted = t.screenPx * opts.lodBias;

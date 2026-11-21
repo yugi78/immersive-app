@@ -28,8 +28,13 @@ export interface TourWork {
   slug: string;
   /** Point regardé par la caméra. */
   focus: Vec3;
-  /** Parcours de la caméra sur l'œuvre, joué en aller-retour. */
+  /** Parcours de la caméra sur l'œuvre, joué en boucle (1→2→…→n→1). */
   cameraPoints: Vec3[];
+  /**
+   * Zone permise à la caméra quand l'utilisateur prend la main sur l'œuvre
+   * (orbite autour du focus) : évite de traverser les murs. Absente : pas de limite.
+   */
+  bounds?: { min: Vec3; max: Vec3 };
   /** Contenu descriptif (à venir). */
   content: Record<string, unknown>;
 }
@@ -42,12 +47,12 @@ export interface TourConfig {
     betweenMs: number;
     /** Retour à la vue orbitale. */
     exitMs: number;
-    /** Durée par segment du parcours sur une œuvre (entre deux points caméra). */
-    segmentMs: number;
   };
+  /** Vitesse de la caméra sur la boucle d'une œuvre (m/s). */
+  loopSpeed: number;
   /** Fraction du trajet d'entrée (0–1) à partir de laquelle la découpe s'éteint. */
   cutFadeStart: number;
-  /** Reprise de l'animation après une interaction (rotation manuelle). */
+  /** Reprise du parcours après une prise en main de la caméra (orbite sur l'œuvre). */
   resumeDelayMs: number;
   /** Point de passage central entre deux œuvres (évite les piliers). */
   hub: { position: Vec3 };

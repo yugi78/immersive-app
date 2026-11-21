@@ -18,6 +18,7 @@ export function createCutaway(initial: CutawayConfig) {
     uCutTarget: { value: new Vector3() },
     uCutRadius: { value: cfg.radius },
     uCutFeather: { value: cfg.feather },
+    uCutSphere: { value: cfg.cameraRadius },
     uCutStrength: { value: 0 },
     uCutColor: { value: new Color(cfg.cutColor) },
   };
@@ -34,6 +35,7 @@ export function createCutaway(initial: CutawayConfig) {
     uniform vec3 uCutTarget;
     uniform float uCutRadius;
     uniform float uCutFeather;
+    uniform float uCutSphere;
     uniform float uCutStrength;
     uniform vec3 uCutColor;
 
@@ -57,6 +59,14 @@ export function createCutaway(initial: CutawayConfig) {
       // Fondu à l'approche de la cible, pour éviter un fond de cylindre net.
       float cap = 1.0 - smoothstep(1.0 - uCutFeather / cutLen, 1.0, cutT);
       if (radial * cap * uCutStrength > cutBayer4(gl_FragCoord.xy)) discard;
+    }
+    // Sphère autour de la caméra : rien ne s'interpose de près, quel que soit l'angle
+    // (passage des murs à l'entrée et à la sortie de la visite). Même intensité que
+    // le cylindre, donc éteinte avec lui.
+    if (uCutStrength > 0.0 && uCutSphere > 0.0) {
+      float sphFeather = min(uCutFeather, uCutSphere * 0.5);
+      float sph = 1.0 - smoothstep(uCutSphere - sphFeather, uCutSphere, distance(vCutWorld, uCutCam));
+      if (sph * uCutStrength > cutBayer4(gl_FragCoord.xy)) discard;
     }`;
   const fragmentTint = /* glsl */ `
     #include <color_fragment>
@@ -118,6 +128,7 @@ ${fragmentPars}`)
     Object.assign(cfg, patch);
     uniforms.uCutRadius.value = cfg.radius;
     uniforms.uCutFeather.value = cfg.feather;
+    uniforms.uCutSphere.value = cfg.cameraRadius;
     uniforms.uCutColor.value.set(cfg.cutColor);
   }
 

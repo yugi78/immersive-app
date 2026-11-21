@@ -6,7 +6,7 @@ import { defaultConfig, type TourConfig, type Vec3 } from '../viewer/config/type
 import { newWorkId, uniqueSlugs } from '../viewer/tour/slug';
 import { bridge } from './bridge';
 import { checkbox, colorField, slider } from './fields';
-import { cameraPointsField, pointField, previewField } from './tourFields';
+import { boundsField, cameraPointsField, pointField, previewField } from './tourFields';
 
 /**
  * Back-office Puck : réglages de scène (hauteur du focus, découpe) avec aperçu
@@ -21,6 +21,7 @@ type SceneProps = {
   cutFadeStart: number;
   cutFadeEnd: number;
   cutColor: string;
+  cutCameraRadius: number;
   mistStart: number;
   mistEnd: number;
   mistColor: string;
@@ -39,7 +40,7 @@ type SceneProps = {
   tourEnterS: number;
   tourBetweenS: number;
   tourExitS: number;
-  tourSegmentS: number;
+  tourLoopSpeed: number;
   tourCutFadeStart: number;
   tourResumeS: number;
   tourHub: Vec3;
@@ -56,6 +57,7 @@ type TourWorkItem = {
   title: string;
   focus: Vec3;
   cameraPoints: Vec3[];
+  bounds?: { min: Vec3; max: Vec3 } | null;
   content?: Record<string, unknown>;
 };
 
@@ -66,6 +68,7 @@ const SCENE_KEYS = [
   'cutFadeStart',
   'cutFadeEnd',
   'cutColor',
+  'cutCameraRadius',
   'mistStart',
   'mistEnd',
   'mistColor',
@@ -83,7 +86,7 @@ const SCENE_KEYS = [
   'tourEnterS',
   'tourBetweenS',
   'tourExitS',
-  'tourSegmentS',
+  'tourLoopSpeed',
   'tourCutFadeStart',
   'tourResumeS',
   'tourHub',
@@ -130,8 +133,8 @@ function tourFromProps(p: SceneProps): TourConfig {
       enterMs: Math.round(p.tourEnterS * 1000),
       betweenMs: Math.round(p.tourBetweenS * 1000),
       exitMs: Math.round(p.tourExitS * 1000),
-      segmentMs: Math.round(p.tourSegmentS * 1000),
     },
+    loopSpeed: p.tourLoopSpeed,
     cutFadeStart: p.tourCutFadeStart,
     resumeDelayMs: Math.round(p.tourResumeS * 1000),
     hub: { position: p.tourHub },
@@ -141,6 +144,7 @@ function tourFromProps(p: SceneProps): TourConfig {
       slug: slugs[i],
       focus: w.focus ?? p.tourHub,
       cameraPoints: w.cameraPoints ?? [],
+      ...(w.bounds ? { bounds: w.bounds } : {}),
       content: w.content ?? {},
     })),
   };
@@ -160,6 +164,7 @@ function ViewerPreview(props: SceneProps) {
       feather: p.cutFeather,
       fadeStartDistance: p.cutFadeStart,
       fadeEndDistance: p.cutFadeEnd,
+      cameraRadius: p.cutCameraRadius,
       cutColor: p.cutColor,
     });
     v.setMist({ startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor });
@@ -204,6 +209,7 @@ const config: Config<{}, Record<string, unknown>> = {
       cutFadeStart: slider('Début du fondu (distance)', 20, 800, 5),
       cutFadeEnd: slider('Fin du fondu (distance)', 10, 800, 5),
       cutColor: colorField('Couleur de coupe (épaisseur des murs)'),
+      cutCameraRadius: slider('Sphère autour de la caméra (rayon, éteinte avec la découpe)', 0, 30, 0.5),
       mistStart: slider('Brume — début (distance au Panthéon)', 0, 3000, 10),
       mistEnd: slider('Brume — fin (distance au Panthéon)', 0, 3000, 10),
       mistColor: colorField('Brume — couleur'),
@@ -221,9 +227,9 @@ const config: Config<{}, Record<string, unknown>> = {
       tourEnterS: slider('Entrée (orbite → première œuvre)', 0.5, 15, 0.1, 's'),
       tourBetweenS: slider('Entre deux œuvres', 0.5, 15, 0.1, 's'),
       tourExitS: slider('Sortie (retour à l’orbite)', 0.5, 15, 0.1, 's'),
-      tourSegmentS: slider('Parcours sur l’œuvre, par segment', 1, 30, 0.5, 's'),
+      tourLoopSpeed: slider('Vitesse du parcours sur l’œuvre (boucle)', 0.05, 5, 0.05, 'm/s'),
       tourCutFadeStart: slider('Extinction de la découpe à l’entrée (fraction du trajet)', 0.3, 0.98, 0.01, null),
-      tourResumeS: slider('Reprise après une rotation manuelle', 1, 20, 0.5, 's'),
+      tourResumeS: slider('Reprise du parcours après une prise en main', 0.5, 20, 0.5, 's'),
       tourHub: pointField('Point central (passage entre deux œuvres)', { key: () => 'hub', pick: true, capture: true }),
       tourWorks: {
         type: 'array',
@@ -232,6 +238,7 @@ const config: Config<{}, Record<string, unknown>> = {
           title: { type: 'text', label: 'Titre' },
           focus: pointField('Point de focus', { key: (name) => `focus:${/(\d+)/.exec(name)?.[1]}`, pick: true, capture: true }),
           cameraPoints: cameraPointsField,
+          bounds: boundsField,
           preview: previewField,
         },
         defaultItemProps: (index: number) => ({
@@ -239,6 +246,7 @@ const config: Config<{}, Record<string, unknown>> = {
           title: `Œuvre ${index + 1}`,
           focus: [...defaultConfig.tour.hub.position] as Vec3,
           cameraPoints: [],
+          bounds: null,
           content: {},
         }),
         getItemSummary: (item: TourWorkItem, index?: number) => item.title || `Œuvre ${(index ?? 0) + 1}`,
@@ -278,6 +286,7 @@ const config: Config<{}, Record<string, unknown>> = {
           {fields.cutFeather}
           {fields.cutFadeStart}
           {fields.cutFadeEnd}
+          {fields.cutCameraRadius}
           {fields.cutColor}
         </FieldTab>
         <FieldTab label="Visite guidée">
@@ -291,7 +300,7 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.tourEnterS}
             {fields.tourBetweenS}
             {fields.tourExitS}
-            {fields.tourSegmentS}
+            {fields.tourLoopSpeed}
             {fields.tourCutFadeStart}
             {fields.tourResumeS}
           </FieldGroup>
@@ -317,6 +326,7 @@ const initialData: Data<{}, Record<string, unknown>> = {
       cutFadeStart: cutaway.fadeStartDistance,
       cutFadeEnd: cutaway.fadeEndDistance,
       cutColor: cutaway.cutColor,
+      cutCameraRadius: cutaway.cameraRadius,
       mistStart: mist.startDistance,
       mistEnd: mist.endDistance,
       mistColor: mist.color,
@@ -334,11 +344,11 @@ const initialData: Data<{}, Record<string, unknown>> = {
       tourEnterS: tour.durations.enterMs / 1000,
       tourBetweenS: tour.durations.betweenMs / 1000,
       tourExitS: tour.durations.exitMs / 1000,
-      tourSegmentS: tour.durations.segmentMs / 1000,
+      tourLoopSpeed: tour.loopSpeed,
       tourCutFadeStart: tour.cutFadeStart,
       tourResumeS: tour.resumeDelayMs / 1000,
       tourHub: tour.hub.position,
-      tourWorks: tour.works.map(({ id, title, focus, cameraPoints, content }) => ({ id, title, focus, cameraPoints, content })),
+      tourWorks: tour.works.map(({ id, title, focus, cameraPoints, bounds, content }) => ({ id, title, focus, cameraPoints, bounds: bounds ?? null, content })),
       flyEnabled: false,
       flySpeed: 3,
       showTourHelpers: true,
@@ -364,6 +374,7 @@ export default function SceneEditor() {
             feather: p.cutFeather,
             fadeStartDistance: p.cutFadeStart,
             fadeEndDistance: p.cutFadeEnd,
+            cameraRadius: p.cutCameraRadius,
             cutColor: p.cutColor,
           },
           mist: { startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor },

@@ -77,7 +77,8 @@
     "feather": 4,
     "fadeStartDistance": 400,
     "fadeEndDistance": 210,
-    "cutColor": "#000000"
+    "cutColor": "#000000",
+    "cameraRadius": 4
   },
   "mist": {
     "startDistance": 160,
@@ -124,11 +125,11 @@
     "durations": {
       "enterMs": 3500,
       "betweenMs": 3000,
-      "exitMs": 3000,
-      "segmentMs": 6000
+      "exitMs": 3000
     },
+    "loopSpeed": 0.8,
     "cutFadeStart": 0.75,
-    "resumeDelayMs": 4000,
+    "resumeDelayMs": 2000,
     "hub": {
       "position": [
         7,
@@ -139,28 +140,28 @@
     "works": [
       {
         "id": "w-exemple1",
-        "title": "Exemple nord",
-        "slug": "exemple-nord",
+        "title": "La Gloire",
+        "slug": "la-gloire",
         "focus": [
-          -22.6,
-          68,
-          119
+          9.62,
+          84.3,
+          107.41
         ],
         "cameraPoints": [
           [
-            -4,
-            66,
-            114
+            6.9,
+            78.15,
+            120.74
           ],
           [
-            -7,
-            66,
-            119
+            13.67,
+            68.16,
+            132.34
           ],
           [
-            -4,
-            66,
-            124
+            24.63,
+            73.76,
+            117.62
           ]
         ],
         "content": {}

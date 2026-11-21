@@ -8,11 +8,11 @@
 
 const NUMBER_KEYS = {
   focus: ['heightOffset'],
-  cutaway: ['radius', 'feather', 'fadeStartDistance', 'fadeEndDistance'],
+  cutaway: ['radius', 'feather', 'fadeStartDistance', 'fadeEndDistance', 'cameraRadius'],
   mist: ['startDistance', 'endDistance'],
   clay: ['hue', 'saturation', 'contrast', 'brightness', 'gamma'],
   dof: ['focusDistance', 'focusRange', 'aperture', 'maxBlur'],
-  tour: ['cutFadeStart', 'resumeDelayMs'],
+  tour: ['cutFadeStart', 'resumeDelayMs', 'loopSpeed'],
 } as const;
 
 /** Cases à cocher, par section. */
@@ -44,7 +44,7 @@ const OBJECT_KEYS: Record<string, Record<string, Check>> = {
   tour: {
     durations: (v, n) => {
       const d = (v ?? {}) as Record<string, unknown>;
-      const keys = ['enterMs', 'betweenMs', 'exitMs', 'segmentMs'];
+      const keys = ['enterMs', 'betweenMs', 'exitMs'];
       const out: Record<string, number> = {};
       for (const k of keys) {
         out[k] = num(d[k], `${n}.${k}`);
@@ -68,12 +68,20 @@ const OBJECT_KEYS: Record<string, Record<string, Check>> = {
         if (!Array.isArray(w.cameraPoints)) throw new Error(`${p}.cameraPoints doit être une liste`);
         const content = w.content ?? {};
         if (typeof content !== 'object' || Array.isArray(content)) throw new Error(`${p}.content doit être un objet`);
+        let bounds;
+        if (w.bounds != null) {
+          const min = vec3(w.bounds.min, `${p}.bounds.min`);
+          const max = vec3(w.bounds.max, `${p}.bounds.max`);
+          if (min.some((v, k) => v >= max[k])) throw new Error(`${p}.bounds : min doit être inférieur à max`);
+          bounds = { min, max };
+        }
         return {
           id,
           title: str(w.title, `${p}.title`),
           slug,
           focus: vec3(w.focus, `${p}.focus`),
           cameraPoints: w.cameraPoints.map((c: unknown, j: number) => vec3(c, `${p}.cameraPoints[${j}]`)),
+          ...(bounds ? { bounds } : {}),
           content,
         };
       });
