@@ -136,6 +136,23 @@ export function createTour(opts: TourOptions) {
     emit();
   }
 
+  /** Place directement la caméra au début du parcours de l'œuvre `i` (aperçu éditeur). */
+  function jumpTo(i: number) {
+    const list = works();
+    if (!list[i]) return;
+    index = i;
+    manualPause = false;
+    interactPause = false;
+    look.reset();
+    look.state.enabled = true;
+    startLoop(list[i]);
+    camera.position.copy(workStart(list[i]));
+    lookTarget.copy(v3(list[i].focus));
+    camera.lookAt(lookTarget);
+    camera.updateMatrixWorld();
+    emit();
+  }
+
   function stop() {
     if (!phase || phase.kind === 'exit') return;
     const h = opts.home();
@@ -244,6 +261,7 @@ export function createTour(opts: TourOptions) {
       goTo(i);
     },
     goTo,
+    jumpTo,
     next() {
       if (phase) goTo(index + 1);
     },

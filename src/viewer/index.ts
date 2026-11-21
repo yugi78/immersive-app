@@ -16,6 +16,7 @@ import { createRenderer } from './scene/renderer';
 import { createProgress } from './ui/progress';
 import { createTour, type Tour } from './tour/tour';
 import { createTourControls } from './ui/tourControls';
+import type { EditorTools } from './editor/editor';
 import './ui/viewer.css';
 
 /** Fond de repérage des fuites (mode debug). */
@@ -29,6 +30,8 @@ export interface ViewerOptions {
   skipIntro?: boolean;
   /** Hash d'URL par œuvre (#slug) : lu au chargement et mis à jour en visite. Faux dans le back-office. */
   urlHash?: boolean;
+  /** Outils d'édition de la visite (back-office) : vol libre, repères, gizmo, pointage, aperçus. */
+  editor?: boolean;
 }
 
 export type CutawaySettings = SceneConfig['cutaway'];
@@ -52,6 +55,10 @@ export interface Viewer {
   setTour(tour: TourConfig): void;
   /** Visite guidée : démarrer, naviguer, quitter. */
   tour: Pick<Tour, 'start' | 'goTo' | 'next' | 'prev' | 'stop' | 'togglePause' | 'status' | 'onChange' | 'cancel'>;
+  /** Outils d'édition (option `editor`), sinon null. */
+  editor: EditorTools | null;
+  /** Objets internes pour l'inspection (mode debug uniquement). */
+  debug?: unknown;
   dispose(): void;
 }
 
@@ -225,6 +232,17 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       orbit.controls.autoRotate = false;
     }
   });
+  // Back-office : outils d'édition, chargés à la demande (absents du site public).
+  const editorTools = opts.editor
+    ? (await import('./editor/editor')).createEditorTools({
+        scene,
+        camera,
+        renderer,
+        controls: orbit.controls,
+        tour,
+        pickTargets: [scan.root],
+      })
+    : null;
   let tourUi: ReturnType<typeof createTourControls> | null = null;
   // Commandes créées à la fin de l'intro (pas de visite pendant l'ouverture).
   function onIntroDone() {
@@ -275,11 +293,16 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
         orbit.controls.target.copy(home().target);
         orbit.start();
       }
+    } else if (editorTools?.flying) {
+      // Vol libre : caméra pilotée par editorTools.update (ci-dessous).
     } else {
       orbit.update(delta);
     }
-    // Découpe : extrémité et intensité pilotées par la visite (entrée / sortie).
+    editorTools?.update(delta);
+    // Découpe : extrémité et intensité pilotées par la visite (entrée / sortie) ;
+    // éteinte en vol libre (on circule à l'intérieur).
     if (tour.active) cutaway.update(camera.position, tour.cutTarget, tour.cutScale);
+    else if (editorTools?.flying) cutaway.update(camera.position, orbit.controls.target, 0);
     else cutaway.update(camera.position, orbit.controls.target);
     camera.updateMatrixWorld();
     // En transition, la destination est préchargée en haute définition.
@@ -292,7 +315,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   renderer.domElement.style.visibility = '';
   progress.hide();
 
-  if (debug) Object.assign(window, { __viewer: { scene, camera, renderer, controls: orbit.controls, reference, cutaway, setLeakBackground, intro, frame, scan, dof, tour } });
+  const debugHandle = { scene, camera, renderer, controls: orbit.controls, reference, cutaway, setLeakBackground, intro, frame, scan, dof, tour, editor: editorTools };
+  if (debug) Object.assign(window, { __viewer: debugHandle });
 
   return {
     reference,
@@ -322,7 +346,10 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       tourUi?.setWorks(tourCfg.works.map((w) => w.slug));
     },
     tour,
+    editor: editorTools,
+    debug: debug ? debugHandle : undefined,
     dispose() {
+      editorTools?.dispose();
       tour.dispose();
       tourUi?.dispose();
       renderer.setAnimationLoop(null);
