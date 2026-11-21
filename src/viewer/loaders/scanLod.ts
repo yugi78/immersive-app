@@ -15,6 +15,8 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 /** manifest.json produit par scripts/scan_lod/build_tiles.py */
 interface ScanManifest {
@@ -30,6 +32,8 @@ interface ScanManifest {
 
 export interface ScanLodOptions {
   manifestUrl: string;
+  /** Dossier du transcodeur Basis (textures .ktx2). */
+  basisTranscoderPath: string;
   /** Matrice monde du gabarit scan.glb (scanTransform) : place le repère local du scan. */
   transform: number[];
   /** Niveau de texture maximal autorisé (px), sur tous les appareils. */
@@ -58,8 +62,46 @@ interface TileState {
   screenPx: number;
 }
 
-/** Mémoire GPU d'une texture RGBA8 avec mipmaps. */
-const textureBytes = (size: number) => (size * size * 4 * 4) / 3;
+/**
+ * Réessaie une requête qui échoue (ex. 503 passagère de GitHub Pages juste après
+ * un déploiement, cache encore froid), avec une attente croissante.
+ */
+async function withRetry<T>(what: string, fn: () => Promise<T>, tries = 4): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i >= tries) throw err;
+      const wait = 400 * 2 ** (i - 1) + Math.random() * 200;
+      console.info(`[scan] ${what} : échec (essai ${i}/${tries}), nouvel essai dans ${Math.round(wait)} ms`);
+      await new Promise((res) => setTimeout(res, wait));
+    }
+  }
+}
+
+/** Exécute `fn` sur chaque élément avec au plus `limit` tâches simultanées. */
+async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
+/** Requêtes simultanées au chargement initial (évite les 503 des hébergeurs statiques). */
+const INITIAL_CONCURRENCY = 8;
+
+/**
+ * Mémoire GPU d'une texture avec mipmaps. RGBA8 pour le JPEG (4 o/px) ; pour le
+ * KTX2 ETC1S, transcodé en format compressé GPU (0,5 à 1 o/px), on compte 1 o/px.
+ */
+let bytesPerPixel = 4;
+const textureBytes = (size: number) => (size * size * bytesPerPixel * 4) / 3;
 
 /**
  * Scan des plafonds en tuiles avec LOD de texture.
@@ -70,7 +112,11 @@ const textureBytes = (size: number) => (size * size * 4 * 4) / 3;
  */
 export async function createScanLod(opts: ScanLodOptions) {
   const baseUrl = opts.manifestUrl.slice(0, opts.manifestUrl.lastIndexOf('/') + 1);
-  const manifest: ScanManifest = await (await fetch(opts.manifestUrl)).json();
+  const manifest: ScanManifest = await withRetry('manifest', async () => {
+    const res = await fetch(opts.manifestUrl);
+    if (!res.ok) throw new Error(`${opts.manifestUrl} : HTTP ${res.status}`);
+    return res.json();
+  });
   const levels = manifest.levels.filter((l) => l <= opts.maxLevel).sort((a, b) => a - b);
   const minLevel = levels[0];
 
@@ -82,9 +128,19 @@ export async function createScanLod(opts: ScanLodOptions) {
 
   const anisotropy = Math.min(4, opts.renderer.capabilities.getMaxAnisotropy());
   const imageLoader = new ImageBitmapLoader().setOptions({ imageOrientation: 'none', premultiplyAlpha: 'none' });
+  // Textures .ktx2 (ETC1S) : transcodées dans des workers, sans décodage sur le thread principal.
+  const isKtx2 = manifest.tiles.some((t) => Object.values(t.textures).some((f) => f.endsWith('.ktx2')));
+  const ktx2Loader = isKtx2 ? new KTX2Loader().setTranscoderPath(opts.basisTranscoderPath).detectSupport(opts.renderer) : null;
+  if (isKtx2) bytesPerPixel = 1;
 
   async function loadTexture(file: string) {
-    const bitmap = await imageLoader.loadAsync(baseUrl + file);
+    if (file.endsWith('.ktx2') && ktx2Loader) {
+      // Couleur sRGB lue dans le fichier ; flipY toujours faux pour une texture compressée.
+      const tex = await withRetry(file, () => ktx2Loader.loadAsync(baseUrl + file));
+      tex.anisotropy = anisotropy;
+      return tex as Texture;
+    }
+    const bitmap = await withRetry(file, () => imageLoader.loadAsync(baseUrl + file));
     const tex = new Texture(bitmap as unknown as HTMLImageElement);
     tex.flipY = false; // convention glTF
     tex.colorSpace = SRGBColorSpace;
@@ -97,31 +153,51 @@ export async function createScanLod(opts: ScanLodOptions) {
     (tex.image as ImageBitmap | undefined)?.close?.();
   }
 
-  const gltfLoader = new GLTFLoader();
+  // Géométrie compressée meshopt (EXT_meshopt_compression) ; sans effet sur les GLB non compressés.
+  const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   let done = 0;
-  const tiles: TileState[] = await Promise.all(
-    manifest.tiles.map(async (t) => {
+  // Une tuile qui échoue malgré les nouveaux essais est ignorée (trou local dans
+  // le scan) plutôt que de faire échouer tout le chargement.
+  const loadedTiles = await mapPool(manifest.tiles, INITIAL_CONCURRENCY, async (t): Promise<TileState | null> => {
+    try {
       const [gltf, base] = await Promise.all([
-        gltfLoader.loadAsync(baseUrl + t.geometry),
+        withRetry(t.geometry, () => gltfLoader.loadAsync(baseUrl + t.geometry)),
         loadTexture(t.textures[String(minLevel)]),
       ]);
       let geometry: BufferGeometry | undefined;
+      // Transformation du nœud dans le GLB : identité pour les tuiles brutes, et
+      // déquantification (échelle + translation) pour les tuiles quantifiées.
+      const nodeMatrix = new Matrix4();
+      gltf.scene.updateMatrixWorld(true);
       gltf.scene.traverse((o) => {
-        if (o instanceof Mesh) geometry = o.geometry;
+        if (o instanceof Mesh) {
+          geometry = o.geometry;
+          nodeMatrix.copy(o.matrixWorld);
+        }
       });
       if (!geometry) throw new Error(`tuile ${t.id} sans géométrie`);
       const mesh = new Mesh(geometry, new MeshBasicMaterial({ map: base, side: DoubleSide }));
       mesh.name = t.id;
       mesh.matrixAutoUpdate = false;
+      mesh.matrix.copy(nodeMatrix);
       root.add(mesh);
 
       const min = new Vector3(...t.bbox.min);
       const max = new Vector3(...t.bbox.max);
       const sphere = new Sphere(min.clone().add(max).multiplyScalar(0.5), min.distanceTo(max) / 2).applyMatrix4(root.matrixWorld);
-      opts.onProgress?.(++done / manifest.tiles.length);
       return { id: t.id, mesh, textures: t.textures, sphere, base, hi: null, level: minLevel, loading: null, wantLowerSince: 0, screenPx: 0 };
-    }),
-  );
+    } catch (err) {
+      console.warn(`[scan] tuile ${t.id} ignorée`, err);
+      return null;
+    } finally {
+      opts.onProgress?.(++done / manifest.tiles.length);
+    }
+  });
+  const tiles = loadedTiles.filter((t): t is TileState => t !== null);
+  if (tiles.length === 0) throw new Error('aucune tuile du scan n’a pu être chargée');
+  if (tiles.length < manifest.tiles.length) {
+    console.warn(`[scan] ${manifest.tiles.length - tiles.length} tuile(s) sur ${manifest.tiles.length} indisponibles`);
+  }
   root.updateMatrixWorld(true);
 
   const frustum = new Frustum();
@@ -221,6 +297,7 @@ export async function createScanLod(opts: ScanLodOptions) {
         t.mesh.geometry.dispose();
         t.mesh.material.dispose();
       }
+      ktx2Loader?.dispose();
       root.removeFromParent();
     },
   };

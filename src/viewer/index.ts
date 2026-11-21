@@ -150,6 +150,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   try {
     scan = await createScanLod({
       manifestUrl: withBase(cfg.scan.manifest),
+      basisTranscoderPath: withBase(cfg.assets.decoders.basisTranscoderPath),
       transform: cfg.scanTransform.matrix,
       maxLevel: cfg.scan.maxLevel,
       budgetMB: isMobile() ? cfg.scan.budgetMB.mobile : cfg.scan.budgetMB.desktop,

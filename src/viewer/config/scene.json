@@ -31,7 +31,7 @@
     }
   },
   "scan": {
-    "manifest": "/models/scan_lod/manifest.json",
+    "manifest": "/models/scan_lod_opt/manifest.json",
     "template": "/models/scan.glb",
     "maxLevel": 2048,
     "budgetMB": {
