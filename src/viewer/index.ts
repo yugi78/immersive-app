@@ -1,5 +1,5 @@
 import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer } from 'three';
-import { defaultConfig, type SceneConfig } from './config/types';
+import { defaultConfig, type AssetItem, type SceneConfig } from './config/types';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
 import { createMist } from './scene/mist';
@@ -87,7 +87,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   let assets;
   try {
     // URL de scene.json écrites depuis la racine : préfixées par la base du site.
-    const items = cfg.assets.items.map((item) => ({ ...item, url: withBase(item.url) }));
+    const items = cfg.assets.items.map((item) => ({ ...item, url: withBase(item.url) }) as AssetItem);
     assets = await loadAssets(items, renderer, withBase(cfg.assets.decoders.basisTranscoderPath), {
       onProgress: (r) => {
         assetsRatio = r;

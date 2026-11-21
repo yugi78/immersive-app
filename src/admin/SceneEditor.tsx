@@ -1,8 +1,9 @@
-import { FieldLabel, Puck, type Config, type CustomField, type Data } from '@puckeditor/core';
+import { FieldGroup, FieldTab, Puck, type Config, type Data } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import { useEffect, useRef, useState } from 'react';
 import { createViewer, type Viewer } from '../viewer';
 import { defaultConfig } from '../viewer/config/types';
+import { checkbox, colorField, slider } from './fields';
 
 /**
  * Back-office Puck : réglages de scène (hauteur du focus, découpe) avec aperçu
@@ -32,71 +33,6 @@ type SceneProps = {
   dofAperture: number;
   dofMaxBlur: number;
 };
-
-/** Champ Puck « tirette + saisie numérique ». */
-function slider(label: string, min: number, max: number, step: number, unit: string | null = 'm'): CustomField<number> {
-  return {
-    type: 'custom',
-    label,
-    render: ({ value, onChange, readOnly, id }) => (
-      <FieldLabel label={unit ? `${label} (${unit})` : label} readOnly={readOnly}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input
-            id={id}
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            disabled={readOnly}
-            onChange={(e) => onChange(Number(e.currentTarget.value))}
-            style={{ flex: 1 }}
-          />
-          <input
-            type="number"
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            disabled={readOnly}
-            onChange={(e) => {
-              const v = Number(e.currentTarget.value);
-              if (Number.isFinite(v)) onChange(v);
-            }}
-            style={{ width: 72 }}
-          />
-        </div>
-      </FieldLabel>
-    ),
-  };
-}
-
-/** Champ Puck « case à cocher ». */
-function checkbox(label: string): CustomField<boolean> {
-  return {
-    type: 'custom',
-    label,
-    render: ({ value, onChange, readOnly, id }) => (
-      <label htmlFor={id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14, fontWeight: 600 }}>
-        <input id={id} type="checkbox" checked={!!value} disabled={readOnly} onChange={(e) => onChange(e.currentTarget.checked)} />
-        {label}
-      </label>
-    ),
-  };
-}
-
-/** Champ Puck « sélecteur de couleur ». */
-function colorField(label: string): CustomField<string> {
-  return {
-    type: 'custom',
-    label,
-    render: ({ value, onChange, readOnly }) => (
-      <FieldLabel label={label} readOnly={readOnly}>
-        <input type="color" value={value} disabled={readOnly} onChange={(e) => onChange(e.currentTarget.value)} />
-      </FieldLabel>
-    ),
-  };
-}
 
 const SCENE_KEYS = [
   'focusHeightOffset',
@@ -216,6 +152,41 @@ const config: Config<{}, Record<string, unknown>> = {
       dofAperture: slider('Flou — ouverture (intensité)', 0, 10, 0.1, null),
       dofMaxBlur: slider('Flou — rayon maximal', 0, 30, 0.5, 'px'),
     },
+    // Réglages rangés par onglets (Puck FieldTab) ; les clés et le JSON sont inchangés.
+    renderFields: ({ fields }) => (
+      <>
+        <FieldTab label="Scène">
+          <FieldGroup label="Brume" defaultExpanded>
+            {fields.mistStart}
+            {fields.mistEnd}
+            {fields.mistColor}
+          </FieldGroup>
+          <FieldGroup label="Couleur des maquettes (clay)" defaultExpanded>
+            {fields.clayHue}
+            {fields.claySaturation}
+            {fields.clayContrast}
+            {fields.clayBrightness}
+            {fields.clayGamma}
+          </FieldGroup>
+          <FieldGroup label="Flou de profondeur de champ" defaultExpanded>
+            {fields.dofEnabled}
+            {fields.dofAutoFocus}
+            {fields.dofFocusDistance}
+            {fields.dofFocusRange}
+            {fields.dofAperture}
+            {fields.dofMaxBlur}
+          </FieldGroup>
+        </FieldTab>
+        <FieldTab label="Caméra orbitale">{fields.focusHeightOffset}</FieldTab>
+        <FieldTab label="Découpe">
+          {fields.cutRadius}
+          {fields.cutFeather}
+          {fields.cutFadeStart}
+          {fields.cutFadeEnd}
+          {fields.cutColor}
+        </FieldTab>
+      </>
+    ),
     render: (props: Record<string, unknown>) => <ViewerPreview {...pickSceneProps(props)} />,
   },
 };
