@@ -46,8 +46,8 @@
     "maxPixelRatioMobile": 2
   },
   "focus": {
-    "heightOffset": -17.5,
-    "offsetX": 0,
+    "heightOffset": -26.3,
+    "offsetX": 7.8,
     "offsetZ": 0
   },
   "camera": {
@@ -130,7 +130,7 @@
       "exitMs": 3000
     },
     "loopSpeed": 0.8,
-    "cutFadeStart": 0.75,
+    "cutFadeStart": 0.96,
     "resumeDelayMs": 2000,
     "hub": {
       "position": [
@@ -168,16 +168,16 @@
         ],
         "bounds": {
           "center": [
-            15.23,
-            76.7,
-            116.2
+            14.74,
+            79.46,
+            117.9
           ],
           "size": [
             20.67,
-            19.2,
+            24.71,
             21.58
           ],
-          "rotationY": 0
+          "rotationY": 25.65
         },
         "content": {}
       },
@@ -214,16 +214,57 @@
         ],
         "bounds": {
           "center": [
-            14.4,
-            77.95,
-            121.06
+            15.41,
+            78.18,
+            119.08
           ],
           "size": [
-            22.45,
-            16.08,
+            20.59,
+            24.14,
             21.19
           ],
-          "rotationY": 0
+          "rotationY": -63.16
+        },
+        "content": {}
+      },
+      {
+        "id": "w-dzhw0gg0n",
+        "title": "La Justice",
+        "slug": "la-justice",
+        "focus": [
+          3.98,
+          84,
+          124.32
+        ],
+        "cameraPoints": [
+          [
+            19.78,
+            87.66,
+            119.2
+          ],
+          [
+            18.58,
+            75.69,
+            114.04
+          ],
+          [
+            25.02,
+            61.95,
+            117.33
+          ]
+        ],
+        "bounds": {
+          "center": [
+            14.35,
+            74.81,
+            119.27
+          ],
+          "size": [
+            16.97,
+            29.71,
+            14.28
+          ],
+          "rotationY": 30.04
         },
         "content": {}
       }
