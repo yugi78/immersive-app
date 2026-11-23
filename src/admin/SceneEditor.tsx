@@ -1,6 +1,6 @@
 import { createUsePuck, FieldGroup, FieldTab, Puck, type Config, type Data } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createViewer, type Viewer } from '../viewer';
 import { defaultConfig, type ContentBlock, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
 import { newWorkId, uniqueSlugs } from '../viewer/tour/slug';
@@ -176,6 +176,13 @@ function uiFromProps(p: SceneProps): UiConfig {
     aboutHtml: p.aboutHtml ?? '',
     minimap: { rotationDesktop: Number(p.minimapRotDesktop), rotationMobile: Number(p.minimapRotMobile) },
   };
+}
+
+/** Aperçu alimenté par les données brutes de Puck (HTML des textes riches). */
+function ViewerPreviewFromData() {
+  const raw = usePuckState((s) => s.appState.data.root.props) as Record<string, unknown> | undefined;
+  const props = useMemo(() => pickSceneProps(raw ?? {}), [raw]);
+  return <ViewerPreview {...props} />;
 }
 
 /** Aperçu 3D : le viewer est créé une fois, puis piloté à chaud par les props. */
@@ -393,7 +400,9 @@ const config: Config<{}, Record<string, unknown>> = {
         </FieldTab>
       </>
     ),
-    render: (props: Record<string, unknown>) => <ViewerPreview {...pickSceneProps(props)} />,
+    // Props brutes lues dans l'état Puck : les champs texte riche y sont du HTML,
+    // alors que les props de rendu les transforment en éléments React.
+    render: () => <ViewerPreviewFromData />,
   },
 };
 
