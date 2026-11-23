@@ -57,10 +57,10 @@ export interface EditorView {
 export const TAB_ORBIT = 'Caméra orbitale';
 export const TAB_TOUR = 'Visite guidée';
 
-const COLORS = { hub: '#f59f00', focus: '#e03131', point: '#1c7ed6', bounds: '#2f9e44', orbit: '#e8590c', path: '#1c7ed6' };
+const COLORS = { hotspot: '#ffffff', hub: '#f59f00', focus: '#e03131', point: '#1c7ed6', bounds: '#2f9e44', orbit: '#e8590c', path: '#1c7ed6' };
 const AXIS_COLORS = ['#e03131', '#2f9e44', '#1c7ed6'];
 /** Taille à l'écran des repères (fraction de la hauteur de vue), constante quelle que soit la distance. */
-const SIZE = { focus: 0.045, point: 0.032, hub: 0.04, orbit: 0.04, handle: 0.026, boxCenter: 0.03 };
+const SIZE = { hotspot: 0.028, focus: 0.045, point: 0.032, hub: 0.04, orbit: 0.04, handle: 0.026, boxCenter: 0.03 };
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -79,10 +79,10 @@ function badgeMaterial(color: string, label: string, active = false) {
   g.fillStyle = color;
   g.fill();
   g.lineWidth = active ? 14 : 6;
-  g.strokeStyle = active ? '#ffffff' : 'rgba(255,255,255,0.85)';
+  g.strokeStyle = active ? '#ffd43b' : color.toLowerCase() === '#ffffff' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.85)';
   g.stroke();
   if (label) {
-    g.fillStyle = '#ffffff';
+    g.fillStyle = color.toLowerCase() === '#ffffff' ? '#111111' : '#ffffff';
     g.font = `700 ${label.length > 1 ? 58 : 70}px system-ui, sans-serif`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
@@ -151,7 +151,7 @@ export function createEditorTools(ctx: EditorContext) {
     new BufferGeometry().setFromPoints(new Path(points.map((p) => new Vector3(...p)), true).sample(120));
 
   function keysOf(cfg: TourConfig) {
-    return cfg.works.map((w) => `${w.cameraPoints.length}${w.bounds ? 'b' : ''}`).join('|');
+    return cfg.works.map((w) => `${w.cameraPoints.length}${w.bounds ? 'b' : ''}h${w.hotspots?.length ?? 0}`).join('|');
   }
   let builtKeys = '';
   let lastCfg: TourConfig | null = null;
@@ -168,6 +168,7 @@ export function createEditorTools(ctx: EditorContext) {
     cfg.works.forEach((w, i) => {
       markers.get(`focus:${i}`)!.position.set(...w.focus);
       w.cameraPoints.forEach((p, j) => markers.get(`cam:${i}:${j}`)!.position.set(...p));
+      (w.hotspots ?? []).forEach((h, j) => markers.get(`hot:${i}:${j}`)!.position.set(...h.position));
       const line = workGroups[i].getObjectByName('path') as Line | undefined;
       if (line) {
         line.geometry.dispose();
@@ -197,6 +198,8 @@ export function createEditorTools(ctx: EditorContext) {
       tourGroup.add(g);
       workGroups.push(g);
       w.cameraPoints.forEach((p, j) => sprite(`cam:${i}:${j}`, COLORS.point, String(j + 1), SIZE.point, g, p));
+      // Points d'intérêt (blancs, numérotés en noir).
+      (w.hotspots ?? []).forEach((h, j) => sprite(`hot:${i}:${j}`, COLORS.hotspot, String(j + 1), SIZE.hotspot, g, h.position));
       if (w.cameraPoints.length >= 2) {
         const line = new Line(pathGeo(w.cameraPoints), lineMat);
         line.name = 'path';
@@ -484,6 +487,28 @@ export function createEditorTools(ctx: EditorContext) {
     },
     get gizmoKey() {
       return gizmoKey;
+    },
+    /**
+     * Vignette : rendu de la vue actuelle sans repères ni gizmo, recadré en 16:10,
+     * en WebP (largeur `width`).
+     */
+    async captureThumbnail(width = 960): Promise<Blob> {
+      const hidden = [tourGroup, orbitGroup, handles, gizmo.getHelper()].map((o) => [o, o.visible] as const);
+      hidden.forEach(([o]) => (o.visible = false));
+      try {
+        renderer.render(scene, camera);
+        const src = renderer.domElement;
+        const ratio = 16 / 10;
+        const sw = Math.min(src.width, src.height * ratio);
+        const sh = sw / ratio;
+        const out = document.createElement('canvas');
+        out.width = width;
+        out.height = Math.round(width / ratio);
+        out.getContext('2d')!.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, 0, 0, out.width, out.height);
+        return await new Promise<Blob>((res, rej) => out.toBlob((b) => (b ? res(b) : rej(new Error('capture impossible'))), 'image/webp', 0.86));
+      } finally {
+        hidden.forEach(([o, v]) => (o.visible = v));
+      }
     },
     /** Position actuelle de la caméra (arrondie au cm). */
     capture: (): Vec3 => camera.position.toArray().map(r2) as Vec3,

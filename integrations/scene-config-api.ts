@@ -1,5 +1,6 @@
 import type { AstroIntegration } from 'astro';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -10,8 +11,15 @@ import { fileURLToPath } from 'node:url';
  *   POST /__admin/scene-config  { focus: { ... }, cutaway: { ... }, mist: { ... }, ... }
  *
  * Les clés acceptées sont dans scene-config-schema.ts, rechargé à chaque requête.
+ *
+ *   POST /__admin/upload?name=fichier.webp  (corps : le fichier brut)
+ *
+ * Enregistre une image (vignette, image du contenu) dans public/media/ et
+ * renvoie son URL depuis la racine du site (« /media/fichier.webp »).
  */
 const ROUTE = '/__admin/scene-config';
+const UPLOAD = '/__admin/upload';
+const UPLOAD_MAX = 15 * 1024 * 1024;
 
 export default function sceneConfigApi(): AstroIntegration {
   return {
@@ -20,6 +28,36 @@ export default function sceneConfigApi(): AstroIntegration {
       'astro:server:setup': ({ server, logger }) => {
         const file = fileURLToPath(new URL('../src/viewer/config/scene.json', import.meta.url));
         const schema = fileURLToPath(new URL('./scene-config-schema.ts', import.meta.url));
+
+        const media = fileURLToPath(new URL('../public/media/', import.meta.url));
+        server.middlewares.use(UPLOAD, async (req, res) => {
+          const send = (status: number, data: unknown) => {
+            res.statusCode = status;
+            res.setHeader('content-type', 'application/json');
+            res.end(JSON.stringify(data));
+          };
+          if (req.method !== 'POST') return send(405, { error: 'POST uniquement' });
+          try {
+            const raw = new URL(req.url ?? '', 'http://x').searchParams.get('name') ?? '';
+            // Nom de fichier sûr : lettres, chiffres, tirets ; extension d'image uniquement.
+            const m = /^([\w-]{1,80})\.(webp|jpe?g|png|avif)$/i.exec(raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-'));
+            if (!m) throw new Error('Nom de fichier invalide (webp, jpg, png ou avif)');
+            const chunks: Buffer[] = [];
+            let size = 0;
+            for await (const chunk of req) {
+              size += chunk.length;
+              if (size > UPLOAD_MAX) throw new Error('Fichier trop lourd (15 Mo max)');
+              chunks.push(chunk as Buffer);
+            }
+            const name = `${m[1]}.${m[2].toLowerCase()}`;
+            await mkdir(media, { recursive: true });
+            await writeFile(join(media, name), Buffer.concat(chunks));
+            logger.info(`image enregistrée : public/media/${name}`);
+            send(200, { url: `/media/${name}` });
+          } catch (err) {
+            send(400, { error: err instanceof Error ? err.message : String(err) });
+          }
+        });
 
         server.middlewares.use(ROUTE, async (req, res) => {
           const send = (status: number, data: unknown) => {

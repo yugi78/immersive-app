@@ -12,7 +12,7 @@ const NUMBER_KEYS = {
   mist: ['startDistance', 'endDistance'],
   clay: ['hue', 'saturation', 'contrast', 'brightness', 'gamma'],
   dof: ['focusDistance', 'focusRange', 'aperture', 'maxBlur'],
-  tour: ['cutFadeStart', 'resumeDelayMs', 'loopSpeed'],
+  tour: ['cutFadeStart', 'resumeDelayMs', 'loopSpeed', 'hotspotIntervalMs'],
 } as const;
 
 /** Cases à cocher, par section. */
@@ -68,6 +68,19 @@ const OBJECT_KEYS: Record<string, Record<string, Check>> = {
         if (!Array.isArray(w.cameraPoints)) throw new Error(`${p}.cameraPoints doit être une liste`);
         const content = w.content ?? {};
         if (typeof content !== 'object' || Array.isArray(content)) throw new Error(`${p}.content doit être un objet`);
+        const blocks = Array.isArray(content.blocks) ? content.blocks : [];
+        const cleanBlocks = blocks.map((b: Record<string, unknown>, j: number) => {
+          const q = `${p}.content.blocks[${j}]`;
+          if (b?.type === 'image') return { type: 'image', src: str(b.src ?? '', `${q}.src`), alt: str(b.alt ?? '', `${q}.alt`) };
+          if (b?.type === 'text') return { type: 'text', html: str(b.html ?? '', `${q}.html`) };
+          throw new Error(`${q}.type doit être text ou image`);
+        });
+        if (w.hotspots != null && !Array.isArray(w.hotspots)) throw new Error(`${p}.hotspots doit être une liste`);
+        const hotspots = (w.hotspots ?? []).map((h: Record<string, unknown>, j: number) => ({
+          id: str(h?.id, `${p}.hotspots[${j}].id`, /^[\w-]{1,40}$/),
+          position: vec3(h?.position, `${p}.hotspots[${j}].position`),
+          text: str(h?.text ?? '', `${p}.hotspots[${j}].text`),
+        }));
         let bounds;
         if (w.bounds != null) {
           const size = vec3(w.bounds.size, `${p}.bounds.size`);
@@ -81,14 +94,31 @@ const OBJECT_KEYS: Record<string, Record<string, Check>> = {
         return {
           id,
           title: str(w.title, `${p}.title`),
+          author: str(w.author ?? '', `${p}.author`),
+          thumbnail: str(w.thumbnail ?? '', `${p}.thumbnail`),
           slug,
           focus: vec3(w.focus, `${p}.focus`),
           cameraPoints: w.cameraPoints.map((c: unknown, j: number) => vec3(c, `${p}.cameraPoints[${j}]`)),
           ...(bounds ? { bounds } : {}),
-          content,
+          hotspots,
+          content: { ...content, blocks: cleanBlocks },
         };
       });
     },
+  },
+};
+
+// Interface publique : crédits (HTML du texte riche) et orientation de la mini-carte.
+OBJECT_KEYS.ui = {
+  aboutHtml: (v, n) => str(v, n),
+  minimap: (v, n) => {
+    const m = (v ?? {}) as Record<string, unknown>;
+    const rot = (x: unknown, k: string) => {
+      const d = num(x, `${n}.${k}`);
+      if (d % 90 !== 0) throw new Error(`${n}.${k} doit être un multiple de 90`);
+      return d;
+    };
+    return { rotationDesktop: rot(m.rotationDesktop, 'rotationDesktop'), rotationMobile: rot(m.rotationMobile, 'rotationMobile') };
   },
 };
 

@@ -2,11 +2,12 @@ import { createUsePuck, FieldGroup, FieldTab, Puck, type Config, type Data } fro
 import '@puckeditor/core/puck.css';
 import { useEffect, useRef, useState } from 'react';
 import { createViewer, type Viewer } from '../viewer';
-import { defaultConfig, type TourBounds, type TourConfig, type Vec3 } from '../viewer/config/types';
+import { defaultConfig, type ContentBlock, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
 import { newWorkId, uniqueSlugs } from '../viewer/tour/slug';
 import { bridge, useActiveWork, useViewer } from './bridge';
 import { checkbox, colorField, slider } from './fields';
 import { boundsField, cameraPointsField, focusOffsetField, pointField, previewField } from './tourFields';
+import { blocksField, hotspotsField, thumbnailField } from './workFields';
 
 const usePuckState = createUsePuck();
 
@@ -46,22 +47,30 @@ type SceneProps = {
   tourLoopSpeed: number;
   tourCutFadeStart: number;
   tourResumeS: number;
+  tourHotspotS: number;
   tourHub: Vec3;
   tourWorks: TourWorkItem[];
+  // Interface publique.
+  aboutHtml: string;
+  minimapRotDesktop: string;
+  minimapRotMobile: string;
   // Debug (non enregistré).
   flyEnabled: boolean;
   flySpeed: number;
   showTourHelpers: boolean;
 };
 
-/** Œuvre telle qu'éditée dans Puck (le slug est recalculé à la publication). */
+/**
+ * Œuvre telle qu'éditée dans Puck, rangée en sous-volets (le slug est recalculé
+ * à la publication ; le reste de `content` est conservé tel quel).
+ */
 type TourWorkItem = {
   id: string;
-  title: string;
-  focus: Vec3;
-  cameraPoints: Vec3[];
-  bounds?: TourBounds | null;
-  content?: Record<string, unknown>;
+  infos: { title: string; author: string; thumbnail: string };
+  parcours: { focus: Vec3; cameraPoints: Vec3[]; bounds: TourBounds | null };
+  hotspots: TourHotspot[];
+  blocks: ContentBlock[];
+  contentRest?: Record<string, unknown>;
 };
 
 const SCENE_KEYS = [
@@ -92,6 +101,10 @@ const SCENE_KEYS = [
   'tourLoopSpeed',
   'tourCutFadeStart',
   'tourResumeS',
+  'tourHotspotS',
+  'aboutHtml',
+  'minimapRotDesktop',
+  'minimapRotMobile',
   'tourHub',
   'tourWorks',
   'flyEnabled',
@@ -130,7 +143,7 @@ function dofPatch(p: SceneProps) {
 /** Données de la visite au format de scene.json (slugs dérivés des titres, uniques). */
 function tourFromProps(p: SceneProps): TourConfig {
   const works = p.tourWorks ?? [];
-  const slugs = uniqueSlugs(works.map((w) => w.title ?? ''));
+  const slugs = uniqueSlugs(works.map((w) => w.infos?.title ?? ''));
   return {
     durations: {
       enterMs: Math.round(p.tourEnterS * 1000),
@@ -140,16 +153,28 @@ function tourFromProps(p: SceneProps): TourConfig {
     loopSpeed: p.tourLoopSpeed,
     cutFadeStart: p.tourCutFadeStart,
     resumeDelayMs: Math.round(p.tourResumeS * 1000),
+    hotspotIntervalMs: Math.round(p.tourHotspotS * 1000),
     hub: { position: p.tourHub },
     works: works.map((w, i) => ({
       id: w.id || `w-sans-id-${i}`,
-      title: w.title ?? '',
+      title: w.infos?.title ?? '',
+      author: w.infos?.author ?? '',
+      thumbnail: w.infos?.thumbnail ?? '',
       slug: slugs[i],
-      focus: w.focus ?? p.tourHub,
-      cameraPoints: w.cameraPoints ?? [],
-      ...(w.bounds ? { bounds: w.bounds } : {}),
-      content: w.content ?? {},
+      focus: w.parcours?.focus ?? p.tourHub,
+      cameraPoints: w.parcours?.cameraPoints ?? [],
+      ...(w.parcours?.bounds ? { bounds: w.parcours.bounds } : {}),
+      hotspots: w.hotspots ?? [],
+      content: { ...(w.contentRest ?? {}), blocks: w.blocks ?? [] },
     })),
+  };
+}
+
+/** Réglages de l'interface publique au format de scene.json. */
+function uiFromProps(p: SceneProps): UiConfig {
+  return {
+    aboutHtml: p.aboutHtml ?? '',
+    minimap: { rotationDesktop: Number(p.minimapRotDesktop), rotationMobile: Number(p.minimapRotMobile) },
   };
 }
 
@@ -175,6 +200,7 @@ function ViewerPreview(props: SceneProps) {
     v.setDof(dofPatch(p));
     const tour = tourFromProps(p);
     v.setTour(tour);
+    v.setUi(uiFromProps(p));
     v.editor?.setHelpers(tour);
     v.editor?.setFly(p.flyEnabled, p.flySpeed);
   };
@@ -241,26 +267,58 @@ const config: Config<{}, Record<string, unknown>> = {
       tourLoopSpeed: slider('Vitesse de la caméra sur l’œuvre (mouvement entre les points)', 0.05, 5, 0.05, 'm/s'),
       tourCutFadeStart: slider('Extinction de la découpe à l’entrée (fraction du trajet)', 0.3, 0.98, 0.01, null),
       tourResumeS: slider('Reprise du parcours après une prise en main', 0.5, 20, 0.5, 's'),
+      tourHotspotS: slider('Points d’intérêt : durée d’affichage de chaque point', 1, 30, 0.5, 's'),
+      aboutHtml: { type: 'richtext', label: '« À propos » : crédits' },
+      minimapRotDesktop: {
+        type: 'select',
+        label: 'Mini-carte : rotation du plan (écran large)',
+        options: [0, 90, 180, 270].map((d) => ({ label: `${d}°`, value: String(d) })),
+      },
+      minimapRotMobile: {
+        type: 'select',
+        label: 'Mini-carte : rotation du plan (mobile)',
+        options: [0, 90, 180, 270].map((d) => ({ label: `${d}°`, value: String(d) })),
+      },
       tourHub: pointField('Point central (passage entre deux œuvres)', { key: () => 'hub', pick: true, capture: true }),
       tourWorks: {
         type: 'array',
         label: 'Œuvres (glisser pour réordonner)',
+        // Sous-volets repliables : chaque œuvre reste lisible même avec beaucoup de réglages.
         arrayFields: {
-          title: { type: 'text', label: 'Titre' },
-          focus: pointField('Point de focus', { key: (name) => `focus:${/(\d+)/.exec(name)?.[1]}`, pick: true, capture: true }),
-          cameraPoints: cameraPointsField,
-          bounds: boundsField,
+          infos: {
+            type: 'object',
+            label: 'Infos (titre, auteur, vignette)',
+            collapsible: true,
+            defaultExpanded: true,
+            objectFields: {
+              title: { type: 'text', label: 'Titre' },
+              author: { type: 'text', label: 'Auteur' },
+              thumbnail: thumbnailField,
+            },
+          },
+          parcours: {
+            type: 'object',
+            label: 'Parcours caméra (focus, points, zone)',
+            collapsible: true,
+            defaultExpanded: false,
+            objectFields: {
+              focus: pointField('Point de focus', { key: (name) => `focus:${/(\d+)/.exec(name)?.[1]}`, pick: true, capture: true }),
+              cameraPoints: cameraPointsField,
+              bounds: boundsField,
+            },
+          },
+          hotspots: hotspotsField,
+          blocks: blocksField,
           preview: previewField,
         },
         defaultItemProps: (index: number) => ({
           id: newWorkId(),
-          title: `Œuvre ${index + 1}`,
-          focus: [...defaultConfig.tour.hub.position] as Vec3,
-          cameraPoints: [],
-          bounds: null,
-          content: {},
+          infos: { title: `Œuvre ${index + 1}`, author: '', thumbnail: '' },
+          parcours: { focus: [...defaultConfig.tour.hub.position] as Vec3, cameraPoints: [], bounds: null },
+          hotspots: [],
+          blocks: [],
         }),
-        getItemSummary: (item: TourWorkItem, index?: number) => item.title || `Œuvre ${(index ?? 0) + 1}`,
+        getItemSummary: (item: TourWorkItem, index?: number) => item.infos?.title || `Œuvre ${(index ?? 0) + 1}`,
       },
       flyEnabled: checkbox('Vol libre (ZQSD + clic droit, A/E : bas/haut, Maj : vite)'),
       flySpeed: slider('Vitesse du vol libre (molette)', 0.2, 30, 0.1, 'm/s'),
@@ -307,6 +365,7 @@ const config: Config<{}, Record<string, unknown>> = {
           <FieldGroup label="Mouvement sur l’œuvre" defaultExpanded>
             {fields.tourLoopSpeed}
             {fields.tourResumeS}
+            {fields.tourHotspotS}
           </FieldGroup>
           <FieldGroup label="Point central" defaultExpanded>
             {fields.tourHub}
@@ -316,6 +375,15 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.tourBetweenS}
             {fields.tourExitS}
             {fields.tourCutFadeStart}
+          </FieldGroup>
+        </FieldTab>
+        <FieldTab label="Interface">
+          <FieldGroup label="À propos" defaultExpanded>
+            {fields.aboutHtml}
+          </FieldGroup>
+          <FieldGroup label="Mini-carte" defaultExpanded>
+            {fields.minimapRotDesktop}
+            {fields.minimapRotMobile}
           </FieldGroup>
         </FieldTab>
         <FieldTab label="Debug">
@@ -329,7 +397,7 @@ const config: Config<{}, Record<string, unknown>> = {
   },
 };
 
-const { focus, cutaway, mist, clay, dof, tour } = defaultConfig;
+const { focus, cutaway, mist, clay, dof, tour, ui } = defaultConfig;
 const initialData: Data<{}, Record<string, unknown>> = {
   root: {
     props: {
@@ -360,8 +428,22 @@ const initialData: Data<{}, Record<string, unknown>> = {
       tourLoopSpeed: tour.loopSpeed,
       tourCutFadeStart: tour.cutFadeStart,
       tourResumeS: tour.resumeDelayMs / 1000,
+      tourHotspotS: (tour.hotspotIntervalMs ?? 6000) / 1000,
       tourHub: tour.hub.position,
-      tourWorks: tour.works.map(({ id, title, focus, cameraPoints, bounds, content }) => ({ id, title, focus, cameraPoints, bounds: bounds ?? null, content })),
+      tourWorks: tour.works.map((w): TourWorkItem => {
+        const { blocks = [], ...contentRest } = w.content ?? { blocks: [] };
+        return {
+          id: w.id,
+          infos: { title: w.title, author: w.author ?? '', thumbnail: w.thumbnail ?? '' },
+          parcours: { focus: w.focus, cameraPoints: w.cameraPoints, bounds: w.bounds ?? null },
+          hotspots: w.hotspots ?? [],
+          blocks,
+          contentRest,
+        };
+      }),
+      aboutHtml: ui.aboutHtml,
+      minimapRotDesktop: String(ui.minimap.rotationDesktop),
+      minimapRotMobile: String(ui.minimap.rotationMobile),
       flyEnabled: false,
       flySpeed: 3,
       showTourHelpers: true,
@@ -394,6 +476,7 @@ export default function SceneEditor() {
           clay: clayPatch(p),
           dof: dofPatch(p),
           tour: tourFromProps(p),
+          ui: uiFromProps(p),
         }),
       });
       const json = await res.json().catch(() => ({}));

@@ -130,6 +130,7 @@
       "exitMs": 3000
     },
     "loopSpeed": 0.8,
+    "hotspotIntervalMs": 6000,
     "cutFadeStart": 0.96,
     "resumeDelayMs": 2000,
     "hub": {
@@ -143,6 +144,8 @@
       {
         "id": "w-exemple1",
         "title": "La Gloire",
+        "author": "François Gérard",
+        "thumbnail": "",
         "slug": "la-gloire",
         "focus": [
           9.62,
@@ -179,11 +182,16 @@
           ],
           "rotationY": 25.65
         },
-        "content": {}
+        "hotspots": [],
+        "content": {
+          "blocks": []
+        }
       },
       {
         "id": "w-exemple2",
         "title": "La Patrie",
+        "author": "François Gérard",
+        "thumbnail": "",
         "slug": "la-patrie",
         "focus": [
           20.91,
@@ -225,11 +233,16 @@
           ],
           "rotationY": -63.16
         },
-        "content": {}
+        "hotspots": [],
+        "content": {
+          "blocks": []
+        }
       },
       {
         "id": "w-dzhw0gg0n",
         "title": "La Justice",
+        "author": "François Gérard",
+        "thumbnail": "",
         "slug": "la-justice",
         "focus": [
           3.98,
@@ -266,8 +279,18 @@
           ],
           "rotationY": 30.04
         },
-        "content": {}
+        "hotspots": [],
+        "content": {
+          "blocks": []
+        }
       }
     ]
+  },
+  "ui": {
+    "aboutHtml": "<p>Maquette immersive du Panthéon.</p><p>Crédits à compléter.</p>",
+    "minimap": {
+      "rotationDesktop": 90,
+      "rotationMobile": 0
+    }
   }
 }

@@ -1,0 +1,659 @@
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { SplitText } from 'gsap/SplitText';
+import { Vector3, type PerspectiveCamera } from 'three';
+import type { TourWork, UiConfig } from '../config/types';
+import type { Tour, TourStatus } from '../tour/tour';
+import { withBase } from '../url';
+import { ICONS } from './icons';
+import type { MinimapImage } from './minimap';
+import './tourUi.css';
+
+gsap.registerPlugin(ScrollTrigger, SplitText);
+
+export interface TourUiOptions {
+  container: HTMLElement;
+  tour: Tour;
+  camera: PerspectiveCamera;
+  works: () => TourWork[];
+  /** Durée d'affichage d'un point d'intérêt (ms). */
+  hotspotIntervalMs: () => number;
+  ui: () => UiConfig;
+  minimap: MinimapImage | null;
+  /** Hash d'URL par œuvre (#slug). */
+  hash: boolean;
+}
+
+type Screen = 'exterior' | 'auto' | 'info';
+
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const D = (s: number) => (REDUCED ? 0 : s);
+const MOBILE = window.matchMedia('(max-width: 719px)');
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+let fontLoaded = false;
+/** Police Mona Sans (variable : graisse, largeur, italique), chemin selon la base du site. */
+function loadFont() {
+  if (fontLoaded) return;
+  fontLoaded = true;
+  const style = document.createElement('style');
+  style.textContent = `@font-face{font-family:'Mona Sans';src:url('${withBase('/fonts/mona-sans/mona-sans-vf.woff2')}') format('woff2');font-weight:200 900;font-stretch:75% 125%;font-style:oblique 0deg 10deg;font-display:swap}`;
+  document.head.appendChild(style);
+}
+
+/**
+ * Interface publique de la visite guidée (maquettes « visite auto », « info œuvre »,
+ * « collection ») : titre et auteur, panneau « En savoir plus », points d'intérêt
+ * projetés sur l'œuvre, commandes, bandeau de vignettes, collection, mini-carte,
+ * partage, « À propos ». Transitions GSAP.
+ */
+export function createTourUi(o: TourUiOptions) {
+  loadFont();
+  const { tour, camera } = o;
+  const root = document.createElement('div');
+  root.className = 'pv-ui';
+  root.innerHTML = `
+    <div class="pv-veil"></div>
+    <div class="pv-veil pv-veil--info"></div>
+    <div class="pv-hotspots"></div>
+    <header class="pv-head" data-tour>
+      <div class="pv-head__row">
+        <h1 class="pv-title"></h1>
+        <button type="button" class="pv-round pv-info-close" data-act="info-close" aria-label="Fermer la fiche">${ICONS.close}</button>
+      </div>
+      <p class="pv-author"></p>
+      <button type="button" class="pv-pill pv-more" data-act="info-open"><span>En savoir plus</span><i>${ICONS.arrowDownLeft}</i></button>
+    </header>
+    <section class="pv-info" aria-label="Fiche de l'œuvre">
+      <div class="pv-info__track"><div class="pv-info__thumb"></div></div>
+      <div class="pv-info__scroll"></div>
+    </section>
+    <button type="button" class="pv-about-btn" data-act="about">à propos</button>
+    <div class="pv-bottom" data-tour>
+      <button type="button" class="pv-pill pv-share" data-act="share" aria-label="Partager le lien de l'œuvre"><span>Partager</span><i>${ICONS.share}</i></button>
+      <div class="pv-minimap" aria-label="Plan du Panthéon"><canvas></canvas><div class="pv-minimap__dots"></div></div>
+      <div class="pv-controls">
+        <button type="button" data-act="prev" aria-label="Œuvre précédente">${ICONS.prev}</button>
+        <button type="button" data-act="pause" aria-label="Pause">${ICONS.pause}</button>
+        <button type="button" data-act="next" aria-label="Œuvre suivante">${ICONS.next}</button>
+      </div>
+      <div class="pv-strip">
+        <button type="button" class="pv-strip__grid" data-act="collection" aria-label="Ouvrir la collection">${ICONS.grid}</button>
+        <div class="pv-strip__scroll"></div>
+        <div class="pv-strip__bar"><i></i></div>
+      </div>
+      <button type="button" class="pv-round pv-home" data-act="stop" aria-label="Revenir à la vue extérieure">${ICONS.pantheon}</button>
+    </div>
+    <div class="pv-start">
+      <button type="button" class="pv-pill pv-start__go" data-act="start">Visite</button>
+      <button type="button" class="pv-round pv-start__grid" data-act="collection" aria-label="Ouvrir la collection">${ICONS.grid}</button>
+    </div>
+    <div class="pv-overlay pv-collection" role="dialog" aria-modal="true" aria-label="Collection">
+      <div class="pv-collection__panel">
+        <div class="pv-collection__head"><h2>Collection</h2><span class="pv-collection__count"></span></div>
+        <div class="pv-collection__body">
+          <div class="pv-info__track"><div class="pv-info__thumb"></div></div>
+          <div class="pv-collection__grid"></div>
+        </div>
+      </div>
+      <button type="button" class="pv-round pv-overlay__close" data-act="collection-close" aria-label="Fermer la collection">${ICONS.close}</button>
+    </div>
+    <div class="pv-overlay pv-about" role="dialog" aria-modal="true" aria-label="À propos">
+      <div class="pv-about__text"></div>
+      <button type="button" class="pv-round pv-overlay__close" data-act="about-close" aria-label="Fermer">${ICONS.close}</button>
+    </div>
+    <div class="pv-toast" role="status" aria-live="polite"></div>`;
+  o.container.appendChild(root);
+
+  const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+  const el = {
+    veil: $('.pv-veil'),
+    veilInfo: $('.pv-veil--info'),
+    head: $('.pv-head'),
+    title: $('.pv-title'),
+    author: $('.pv-author'),
+    more: $('.pv-more'),
+    infoClose: $('.pv-info-close'),
+    info: $('.pv-info'),
+    infoScroll: $('.pv-info__scroll'),
+    infoThumb: $('.pv-info .pv-info__thumb'),
+    hotspots: $('.pv-hotspots'),
+    bottom: $('.pv-bottom'),
+    pause: $('[data-act="pause"]'),
+    strip: $('.pv-strip__scroll'),
+    stripBar: $('.pv-strip__bar i'),
+    minimap: $('.pv-minimap'),
+    minimapCanvas: $<HTMLCanvasElement>('.pv-minimap canvas'),
+    minimapDots: $('.pv-minimap__dots'),
+    start: $('.pv-start'),
+    collection: $('.pv-collection'),
+    collectionGrid: $('.pv-collection__grid'),
+    collectionCount: $('.pv-collection__count'),
+    collectionThumb: $('.pv-collection .pv-info__thumb'),
+    about: $('.pv-about'),
+    aboutText: $('.pv-about__text'),
+    toast: $('.pv-toast'),
+  };
+
+  let screen: Screen = 'exterior';
+  let status: TourStatus = tour.status();
+  let workIndex = -1;
+  let collectionOpen = false;
+  let aboutOpen = false;
+  let hidden = false; // interface masquée pendant la prise en main
+
+  // ---- Affichage animé des blocs ---------------------------------------------------
+  const fade = (target: gsap.TweenTarget, on: boolean, extra: gsap.TweenVars = {}) =>
+    gsap.to(target, { autoAlpha: on ? 1 : 0, duration: D(on ? 0.5 : 0.3), ease: on ? 'power2.out' : 'power2.in', overwrite: 'auto', ...extra });
+  gsap.set([el.head, el.bottom, el.info, el.veil, el.veilInfo, el.hotspots, el.collection, el.about, el.infoClose], { autoAlpha: 0 });
+
+  function applyScreen() {
+    const inTour = screen !== 'exterior';
+    const show = inTour && !hidden;
+    fade(el.start, !inTour && !collectionOpen);
+    fade([el.head, el.veil], show);
+    fade(el.bottom, show, { y: show ? 0 : 16 });
+    fade(el.more, show && screen === 'auto');
+    fade(el.infoClose, show && screen === 'info');
+    fade(el.info, show && screen === 'info', { x: show && screen === 'info' ? 0 : -24 });
+    fade(el.veilInfo, show && screen === 'info');
+    fade(el.hotspots, show && screen === 'auto' && status.state === 'loop');
+    if (screen === 'info') revealInfo();
+  }
+
+  // ---- Titre, auteur, fiche ------------------------------------------------------
+  let titleSplit: SplitText | null = null;
+  function setWork(i: number) {
+    const w = o.works()[i];
+    workIndex = i;
+    if (!w) return;
+    titleSplit?.revert();
+    el.title.textContent = w.title;
+    el.author.textContent = w.author;
+    if (!REDUCED) {
+      titleSplit = new SplitText(el.title, { type: 'chars', charsClass: 'pv-char' });
+      gsap.from(titleSplit.chars, { yPercent: 60, autoAlpha: 0, duration: 0.6, ease: 'power3.out', stagger: 0.025 });
+      gsap.from(el.author, { autoAlpha: 0, y: 6, duration: 0.5, delay: 0.15 });
+    }
+    renderInfo(w);
+    buildHotspots(w);
+    markStrip();
+    markMinimap();
+  }
+
+  function renderInfo(w: TourWork) {
+    const blocks = w.content?.blocks ?? [];
+    el.infoScroll.innerHTML = blocks.length
+      ? blocks
+          .map((b) =>
+            b.type === 'image'
+              ? b.src
+                ? `<figure class="pv-block pv-block--image"><img src="${esc(withBase(b.src))}" alt="${esc(b.alt)}" loading="lazy"></figure>`
+                : ''
+              : `<div class="pv-block pv-block--text">${b.html}</div>`,
+          )
+          .join('')
+      : `<div class="pv-block pv-block--text"><p>${esc(w.title)}${w.author ? ` — ${esc(w.author)}` : ''}</p></div>`;
+    el.infoScroll.scrollTop = 0;
+    updateScrollThumb(el.infoScroll, el.infoThumb);
+  }
+  function revealInfo() {
+    gsap.fromTo(
+      el.infoScroll.querySelectorAll('.pv-block'),
+      { autoAlpha: 0, y: 18 },
+      { autoAlpha: 1, y: 0, duration: D(0.55), ease: 'power2.out', stagger: D(0.08), delay: D(0.15), overwrite: true },
+    );
+  }
+  /** Indicateur de défilement vertical (barre blanche sur piste grise). */
+  function updateScrollThumb(scroller: HTMLElement, thumb: HTMLElement) {
+    const ratio = scroller.clientHeight / Math.max(scroller.scrollHeight, 1);
+    const pos = scroller.scrollTop / Math.max(scroller.scrollHeight - scroller.clientHeight, 1);
+    thumb.style.height = `${Math.min(ratio, 1) * 100}%`;
+    thumb.style.transform = `translateY(${pos * (1 / Math.min(ratio, 1) - 1) * 100}%)`;
+    thumb.parentElement!.style.visibility = ratio >= 1 ? 'hidden' : '';
+  }
+  el.infoScroll.addEventListener('scroll', () => updateScrollThumb(el.infoScroll, el.infoThumb), { passive: true });
+
+  // ---- Points d'intérêt -----------------------------------------------------------
+  interface HotspotView {
+    pos: Vector3;
+    dot: HTMLButtonElement;
+    text: HTMLDivElement;
+    x: number;
+    y: number;
+    init: boolean;
+  }
+  let spots: HotspotView[] = [];
+  let active = 0;
+  let cycle = 0;
+  let textSplit: SplitText | null = null;
+
+  function buildHotspots(w: TourWork) {
+    el.hotspots.innerHTML = '';
+    spots = (w.hotspots ?? []).map((h, k) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'pv-spot';
+      dot.setAttribute('aria-label', `Point d'intérêt ${k + 1}`);
+      dot.addEventListener('click', () => activate(k));
+      const text = document.createElement('div');
+      text.className = 'pv-spot__text';
+      text.textContent = h.text;
+      el.hotspots.append(dot, text);
+      return { pos: new Vector3(...h.position), dot, text, x: 0, y: 0, init: false };
+    });
+    active = 0;
+    cycle = 0;
+    activate(0, false);
+  }
+  function activate(k: number, animate = true) {
+    if (!spots.length) return;
+    active = ((k % spots.length) + spots.length) % spots.length;
+    cycle = 0;
+    spots.forEach((s, j) => {
+      s.dot.classList.toggle('is-active', j === active);
+      s.text.classList.toggle('is-active', j === active);
+    });
+    textSplit?.revert();
+    const t = spots[active].text;
+    if (animate && !REDUCED && t.textContent) {
+      textSplit = new SplitText(t, { type: 'words' });
+      gsap.from(textSplit.words, { autoAlpha: 0, y: 8, duration: 0.45, ease: 'power2.out', stagger: 0.02 });
+    }
+  }
+
+  const ndc = new Vector3();
+  const camSpace = new Vector3();
+  let safe = { left: 16, top: 120, right: 0, bottom: 0 };
+  /** Zone libre pour le texte : entre le titre (haut) et les commandes (bas). */
+  function measureSafe() {
+    const r = o.container.getBoundingClientRect();
+    const head = el.head.getBoundingClientRect();
+    const ctrl = root.querySelector('.pv-controls')!.getBoundingClientRect();
+    safe = {
+      left: 16,
+      right: r.width - 16,
+      top: Math.max(head.bottom - r.top + 12, 80),
+      bottom: Math.min(ctrl.top - r.top - 12, r.height - 80),
+    };
+  }
+
+  /**
+   * Chaque image : position écran des points. Le point actif (et son texte) reste
+   * toujours à l'écran : hors champ ou derrière la caméra, il glisse vers le bord de
+   * la zone libre, dans la direction du point (comme un indicateur de cible).
+   */
+  function updateHotspots(dt: number) {
+    if (!spots.length || screen !== 'auto' || status.state !== 'loop') return;
+    const W = o.container.clientWidth;
+    const H = o.container.clientHeight;
+    const cx = (safe.left + safe.right) / 2;
+    const cy = (safe.top + safe.bottom) / 2;
+    const k = 1 - Math.exp(-12 * dt);
+    spots.forEach((s, j) => {
+      camSpace.copy(s.pos).applyMatrix4(camera.matrixWorldInverse);
+      const behind = camSpace.z > 0;
+      ndc.copy(s.pos).project(camera);
+      let x = ((ndc.x + 1) / 2) * W;
+      let y = ((1 - ndc.y) / 2) * H;
+      if (behind) {
+        // Derrière la caméra : direction inversée, poussée loin vers le bord.
+        x = cx - (x - cx) * 1e3;
+        y = cy - (y - cy) * 1e3;
+      }
+      const inside = !behind && x >= safe.left && x <= safe.right && y >= safe.top && y <= safe.bottom;
+      if (j !== active) {
+        s.dot.style.visibility = inside ? '' : 'hidden';
+        s.dot.style.transform = `translate(${x}px, ${y}px)`;
+        return;
+      }
+      if (!inside) {
+        // Magnétisme : intersection de la droite centre → point avec le bord de la zone.
+        const dx = x - cx;
+        const dy = y - cy;
+        const t = Math.min(Math.abs((safe.right - cx) / (dx || 1e-6)), Math.abs((safe.bottom - cy) / (dy || 1e-6)));
+        x = cx + dx * Math.min(t, 1);
+        y = cy + dy * Math.min(t, 1);
+      }
+      if (!s.init) {
+        s.x = x;
+        s.y = y;
+        s.init = true;
+      }
+      s.x += (x - s.x) * k;
+      s.y += (y - s.y) * k;
+      s.dot.style.visibility = '';
+      s.dot.classList.toggle('is-edge', !inside);
+      s.dot.style.transform = `translate(${s.x}px, ${s.y}px)`;
+      // Texte à droite et au-dessus du point, retourné près des bords.
+      const tw = s.text.offsetWidth;
+      const th = s.text.offsetHeight;
+      const flipX = s.x + 14 + tw > safe.right;
+      const flipY = s.y - 10 - th < safe.top;
+      const tx = flipX ? s.x - 14 - tw : s.x + 14;
+      const ty = flipY ? s.y + 12 : s.y - 10 - th;
+      s.text.style.transform = `translate(${Math.max(safe.left, tx)}px, ${ty}px)`;
+    });
+    // Cycle automatique (arrêté en pause ou pendant une prise en main).
+    if (!tour.manualPaused && !status.userControl && spots.length > 1) {
+      cycle += dt * 1000;
+      if (cycle >= o.hotspotIntervalMs()) activate(active + 1);
+    }
+  }
+
+  // ---- Bandeau de vignettes -------------------------------------------------------
+  const thumbHtml = (w: TourWork, cls: string) =>
+    w.thumbnail
+      ? `<img class="${cls}" src="${esc(withBase(w.thumbnail))}" alt="" loading="lazy">`
+      : `<span class="${cls} pv-noimg">${esc(w.title)}</span>`;
+  function buildStrip() {
+    el.strip.innerHTML = o
+      .works()
+      .map((w, i) => `<button type="button" class="pv-thumb" data-work="${i}" aria-label="${esc(w.title)}">${thumbHtml(w, 'pv-thumb__img')}</button>`)
+      .join('');
+    markStrip();
+  }
+  function markStrip() {
+    el.strip.querySelectorAll<HTMLElement>('.pv-thumb').forEach((b) => {
+      const on = Number(b.dataset.work) === workIndex;
+      b.classList.toggle('is-current', on);
+      if (on) b.setAttribute('aria-current', 'true');
+      else b.removeAttribute('aria-current');
+      if (on) el.strip.scrollTo({ left: b.offsetLeft - (el.strip.clientWidth - b.offsetWidth) / 2, behavior: REDUCED ? 'auto' : 'smooth' });
+    });
+  }
+  const updateStripBar = () => {
+    const s = el.strip;
+    const ratio = s.clientWidth / Math.max(s.scrollWidth, 1);
+    el.stripBar.style.width = `${Math.min(ratio, 1) * 100}%`;
+    el.stripBar.style.transform = `translateX(${(s.scrollLeft / Math.max(s.scrollWidth - s.clientWidth, 1)) * (1 / Math.min(ratio, 1) - 1) * 100}%)`;
+  };
+  el.strip.addEventListener('scroll', updateStripBar, { passive: true });
+  el.strip.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-work]');
+    if (b) goToWork(Number(b.dataset.work));
+  });
+  // Molette verticale → défilement horizontal du bandeau.
+  el.strip.addEventListener(
+    'wheel',
+    (e) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        el.strip.scrollLeft += e.deltaY;
+        e.preventDefault();
+      }
+    },
+    { passive: false },
+  );
+
+  // ---- Collection -----------------------------------------------------------------
+  let batch: ScrollTrigger[] = [];
+  function buildCollection() {
+    const works = o.works();
+    el.collectionCount.textContent = pad2(works.length);
+    el.collectionGrid.innerHTML = works
+      .map(
+        (w, i) => `<article class="pv-card" data-work="${i}">
+          ${thumbHtml(w, 'pv-card__img')}
+          <button type="button" class="pv-card__open" data-work="${i}" aria-label="Voir ${esc(w.title)}"></button>
+          <div class="pv-card__text"><span>${esc(w.author)}</span><h3>${esc(w.title)}</h3></div>
+          <button type="button" class="pv-card__share" data-share="${i}" aria-label="Partager ${esc(w.title)}">${ICONS.share}</button>
+        </article>`,
+      )
+      .join('');
+  }
+  function openCollection(on: boolean) {
+    collectionOpen = on;
+    batch.forEach((t) => t.kill());
+    batch = [];
+    fade(el.collection, on);
+    applyScreen();
+    if (!on) return;
+    const scroller = el.collectionGrid;
+    scroller.scrollTop = 0;
+    const cards = scroller.querySelectorAll('.pv-card');
+    gsap.set(cards, { autoAlpha: 0, y: 40 });
+    // Apparition en cascade au fil du défilement (ScrollTrigger.batch).
+    requestAnimationFrame(() => {
+      batch = ScrollTrigger.batch(cards, {
+        scroller,
+        start: 'top 98%',
+        onEnter: (els) => gsap.to(els, { autoAlpha: 1, y: 0, duration: D(0.6), ease: 'power3.out', stagger: D(0.09), overwrite: true }),
+      });
+      ScrollTrigger.refresh();
+      updateScrollThumb(scroller, el.collectionThumb);
+    });
+  }
+  el.collectionGrid.addEventListener('scroll', () => updateScrollThumb(el.collectionGrid, el.collectionThumb), { passive: true });
+  el.collectionGrid.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    const share = t.closest<HTMLElement>('[data-share]');
+    if (share) return void shareWork(o.works()[Number(share.dataset.share)]);
+    const card = t.closest<HTMLElement>('[data-work]');
+    if (!card) return;
+    openCollection(false);
+    goToWork(Number(card.dataset.work));
+  });
+
+  // ---- Mini-carte ----------------------------------------------------------------
+  let mapRot = 0;
+  function layoutMinimap() {
+    const m = o.minimap;
+    if (!m) return void (el.minimap.style.display = 'none');
+    const ui = o.ui();
+    mapRot = (((MOBILE.matches ? ui.minimap.rotationMobile : ui.minimap.rotationDesktop) % 360) + 360) % 360;
+    const swap = mapRot === 90 || mapRot === 270;
+    const w = swap ? m.canvas.height : m.canvas.width;
+    const h = swap ? m.canvas.width : m.canvas.height;
+    const c = el.minimapCanvas;
+    c.width = w;
+    c.height = h;
+    const g = c.getContext('2d')!;
+    g.save();
+    g.translate(w / 2, h / 2);
+    g.rotate((mapRot * Math.PI) / 180);
+    g.drawImage(m.canvas, -m.canvas.width / 2, -m.canvas.height / 2);
+    g.restore();
+    el.minimap.style.aspectRatio = `${w} / ${h}`;
+    el.minimapDots.innerHTML = o
+      .works()
+      .map((wk, i) => {
+        const [u, v] = mapUv(wk.focus[0], wk.focus[2]);
+        return `<button type="button" class="pv-minimap__dot" data-work="${i}" style="left:${u * 100}%;top:${v * 100}%" aria-label="${esc(wk.title)}"></button>`;
+      })
+      .join('');
+    markMinimap();
+  }
+  /** Position (x, z) monde → coordonnées (0–1) dans la mini-carte tournée. */
+  function mapUv(x: number, z: number): [number, number] {
+    const m = o.minimap!;
+    const u = (x - m.minX) / m.sizeX;
+    const v = (z - m.minZ) / m.sizeZ;
+    if (mapRot === 90) return [1 - v, u];
+    if (mapRot === 180) return [1 - u, 1 - v];
+    if (mapRot === 270) return [v, 1 - u];
+    return [u, v];
+  }
+  function markMinimap() {
+    el.minimapDots.querySelectorAll<HTMLElement>('[data-work]').forEach((d) => d.classList.toggle('is-current', Number(d.dataset.work) === workIndex));
+  }
+  el.minimapDots.addEventListener('click', (e) => {
+    const d = (e.target as HTMLElement).closest<HTMLElement>('[data-work]');
+    if (d) goToWork(Number(d.dataset.work));
+  });
+  MOBILE.addEventListener('change', layoutMinimap);
+
+  // ---- Partage, à propos, toast -----------------------------------------------------
+  let toastTween: gsap.core.Timeline | null = null;
+  function toast(msg: string) {
+    el.toast.textContent = msg;
+    toastTween?.kill();
+    toastTween = gsap
+      .timeline()
+      .fromTo(el.toast, { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: D(0.3) })
+      .to(el.toast, { autoAlpha: 0, duration: D(0.4), delay: 1.8 });
+  }
+  /** Feuille de partage du système si disponible (mobile, Safari…), sinon copie du lien. */
+  async function shareWork(w: TourWork | undefined) {
+    if (!w) return;
+    const url = `${location.origin}${location.pathname}${location.search}#${w.slug}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: w.title, text: w.author ? `${w.title} — ${w.author}` : w.title, url });
+        return;
+      } catch (err) {
+        if ((err as DOMException)?.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Lien copié');
+    } catch {
+      toast(url);
+    }
+  }
+  function openAbout(on: boolean) {
+    aboutOpen = on;
+    if (on) {
+      el.aboutText.innerHTML = o.ui().aboutHtml;
+      gsap.fromTo(el.aboutText.children, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: D(0.5), stagger: D(0.06), delay: D(0.1) });
+    }
+    fade(el.about, on);
+  }
+
+  // ---- Actions -----------------------------------------------------------------------
+  function goToWork(i: number) {
+    if (tour.active) tour.goTo(i);
+    else tour.start(i);
+  }
+  function setScreen(s: Screen) {
+    screen = s;
+    applyScreen();
+  }
+  const actions: Record<string, () => void> = {
+    start: () => tour.start(0),
+    prev: () => tour.prev(),
+    next: () => tour.next(),
+    pause: () => tour.togglePause(),
+    stop: () => tour.stop(),
+    share: () => shareWork(o.works()[workIndex]),
+    collection: () => openCollection(true),
+    'collection-close': () => openCollection(false),
+    about: () => openAbout(true),
+    'about-close': () => openAbout(false),
+    'info-open': () => setScreen('info'),
+    'info-close': () => setScreen('auto'),
+  };
+  root.addEventListener('click', (e) => {
+    const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
+    if (act) actions[act]?.();
+  });
+
+  const onKey = (e: KeyboardEvent) => {
+    if (e.defaultPrevented) return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (e.key === 'Escape') {
+      if (aboutOpen) openAbout(false);
+      else if (collectionOpen) openCollection(false);
+      else if (screen === 'info') setScreen('auto');
+      else if (tour.active) tour.stop();
+      else return;
+      e.preventDefault();
+      return;
+    }
+    if (!tour.active || aboutOpen || collectionOpen) return;
+    const act = { ArrowLeft: 'prev', ArrowRight: 'next', ' ': 'pause' }[e.key];
+    if (!act) return;
+    e.preventDefault();
+    actions[act]();
+  };
+  window.addEventListener('keydown', onKey);
+
+  // ---- Hash d'URL --------------------------------------------------------------------
+  const indexOfSlug = (slug: string) => o.works().findIndex((w) => w.slug === slug);
+  const workFromHash = () => {
+    const slug = decodeURIComponent(location.hash.slice(1));
+    return slug ? indexOfSlug(slug) : -1;
+  };
+  const setHash = (slug: string | null) => {
+    if (!o.hash) return;
+    const want = slug ? `#${slug}` : '';
+    if (location.hash !== want) history.replaceState(null, '', want || location.pathname + location.search);
+  };
+  const onHash = () => {
+    const i = workFromHash();
+    if (i < 0) return;
+    if (tour.active) {
+      if (tour.status().index !== i) tour.goTo(i);
+    } else tour.start(i);
+  };
+  if (o.hash) window.addEventListener('hashchange', onHash);
+
+  // ---- État de la visite ---------------------------------------------------------------
+  function onStatus(s: TourStatus) {
+    const prev = status;
+    status = s;
+    const inTour = s.state !== 'idle' && s.state !== 'exit';
+    if (inTour && screen === 'exterior') screen = 'auto';
+    if (!inTour) screen = 'exterior';
+    if (s.index >= 0 && s.index !== workIndex) setWork(s.index);
+    hidden = s.userControl;
+    el.pause.innerHTML = tour.manualPaused ? ICONS.play : ICONS.pause;
+    el.pause.setAttribute('aria-label', tour.manualPaused ? 'Reprendre' : 'Pause');
+    if (inTour && s.work) setHash(s.work.slug);
+    else if (!inTour && prev.state !== 'idle') setHash(null);
+    if (!inTour) workIndex = -1;
+    applyScreen();
+  }
+  const off = tour.onChange(onStatus);
+
+  let measureT = 0;
+  function refresh() {
+    buildStrip();
+    buildCollection();
+    layoutMinimap();
+    updateStripBar();
+    if (workIndex >= 0) {
+      const w = o.works()[workIndex];
+      if (w) {
+        el.title.textContent = w.title;
+        el.author.textContent = w.author;
+        renderInfo(w);
+        buildHotspots(w);
+      }
+    }
+  }
+  refresh();
+  onStatus(tour.status());
+  measureSafe();
+
+  return {
+    /** Chaque image, après la mise à jour de la caméra. */
+    update(dt: number) {
+      measureT += dt;
+      if (measureT > 0.5) {
+        measureT = 0;
+        measureSafe();
+      }
+      updateHotspots(dt);
+    },
+    /** Œuvres ou réglages d'interface modifiés (back-office). */
+    refresh,
+    /** Œuvre demandée par le hash au chargement, ou -1. */
+    initialIndex: () => (o.hash ? workFromHash() : -1),
+    dispose() {
+      off();
+      batch.forEach((t) => t.kill());
+      titleSplit?.revert();
+      textSplit?.revert();
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('hashchange', onHash);
+      MOBILE.removeEventListener('change', layoutMinimap);
+      gsap.killTweensOf(root.querySelectorAll('*'));
+      root.remove();
+    },
+  };
+}
+
+export type TourUi = ReturnType<typeof createTourUi>;

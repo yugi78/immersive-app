@@ -61,7 +61,7 @@ function XYZ({ value, onChange, readOnly }: { value: Vec3; onChange: (v: Vec3) =
  * Bouton « Gizmo » : attache le repère `markerKey` au gizmo ; les déplacements
  * appellent onMove. Avec `onRotate` : gizmo de rotation autour de la verticale.
  */
-function GizmoButton({
+export function GizmoButton({
   markerKey,
   onMove,
   onRotate,

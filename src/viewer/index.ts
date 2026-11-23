@@ -1,5 +1,5 @@
 import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer, Vector3 } from 'three';
-import { defaultConfig, type AssetItem, type SceneConfig, type TourConfig, type Vec3 } from './config/types';
+import { defaultConfig, type AssetItem, type SceneConfig, type TourConfig, type UiConfig, type Vec3 } from './config/types';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
 import { createMist } from './scene/mist';
@@ -15,7 +15,8 @@ import { prepareAsset } from './scene/prepare';
 import { createRenderer } from './scene/renderer';
 import { createProgress } from './ui/progress';
 import { createTour, type Tour } from './tour/tour';
-import { createTourControls } from './ui/tourControls';
+import { createTourUi, type TourUi } from './ui/tourUi';
+import { renderMinimap, type MinimapImage } from './ui/minimap';
 import type { EditorTools } from './editor/editor';
 import './ui/viewer.css';
 
@@ -53,6 +54,8 @@ export interface Viewer {
   setDof(patch: Partial<DofSettings>): void;
   /** Remplace les données de la visite guidée à chaud (back-office). */
   setTour(tour: TourConfig): void;
+  /** Remplace les réglages de l'interface publique à chaud (back-office). */
+  setUi(ui: UiConfig): void;
   /** Visite guidée : démarrer, naviguer, quitter. */
   tour: Pick<Tour, 'start' | 'goTo' | 'next' | 'prev' | 'stop' | 'togglePause' | 'status' | 'onChange' | 'cancel'>;
   /** Outils d'édition (option `editor`), sinon null. */
@@ -247,12 +250,29 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
         pickTargets: [scan.root],
       })
     : null;
-  let tourUi: ReturnType<typeof createTourControls> | null = null;
+  let uiCfg: UiConfig = structuredClone(cfg.ui);
+  let tourUi: TourUi | null = null;
+  // Mini-carte : vue de dessus du sol et de la tranche, rendue une fois.
+  let minimap: MinimapImage | null = null;
+  try {
+    const roots = assets.filter((a) => a.item.id === 'sol' || a.item.role === 'cut-fill').map((a) => a.root);
+    if (roots.length) minimap = renderMinimap(renderer, roots, reference.box);
+  } catch (err) {
+    console.warn('[viewer] mini-carte indisponible', err);
+  }
   // Commandes créées à la fin de l'intro (pas de visite pendant l'ouverture).
   function onIntroDone() {
     orbit.start();
-    tourUi = createTourControls(container, tour, { hash: opts.urlHash ?? true });
-    tourUi.setWorks(tourCfg.works.map((w) => w.slug));
+    tourUi = createTourUi({
+      container,
+      tour,
+      camera,
+      works: () => tourCfg.works,
+      hotspotIntervalMs: () => tourCfg.hotspotIntervalMs ?? 6000,
+      ui: () => uiCfg,
+      minimap,
+      hash: opts.urlHash ?? true,
+    });
     const i = tourUi.initialIndex();
     if (i >= 0) tour.start(i);
   }
@@ -303,6 +323,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       orbit.update(delta);
     }
     editorTools?.update(delta);
+    // Interface : points d'intérêt projetés avec la caméra de cette image.
+    tourUi?.update(delta);
     // Découpe : extrémité et intensité pilotées par la visite (entrée / sortie) ;
     // éteinte en vol libre (on circule à l'intérieur).
     if (tour.active) cutaway.update(camera.position, tour.cutTarget, tour.cutScale);
@@ -350,7 +372,11 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     },
     setTour(next) {
       tourCfg = structuredClone(next);
-      tourUi?.setWorks(tourCfg.works.map((w) => w.slug));
+      tourUi?.refresh();
+    },
+    setUi(next) {
+      uiCfg = structuredClone(next);
+      tourUi?.refresh();
     },
     tour,
     editor: editorTools,

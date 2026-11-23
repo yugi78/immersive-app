@@ -12,6 +12,8 @@ export interface TourStatus {
   work: TourWork | null;
   /** Pause demandée (bouton) ou prise en main de la caméra. */
   paused: boolean;
+  /** L'utilisateur tourne librement autour de l'œuvre (interface masquée). */
+  userControl: boolean;
 }
 
 interface Phase {
@@ -86,16 +88,29 @@ export function createTour(opts: TourOptions) {
   let lastInteract = 0;
   let dragging = false;
   let ret = { t: 0, pos: new Vector3(), quat: new Quaternion() };
-  userOrbit.addEventListener('start', () => {
-    if (!phase || phase.kind !== 'loop') return;
-    dragging = true;
-    if (user !== 'drag') {
+  // Prise en main seulement après un vrai glisser (quelques pixels) : un simple
+  // tap (point d'intérêt, bouton sur mobile) ne masque pas l'interface.
+  const DRAG_PX = 6;
+  let press: { x: number; y: number } | null = null;
+  const onPress = (e: PointerEvent) => {
+    press = { x: e.clientX, y: e.clientY };
+  };
+  const onMove = (e: PointerEvent) => {
+    if (!press || !dragging || user === 'drag') return;
+    if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > DRAG_PX) {
       user = 'drag';
       emit();
     }
+  };
+  opts.dom.addEventListener('pointerdown', onPress, { capture: true });
+  opts.dom.addEventListener('pointermove', onMove);
+  userOrbit.addEventListener('start', () => {
+    if (!phase || phase.kind !== 'loop') return;
+    dragging = true;
   });
   userOrbit.addEventListener('end', () => {
     dragging = false;
+    press = null;
     lastInteract = performance.now();
   });
   // La molette (zoom) ne déclenche pas start/end : on la compte comme une interaction.
@@ -113,7 +128,13 @@ export function createTour(opts: TourOptions) {
   const ms = (v: number) => (reduced ? Math.min(v, 600) : v) / 1000;
 
   function status(): TourStatus {
-    return { state: phase?.kind ?? 'idle', index, work: works()[index] ?? null, paused: manualPause || user !== null };
+    return {
+      state: phase?.kind ?? 'idle',
+      index,
+      work: works()[index] ?? null,
+      paused: manualPause || user !== null,
+      userControl: user === 'drag',
+    };
   }
   function emit() {
     const s = status();
@@ -321,6 +342,10 @@ export function createTour(opts: TourOptions) {
     },
     status,
     update,
+    /** Pause demandée au bouton (le cycle des points d'intérêt s'arrête aussi). */
+    get manualPaused() {
+      return manualPause;
+    },
     /** Destination à précharger en haute définition (position + point visé), ou null. */
     lookahead(): { position: Vector3; target: Vector3 } | null {
       if (!phase || phase.kind === 'exit') return null;
@@ -369,6 +394,8 @@ export function createTour(opts: TourOptions) {
     },
     dispose() {
       opts.dom.removeEventListener('wheel', onWheel);
+      opts.dom.removeEventListener('pointerdown', onPress, { capture: true });
+      opts.dom.removeEventListener('pointermove', onMove);
       userOrbit.dispose();
       listeners.clear();
     },

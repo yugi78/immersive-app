@@ -26,11 +26,25 @@ export interface TourBounds {
   rotationY: number;
 }
 
+/** Point d'intérêt posé sur l'œuvre (raycast sur le scan), avec un court texte. */
+export interface TourHotspot {
+  id: string;
+  position: Vec3;
+  text: string;
+}
+
+/** Bloc du contenu « En savoir plus » : texte riche (HTML) ou image. */
+export type ContentBlock = { type: 'text'; html: string } | { type: 'image'; src: string; alt: string };
+
 /** Œuvre de la visite guidée. */
 export interface TourWork {
   /** Identifiant stable, généré à la création, jamais modifié. */
   id: string;
   title: string;
+  /** Auteur (sous le titre). */
+  author: string;
+  /** Vignette (bandeau, collection) : chemin depuis la racine du site, ou vide. */
+  thumbnail: string;
   /** Dérivé du titre, unique : hash d'URL (#slug). */
   slug: string;
   /** Point regardé par la caméra. */
@@ -42,8 +56,10 @@ export interface TourWork {
    * (orbite autour du focus) : évite de traverser les murs. Absente : pas de limite.
    */
   bounds?: TourBounds;
-  /** Contenu descriptif (à venir). */
-  content: Record<string, unknown>;
+  /** Points d'intérêt, parcourus dans l'ordre (cycle automatique ou clic). */
+  hotspots: TourHotspot[];
+  /** Contenu descriptif (« En savoir plus »). */
+  content: { blocks: ContentBlock[] };
 }
 
 export interface TourConfig {
@@ -59,6 +75,8 @@ export interface TourConfig {
   loopSpeed: number;
   /** Fraction du trajet d'entrée (0–1) à partir de laquelle la découpe s'éteint. */
   cutFadeStart: number;
+  /** Durée d'affichage d'un point d'intérêt avant le suivant (ms). */
+  hotspotIntervalMs: number;
   /** Reprise du parcours après une prise en main de la caméra (orbite sur l'œuvre). */
   resumeDelayMs: number;
   /** Point de passage central entre deux œuvres (évite les piliers). */
@@ -66,9 +84,21 @@ export interface TourConfig {
   works: TourWork[];
 }
 
-export type SceneConfig = Omit<typeof raw, 'tour'> & {
+/** Interface publique : « À propos », mini-carte. */
+export interface UiConfig {
+  /** Crédits (HTML, texte riche). */
+  aboutHtml: string;
+  minimap: {
+    /** Rotation du plan (degrés, multiple de 90) : écran large / écran étroit. */
+    rotationDesktop: number;
+    rotationMobile: number;
+  };
+}
+
+export type SceneConfig = Omit<typeof raw, 'tour' | 'ui'> & {
   assets: { items: AssetItem[] };
   tour: TourConfig;
+  ui: UiConfig;
 };
 
 /** Configuration de scène par défaut (sera fournie par le back-office plus tard). */
