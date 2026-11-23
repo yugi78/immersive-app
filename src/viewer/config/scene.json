@@ -145,7 +145,7 @@
         "id": "w-exemple1",
         "title": "La Gloire",
         "author": "François Gérard",
-        "thumbnail": "",
+        "thumbnail": "/media/oeuvre-1-mwtlfye0.webp",
         "slug": "la-gloire",
         "focus": [
           9.62,
@@ -182,7 +182,35 @@
           ],
           "rotationY": 25.65
         },
-        "hotspots": [],
+        "hotspots": [
+          {
+            "id": "h-jpqukk",
+            "position": [
+              8.88,
+              80.53,
+              106.81
+            ],
+            "text": "La Gloire est une peinture de François Gérard achevée en 1837, destinée à un pendentif de la coupole du dôme de l'église Sainte-Geneviève\n"
+          },
+          {
+            "id": "h-d8bd1n",
+            "position": [
+              9.59,
+              85.38,
+              107.97
+            ],
+            "text": "Représentation de la Gloire"
+          },
+          {
+            "id": "h-gb8tpy",
+            "position": [
+              8.75,
+              85.25,
+              108.35
+            ],
+            "text": "Napoléon 1er enlaçant la gloire"
+          }
+        ],
         "content": {
           "blocks": []
         }
@@ -191,7 +219,7 @@
         "id": "w-exemple2",
         "title": "La Patrie",
         "author": "François Gérard",
-        "thumbnail": "",
+        "thumbnail": "/media/oeuvre-2-mwtlfb3a.webp",
         "slug": "la-patrie",
         "focus": [
           20.91,
@@ -233,7 +261,35 @@
           ],
           "rotationY": -63.16
         },
-        "hotspots": [],
+        "hotspots": [
+          {
+            "id": "h-cpu1lq",
+            "position": [
+              21.34,
+              80.48,
+              130.29
+            ],
+            "text": "La Patrie est une œuvre allégorique commandée à François Gérard en 1821 et achevée en 1837 (année de sa mort), qui glorifie le dévouement des citoyens envers la nation."
+          },
+          {
+            "id": "h-ufhqhz",
+            "position": [
+              20.69,
+              85.59,
+              128.99
+            ],
+            "text": "L'allégorie de la Patrie : Au centre et en hauteur se dresse une imposante figure féminine drapée à l'antique, incarnant la Nation protectrice et souveraine."
+          },
+          {
+            "id": "h-p1jyzg",
+            "position": [
+              22.16,
+              84.35,
+              128.76
+            ],
+            "text": "Les composantes du Peuple français : Autour et au pied de cette figure centrale sont rassemblés les différents ordres et forces vives de la société qui soutiennent et défendent le pays."
+          }
+        ],
         "content": {
           "blocks": []
         }
@@ -242,7 +298,7 @@
         "id": "w-dzhw0gg0n",
         "title": "La Justice",
         "author": "François Gérard",
-        "thumbnail": "",
+        "thumbnail": "/media/oeuvre-3-mwtlesbv.webp",
         "slug": "la-justice",
         "focus": [
           3.98,
@@ -279,7 +335,35 @@
           ],
           "rotationY": 30.04
         },
-        "hotspots": [],
+        "hotspots": [
+          {
+            "id": "h-ka6796",
+            "position": [
+              3.37,
+              80.46,
+              124.79
+            ],
+            "text": "La Justice (parfois appelée La Loi dans les esquisses préparatoires) est une peinture allégorique monumentale de François Gérard achevée en 1837."
+          },
+          {
+            "id": "h-0pan32",
+            "position": [
+              4.56,
+              85.38,
+              124.17
+            ],
+            "text": "La figure centrale de la Justice. Debout au cœur de la composition et drapée à l'antique, elle incarne la Loi souveraine, impartiale et civilisatrice."
+          },
+          {
+            "id": "h-g8x8wc",
+            "position": [
+              4,
+              82.4,
+              125.29
+            ],
+            "text": "Les vices terrassés à ses pieds. Dans le registre inférieur, Gérard a mis en scène un véritable combat moral en personnifiant les fléaux sociaux que la Justice combat et repousse : la Violence, la Fourberie, la Vanité, la Calomnie et l'Envie"
+          }
+        ],
         "content": {
           "blocks": []
         }
