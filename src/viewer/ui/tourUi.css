@@ -806,3 +806,23 @@
 .pv-card .pv-noimg {
   font-size: 0;
 }
+
+/* Titre de l'œuvre par-dessus la vignette du bandeau, avec un voile pour la lisibilité. */
+.pv-thumb {
+  position: relative;
+  background: linear-gradient(135deg, #262626, #121212);
+}
+.pv-thumb__title {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 640;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.7);
+  background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.38), rgb(0 0 0 / 0.12) 70%);
+}

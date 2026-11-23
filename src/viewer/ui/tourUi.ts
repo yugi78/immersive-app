@@ -391,7 +391,13 @@ export function createTourUi(o: TourUiOptions) {
   function buildStrip() {
     el.strip.innerHTML = o
       .works()
-      .map((w, i) => `<button type="button" class="pv-thumb" data-work="${i}" aria-label="${esc(w.title)}">${thumbHtml(w, 'pv-thumb__img')}</button>`)
+      // Titre toujours affiché, par-dessus la vignette (ou sur fond sombre sans image).
+      .map(
+        (w, i) =>
+          `<button type="button" class="pv-thumb" data-work="${i}">${
+            w.thumbnail ? `<img class="pv-thumb__img" src="${esc(withBase(w.thumbnail))}" alt="" loading="lazy">` : ''
+          }<span class="pv-thumb__title">${esc(w.title)}</span></button>`,
+      )
       .join('');
     markStrip();
   }
