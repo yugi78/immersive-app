@@ -61,7 +61,7 @@
 }
 .pv-head__row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 20px;
 }
 .pv-title {
@@ -85,7 +85,10 @@
   display: inline-flex;
   align-items: center;
   gap: 14px;
-  padding: 8px 10px 8px 16px;
+  height: 40px;
+  box-sizing: border-box;
+  padding: 0 10px 0 16px;
+  line-height: 1;
   border: 0;
   border-radius: 999px;
   background: var(--pv-white);
@@ -125,8 +128,9 @@
   box-shadow: 0 4px 18px rgb(0 0 0 / 0.2);
 }
 .pv-info-close {
-  margin-top: 14px;
   flex: none;
+  /* Le titre a une descente vide (pas de jambage) : léger décalage vers le haut. */
+  translate: 0 -0.04em;
 }
 .pv-info-close svg {
   width: 18px;
@@ -166,6 +170,7 @@
 .pv-info__track {
   flex: none;
   position: relative;
+  align-self: stretch;
   width: 4px;
   border-radius: 2px;
   background: rgb(255 255 255 / 0.3);
@@ -179,6 +184,7 @@
 .pv-info__scroll {
   flex: 1;
   overflow-y: auto;
+  touch-action: pan-y;
   overscroll-behavior: contain;
   scrollbar-width: none;
   mask-image: linear-gradient(to bottom, #000 82%, transparent);
@@ -267,7 +273,7 @@
 }
 .pv-share {
   position: absolute;
-  left: 32px;
+  left: 16px;
   bottom: 214px;
   text-decoration: underline;
 }
@@ -360,21 +366,45 @@
 .pv-strip__grid {
   position: absolute;
   left: 50%;
-  top: -2px;
+  top: 4px;
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 54px;
-  height: 42px;
+  width: 58px;
+  height: 34px;
+  padding: 0;
   translate: -50% 0;
   border: 0;
   border-radius: 0 0 14px 14px;
   background: var(--pv-black);
 }
+/* Congés concaves de part et d'autre : l'onglet se fond dans le bord du bandeau. */
+.pv-strip__grid::before,
+.pv-strip__grid::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+.pv-strip__grid::before {
+  right: 100%;
+  background: radial-gradient(circle at 0 100%, transparent 13.5px, var(--pv-black) 14px);
+}
+.pv-strip__grid::after {
+  left: 100%;
+  background: radial-gradient(circle at 100% 100%, transparent 13.5px, var(--pv-black) 14px);
+}
+.pv-strip__grid svg {
+  width: 20px;
+  height: 20px;
+}
 .pv-strip__scroll {
   display: flex;
   gap: 6px;
   overflow-x: auto;
+  touch-action: pan-x;
   scrollbar-width: none;
   scroll-snap-type: x proximity;
 }
@@ -383,6 +413,7 @@
 }
 .pv-thumb {
   flex: none;
+  display: block;
   width: 190px;
   height: 94px;
   padding: 0;
@@ -391,15 +422,19 @@
   overflow: hidden;
   background: #1a1a1a;
   scroll-snap-align: center;
-  opacity: 0.62;
+  opacity: 0.55;
   transition: opacity 0.3s ease;
 }
 .pv-thumb:hover,
 .pv-thumb.is-current {
   opacity: 1;
 }
-.pv-thumb.is-current {
-  box-shadow: inset 0 0 0 2px var(--pv-white);
+.pv-ui .pv-thumb:focus {
+  outline: none;
+}
+.pv-ui .pv-thumb:focus-visible {
+  outline: 2px solid var(--pv-white);
+  outline-offset: -2px;
 }
 .pv-thumb__img,
 .pv-card__img {
@@ -409,13 +444,16 @@
   object-fit: cover;
 }
 .pv-noimg {
-  display: grid;
-  place-items: center;
-  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0 10px;
   font-weight: 640;
   font-size: 13px;
+  line-height: 1.2;
   text-align: center;
-  background: linear-gradient(135deg, #2a2a2a, #111);
+  background: linear-gradient(135deg, #262626, #121212);
 }
 .pv-strip__bar {
   position: absolute;
@@ -440,9 +478,9 @@
   height: 58px;
 }
 .pv-home svg {
-  width: 34px;
-  height: 34px;
-  stroke-width: 1.3;
+  width: 36px;
+  height: 36px;
+  stroke-width: 1;
 }
 
 /* ---- Vue extérieure : « Visite » + collection ---- */
@@ -451,12 +489,18 @@
   left: 50%;
   bottom: max(24px, env(safe-area-inset-bottom));
   display: flex;
+  align-items: center;
   gap: 10px;
   translate: -50% 0;
 }
 .pv-start__go {
-  padding: 12px 26px !important;
+  height: 46px !important;
+  padding: 0 28px !important;
   font-size: 16px !important;
+}
+.pv-start__grid {
+  width: 46px;
+  height: 46px;
 }
 
 /* ---- Overlays : collection, à propos ---- */
@@ -509,27 +553,40 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 14px;
+  gap: 16px;
+  padding: 0 4px 0 6px;
+}
+.pv-collection__body .pv-info__track {
+  margin-bottom: 18px;
 }
 .pv-collection__grid {
   flex: 1;
+  min-width: 0;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: max-content;
+  gap: 14px;
   align-content: start;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   scrollbar-width: none;
-  padding-bottom: 90px;
+  padding: 0 4px 110px 0;
 }
 .pv-collection__grid::-webkit-scrollbar {
   display: none;
 }
 .pv-card {
   position: relative;
+  align-self: start;
   aspect-ratio: 4 / 3;
   border-radius: 12px;
   overflow: hidden;
   background: #1a1a1a;
+}
+.pv-card .pv-card__img {
+  position: absolute;
+  inset: 0;
 }
 .pv-card::before {
   content: '';
@@ -705,7 +762,11 @@
     margin-top: 60px;
   }
   .pv-collection__grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .pv-collection__panel {
+    padding: 18px 10px 0 14px;
   }
 }
 

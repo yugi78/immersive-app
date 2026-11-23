@@ -132,6 +132,7 @@ export function createTourUi(o: TourUiOptions) {
     collectionCount: $('.pv-collection__count'),
     collectionThumb: $('.pv-collection .pv-info__thumb'),
     about: $('.pv-about'),
+    aboutBtn: $('.pv-about-btn'),
     aboutText: $('.pv-about__text'),
     toast: $('.pv-toast'),
   };
@@ -158,8 +159,13 @@ export function createTourUi(o: TourUiOptions) {
     fade(el.infoClose, show && screen === 'info');
     fade(el.info, show && screen === 'info', { x: show && screen === 'info' ? 0 : -24 });
     fade(el.veilInfo, show && screen === 'info');
+    // Fiche ouverte : « à propos » masqué (la croix de la fiche prend sa place).
+    fade(el.aboutBtn, screen !== 'info');
     fade(el.hotspots, show && screen === 'auto' && status.state === 'loop');
-    if (screen === 'info') revealInfo();
+    if (screen === 'info') {
+      revealInfo();
+      requestAnimationFrame(() => updateScrollThumb(el.infoScroll, el.infoThumb));
+    }
   }
 
   // ---- Titre, auteur, fiche ------------------------------------------------------
@@ -211,7 +217,6 @@ export function createTourUi(o: TourUiOptions) {
     const pos = scroller.scrollTop / Math.max(scroller.scrollHeight - scroller.clientHeight, 1);
     thumb.style.height = `${Math.min(ratio, 1) * 100}%`;
     thumb.style.transform = `translateY(${pos * (1 / Math.min(ratio, 1) - 1) * 100}%)`;
-    thumb.parentElement!.style.visibility = ratio >= 1 ? 'hidden' : '';
   }
   el.infoScroll.addEventListener('scroll', () => updateScrollThumb(el.infoScroll, el.infoThumb), { passive: true });
 
