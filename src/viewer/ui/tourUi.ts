@@ -149,10 +149,16 @@ export function createTourUi(o: TourUiOptions) {
     gsap.to(target, { autoAlpha: on ? 1 : 0, duration: D(on ? 0.5 : 0.3), ease: on ? 'power2.out' : 'power2.in', overwrite: 'auto', ...extra });
   gsap.set([el.head, el.bottom, el.info, el.veil, el.veilInfo, el.hotspots, el.collection, el.about, el.infoClose], { autoAlpha: 0 });
 
+  let shown = false;
   function applyScreen() {
     const inTour = screen !== 'exterior';
-    const show = inTour && !hidden;
-    fade(el.start, !inTour && !collectionOpen);
+    // Entrée et sortie (passage extérieur ↔ intérieur) : aucune interface, la
+    // transition se suffit à elle-même.
+    const transition = status.state === 'enter' || status.state === 'exit';
+    const show = inTour && !hidden && !transition;
+    if (show && !shown) animateTitle();
+    shown = show;
+    fade(el.start, status.state === 'idle' && !collectionOpen);
     fade([el.head, el.veil], show);
     fade(el.bottom, show, { y: show ? 0 : 16 });
     fade(el.more, show && screen === 'auto');
@@ -160,7 +166,7 @@ export function createTourUi(o: TourUiOptions) {
     fade(el.info, show && screen === 'info', { x: show && screen === 'info' ? 0 : -24 });
     fade(el.veilInfo, show && screen === 'info');
     // Fiche ouverte : « à propos » masqué (la croix de la fiche prend sa place).
-    fade(el.aboutBtn, screen !== 'info');
+    fade(el.aboutBtn, screen !== 'info' && !transition);
     fade(el.hotspots, show && screen === 'auto' && status.state === 'loop');
     if (screen === 'info') {
       revealInfo();
@@ -175,18 +181,48 @@ export function createTourUi(o: TourUiOptions) {
     workIndex = i;
     if (!w) return;
     titleSplit?.revert();
+    titleSplit = null;
     el.title.textContent = w.title;
     el.author.textContent = w.author;
-    if (!REDUCED) {
-      titleSplit = new SplitText(el.title, { type: 'chars', charsClass: 'pv-char' });
-      gsap.from(titleSplit.chars, { yPercent: 60, autoAlpha: 0, duration: 0.6, ease: 'power3.out', stagger: 0.025 });
-      gsap.from(el.author, { autoAlpha: 0, y: 6, duration: 0.5, delay: 0.15 });
-    }
+    alignClose();
+    if (shown) animateTitle();
     renderInfo(w);
     buildHotspots(w);
     markStrip();
     markMinimap();
   }
+
+  /** Apparition du titre lettre par lettre, puis de l'auteur. */
+  function animateTitle() {
+    if (REDUCED || !el.title.textContent) return;
+    titleSplit?.revert();
+    titleSplit = new SplitText(el.title, { type: 'chars', charsClass: 'pv-char' });
+    gsap.from(titleSplit.chars, { yPercent: 60, autoAlpha: 0, duration: 0.6, ease: 'power3.out', stagger: 0.025 });
+    gsap.from(el.author, { autoAlpha: 0, y: 6, duration: 0.5, delay: 0.15 });
+  }
+
+  /**
+   * Centre la croix de la fiche sur la hauteur des capitales du titre (et non sur
+   * sa boîte de ligne, qui inclut l'espace des jambages).
+   */
+  const metrics = document.createElement('canvas').getContext('2d')!;
+  function alignClose() {
+    const cs = getComputedStyle(el.title);
+    const size = parseFloat(cs.fontSize);
+    // (La largeur « 125% » n'est pas acceptée par le raccourci font du canvas ; sans effet sur les hauteurs.)
+    metrics.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const m = metrics.measureText('L');
+    const ascent = m.fontBoundingBoxAscent ?? size * 0.95;
+    const descent = m.fontBoundingBoxDescent ?? size * 0.25;
+    const cap = m.actualBoundingBoxAscent || size * 0.72;
+    const lineH = parseFloat(cs.lineHeight) || size;
+    // Haut de la boîte de ligne → ligne de base, puis milieu des capitales.
+    const baseline = (lineH - (ascent + descent)) / 2 + ascent;
+    const capMid = baseline - cap / 2;
+    el.infoClose.style.marginTop = `${Math.round(capMid - el.infoClose.offsetHeight / 2 || 0)}px`;
+  }
+  window.addEventListener('resize', alignClose);
+  document.fonts?.ready.then(alignClose);
 
   function renderInfo(w: TourWork) {
     const blocks = w.content?.blocks ?? [];
@@ -653,6 +689,7 @@ export function createTourUi(o: TourUiOptions) {
       titleSplit?.revert();
       textSplit?.revert();
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', alignClose);
       window.removeEventListener('hashchange', onHash);
       MOBILE.removeEventListener('change', layoutMinimap);
       gsap.killTweensOf(root.querySelectorAll('*'));

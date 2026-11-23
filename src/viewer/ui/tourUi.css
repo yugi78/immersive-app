@@ -61,8 +61,8 @@
 }
 .pv-head__row {
   display: flex;
-  align-items: center;
-  gap: 20px;
+  align-items: flex-start;
+  gap: 28px;
 }
 .pv-title {
   margin: 0;
@@ -129,8 +129,7 @@
 }
 .pv-info-close {
   flex: none;
-  /* Le titre a une descente vide (pas de jambage) : léger décalage vers le haut. */
-  translate: 0 -0.04em;
+  /* margin-top calculé (tourUi.ts) : centre sur la hauteur des capitales. */
 }
 .pv-info-close svg {
   width: 18px;
@@ -308,13 +307,13 @@
 }
 .pv-minimap__dot {
   position: absolute;
-  width: 6px;
-  height: 6px;
-  margin: -3px 0 0 -3px;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: rgb(255 255 255 / 0.45);
+  background: radial-gradient(circle, #4d6bff 0%, #2747ff 45%, rgb(39 71 255 / 0) 100%);
 }
 .pv-minimap__dot::after {
   content: '';
@@ -322,11 +321,40 @@
   inset: -8px;
 }
 .pv-minimap__dot.is-current {
-  width: 10px;
-  height: 10px;
-  margin: -5px 0 0 -5px;
-  background: var(--pv-white);
-  box-shadow: 0 0 10px 3px rgb(255 255 255 / 0.7);
+  width: 26px;
+  height: 26px;
+  margin: -13px 0 0 -13px;
+  background: radial-gradient(circle, #5a75ff 0%, #2d4bff 22%, rgb(45 75 255 / 0.55) 45%, rgb(45 75 255 / 0) 72%);
+}
+/* Onde sonar : un anneau part du centre, grandit et s'efface. */
+.pv-minimap__dot.is-current::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
+  border: 1.5px solid #4d6bff;
+  border-radius: 50%;
+  translate: -50% -50%;
+  animation: pv-sonar 2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+  pointer-events: none;
+}
+@keyframes pv-sonar {
+  from {
+    scale: 0.2;
+    opacity: 1;
+  }
+  to {
+    scale: 2.2;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pv-minimap__dot.is-current::before {
+    animation: none;
+    opacity: 0;
+  }
 }
 .pv-controls {
   position: absolute;
@@ -507,8 +535,10 @@
 .pv-overlay {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   background: rgb(0 0 0 / 0.55);
   pointer-events: auto;
 }
@@ -523,8 +553,10 @@
 .pv-collection__panel {
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
   width: min(845px, calc(100% - 32px));
   height: min(810px, calc(100% - 120px));
+  min-height: 0;
   margin-top: 40px;
   padding: 18px 8px 0 10px;
   border-radius: 12px;
@@ -758,8 +790,8 @@
     height: 28px;
   }
   .pv-collection__panel {
-    height: calc(100% - 110px);
-    margin-top: 60px;
+    height: calc(100% - 96px);
+    margin-top: 56px;
   }
   .pv-collection__grid {
     grid-template-columns: minmax(0, 1fr);
