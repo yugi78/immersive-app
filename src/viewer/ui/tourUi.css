@@ -127,6 +127,22 @@
   color: var(--pv-black) !important;
   box-shadow: 0 4px 18px rgb(0 0 0 / 0.2);
 }
+.pv-pill--dark,
+.pv-round--dark {
+  background: var(--pv-black);
+  color: var(--pv-white) !important;
+}
+.pv-pill--dark i {
+  width: auto;
+  height: auto;
+  background: none;
+  color: var(--pv-white);
+}
+.pv-pill--dark i svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.7;
+}
 .pv-info-close {
   flex: none;
   /* margin-top calculé (tourUi.ts) : centre sur la hauteur des capitales. */
@@ -264,37 +280,119 @@
   display: block;
 }
 
-/* ---- Bas d'écran : partage, mini-carte, commandes, bandeau, retour ---- */
+/* ---- Flèches du carrousel (bords gauche et droit) ---- */
+.pv-arrow {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 64px;
+  margin-top: -32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  filter: drop-shadow(0 1px 6px rgb(0 0 0 / 0.45));
+}
+.pv-arrow svg {
+  width: 20px;
+  height: 36px;
+  stroke-width: 1.6;
+}
+.pv-arrow--prev {
+  left: 24px;
+}
+.pv-arrow--next {
+  right: 24px;
+}
+
+/* ---- Bas d'écran : mini-carte, rangée de boutons, bandeau, retour ---- */
 .pv-bottom {
   position: absolute;
   inset: auto 0 0 0;
   height: 0;
+  /* Largeur du bandeau (centré) : la rangée de boutons s'aligne sur son bord gauche. */
+  --pv-strip-w: min(822px, calc(100% - 452px));
 }
-.pv-share {
+.pv-mobile {
+  display: none !important;
+}
+.pv-row {
   position: absolute;
-  left: 16px;
-  bottom: 214px;
-  text-decoration: underline;
+  left: calc(50% - var(--pv-strip-w) / 2);
+  bottom: 128px;
+  display: flex;
+  gap: 13px;
 }
-.pv-share i {
-  background: none;
-  color: var(--pv-black);
+.pv-row__group {
+  display: flex;
+  align-items: center;
+  gap: 13px;
 }
-.pv-share i svg {
-  width: 20px;
-  height: 20px;
-  stroke-width: 1.8;
+.pv-row .pv-pill {
+  height: 40px;
+  gap: 12px;
+  padding: 0 12px 0 15px;
+  font-style: normal !important;
+  font-weight: 560 !important;
+}
+.pv-pause svg {
+  width: 18px;
+  height: 18px;
+}
+.pv-orbit svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 1.5;
 }
 .pv-minimap {
   position: absolute;
-  left: 16px;
+  left: 12px;
   bottom: 10px;
-  height: 192px;
-  max-width: 180px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 134px;
+  height: 158px;
+  padding: 6px 6px 8px;
   border-radius: 12px;
   background: #000;
   overflow: hidden;
   pointer-events: auto;
+}
+.pv-minimap__head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  height: 32px;
+  font-size: 14px;
+  font-style: italic;
+  font-weight: 650;
+}
+.pv-minimap__expand {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #1c1c1c;
+}
+.pv-minimap__expand svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.7;
+}
+.pv-minimap__area {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+.pv-minimap__plan {
+  position: relative;
 }
 .pv-minimap canvas {
   display: block;
@@ -356,77 +454,17 @@
     opacity: 0;
   }
 }
-.pv-controls {
-  position: absolute;
-  left: 50%;
-  bottom: 128px;
-  display: flex;
-  translate: -50% 0;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: var(--pv-black);
-  pointer-events: auto;
-}
-.pv-controls button {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 36px;
-  padding: 0;
-  border: 0;
-  background: none;
-}
-.pv-controls svg {
-  width: 18px;
-  height: 18px;
-}
 .pv-strip {
   position: absolute;
   left: 50%;
   bottom: 10px;
-  width: min(822px, calc(100% - 460px));
+  box-sizing: border-box;
+  width: var(--pv-strip-w);
   translate: -50% 0;
   padding: 4px 4px 10px;
   border-radius: 12px;
   background: var(--pv-black);
   pointer-events: auto;
-}
-.pv-strip__grid {
-  position: absolute;
-  left: 50%;
-  top: 4px;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 58px;
-  height: 34px;
-  padding: 0;
-  translate: -50% 0;
-  border: 0;
-  border-radius: 0 0 14px 14px;
-  background: var(--pv-black);
-}
-/* Congés concaves de part et d'autre : l'onglet se fond dans le bord du bandeau. */
-.pv-strip__grid::before,
-.pv-strip__grid::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  width: 14px;
-  height: 14px;
-  pointer-events: none;
-}
-.pv-strip__grid::before {
-  right: 100%;
-  background: radial-gradient(circle at 0 100%, transparent 13.5px, var(--pv-black) 14px);
-}
-.pv-strip__grid::after {
-  left: 100%;
-  background: radial-gradient(circle at 100% 100%, transparent 13.5px, var(--pv-black) 14px);
-}
-.pv-strip__grid svg {
-  width: 20px;
-  height: 20px;
 }
 .pv-strip__scroll {
   display: flex;
@@ -498,12 +536,12 @@
   height: 100%;
   background: var(--pv-white);
 }
-.pv-home {
+.pv-home--corner {
   position: absolute;
   right: 44px;
   bottom: 38px;
-  width: 58px;
-  height: 58px;
+  width: 60px;
+  height: 60px;
 }
 .pv-home svg {
   width: 36px;
@@ -511,7 +549,7 @@
   stroke-width: 1;
 }
 
-/* ---- Vue extérieure : « Visite » + collection ---- */
+/* ---- Vue extérieure : carte, « Visite guidée », collection ---- */
 .pv-start {
   position: absolute;
   left: 50%;
@@ -522,13 +560,19 @@
   translate: -50% 0;
 }
 .pv-start__go {
+  white-space: nowrap;
   height: 46px !important;
   padding: 0 28px !important;
   font-size: 16px !important;
 }
-.pv-start__grid {
+.pv-start__icon {
   width: 46px;
   height: 46px;
+}
+.pv-ui .pv-start__icon svg[viewBox^='-0.5'],
+.pv-ui .pv-round svg[viewBox^='-0.5'] {
+  width: 24px;
+  height: 20px;
 }
 
 /* ---- Overlays : collection, à propos ---- */
@@ -738,56 +782,57 @@
   .pv-veil--info {
     background: linear-gradient(180deg, rgb(0 0 0 / 0.72), rgb(0 0 0 / 0.55) 60%, rgb(0 0 0 / 0.2));
   }
-  .pv-share {
-    left: 16px;
-    bottom: 140px;
-    width: 46px;
-    height: 46px;
+  .pv-arrow--prev {
+    left: 10px;
+  }
+  .pv-arrow--next {
+    right: 10px;
+  }
+  .pv-mobile {
+    display: grid !important;
+  }
+  .pv-minimap,
+  .pv-home--corner {
+    display: none;
+  }
+  .pv-row {
+    left: 14px;
+    right: 14px;
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 105px);
+    justify-content: space-between;
+  }
+  .pv-row__group {
+    gap: 8px;
+  }
+  .pv-row .pv-round,
+  .pv-row .pv-pill {
+    width: 44px;
+    height: 44px;
     padding: 0;
     justify-content: center;
     border-radius: 50%;
   }
-  .pv-share span {
+  .pv-row .pv-pill span {
     display: none;
   }
-  .pv-share i svg {
+  .pv-row .pv-pill i svg {
     width: 22px;
     height: 22px;
   }
-  .pv-minimap {
-    left: 12px;
-    bottom: max(10px, env(safe-area-inset-bottom));
-    height: 104px;
-    max-width: 34vw;
-  }
-  .pv-controls {
-    bottom: 136px;
-  }
-  .pv-controls button {
-    width: 44px;
-    height: 44px;
+  .pv-home svg {
+    width: 30px;
+    height: 30px;
   }
   .pv-strip {
-    left: auto;
-    right: 12px;
+    left: 9px;
+    right: 9px;
     bottom: max(10px, env(safe-area-inset-bottom));
-    width: calc(100% - 34vw - 34px);
-    min-width: 0;
+    width: auto;
     translate: none;
   }
   .pv-thumb {
     width: 108px;
-    height: 88px;
-  }
-  .pv-home {
-    right: 16px;
-    bottom: 140px;
-    width: 46px;
-    height: 46px;
-  }
-  .pv-home svg {
-    width: 28px;
-    height: 28px;
+    height: 84px;
   }
   .pv-collection__panel {
     height: calc(100% - 96px);

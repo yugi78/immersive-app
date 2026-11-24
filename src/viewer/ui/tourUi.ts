@@ -63,31 +63,42 @@ export function createTourUi(o: TourUiOptions) {
         <button type="button" class="pv-round pv-info-close" data-act="info-close" aria-label="Fermer la fiche">${ICONS.close}</button>
       </div>
       <p class="pv-author"></p>
-      <button type="button" class="pv-pill pv-more" data-act="info-open"><span>En savoir plus</span><i>${ICONS.arrowDownLeft}</i></button>
+      <button type="button" class="pv-pill pv-more" data-act="info-open"><span>Découvrir</span><i>${ICONS.arrowDown}</i></button>
     </header>
     <section class="pv-info" aria-label="Fiche de l'œuvre">
       <div class="pv-info__track"><div class="pv-info__thumb"></div></div>
       <div class="pv-info__scroll"></div>
     </section>
+    <button type="button" class="pv-arrow pv-arrow--prev" data-act="prev" aria-label="Œuvre précédente">${ICONS.chevronLeft}</button>
+    <button type="button" class="pv-arrow pv-arrow--next" data-act="next" aria-label="Œuvre suivante">${ICONS.chevronRight}</button>
     <button type="button" class="pv-about-btn" data-act="about">à propos</button>
     <div class="pv-bottom" data-tour>
-      <button type="button" class="pv-pill pv-share" data-act="share" aria-label="Partager le lien de l'œuvre"><span>Partager</span><i>${ICONS.share}</i></button>
-      <div class="pv-minimap" aria-label="Plan du Panthéon"><canvas></canvas><div class="pv-minimap__dots"></div></div>
-      <div class="pv-controls">
-        <button type="button" data-act="prev" aria-label="Œuvre précédente">${ICONS.prev}</button>
-        <button type="button" data-act="pause" aria-label="Pause">${ICONS.pause}</button>
-        <button type="button" data-act="next" aria-label="Œuvre suivante">${ICONS.next}</button>
+      <div class="pv-minimap">
+        <div class="pv-minimap__head"><span>Plans</span><button type="button" class="pv-minimap__expand" data-act="map" aria-label="Ouvrir la carte">${ICONS.expand}</button></div>
+        <div class="pv-minimap__area"><div class="pv-minimap__plan" aria-label="Plan du Panthéon"><canvas></canvas><div class="pv-minimap__dots"></div></div></div>
+      </div>
+      <div class="pv-row">
+        <div class="pv-row__group">
+          <button type="button" class="pv-pill pv-pill--dark pv-share" data-act="share" aria-label="Partager le lien de l'œuvre"><span>Partager</span><i>${ICONS.share}</i></button>
+          <button type="button" class="pv-round pv-round--dark pv-mobile" data-act="map" aria-label="Ouvrir la carte">${ICONS.map}</button>
+          <button type="button" class="pv-round pv-pause" data-act="pause" aria-label="Pause">${ICONS.pause}</button>
+        </div>
+        <div class="pv-row__group">
+          <button type="button" class="pv-round pv-round--dark pv-orbit" data-act="orbit" aria-label="Tourner librement autour de l'œuvre">${ICONS.cube}</button>
+          <button type="button" class="pv-pill pv-pill--dark pv-coll" data-act="collection" aria-label="Ouvrir la collection"><span>Collection</span><i>${ICONS.grid}</i></button>
+          <button type="button" class="pv-round pv-round--dark pv-home pv-mobile" data-act="stop" aria-label="Revenir à la vue extérieure">${ICONS.pantheon}</button>
+        </div>
       </div>
       <div class="pv-strip">
-        <button type="button" class="pv-strip__grid" data-act="collection" aria-label="Ouvrir la collection">${ICONS.grid}</button>
         <div class="pv-strip__scroll"></div>
         <div class="pv-strip__bar"><i></i></div>
       </div>
-      <button type="button" class="pv-round pv-home" data-act="stop" aria-label="Revenir à la vue extérieure">${ICONS.pantheon}</button>
+      <button type="button" class="pv-round pv-round--dark pv-home pv-home--corner" data-act="stop" aria-label="Revenir à la vue extérieure">${ICONS.pantheon}</button>
     </div>
     <div class="pv-start">
-      <button type="button" class="pv-pill pv-start__go" data-act="start">Visite</button>
-      <button type="button" class="pv-round pv-start__grid" data-act="collection" aria-label="Ouvrir la collection">${ICONS.grid}</button>
+      <button type="button" class="pv-round pv-round--dark pv-start__icon" data-act="map" aria-label="Ouvrir la carte">${ICONS.map}</button>
+      <button type="button" class="pv-pill pv-pill--dark pv-start__go" data-act="start">Visite guidée</button>
+      <button type="button" class="pv-round pv-round--dark pv-start__icon" data-act="collection" aria-label="Ouvrir la collection">${ICONS.grid}</button>
     </div>
     <div class="pv-overlay pv-collection" role="dialog" aria-modal="true" aria-label="Collection">
       <div class="pv-collection__panel">
@@ -121,9 +132,13 @@ export function createTourUi(o: TourUiOptions) {
     hotspots: $('.pv-hotspots'),
     bottom: $('.pv-bottom'),
     pause: $('[data-act="pause"]'),
+    row: $('.pv-row'),
+    arrows: root.querySelectorAll<HTMLElement>('.pv-arrow'),
     strip: $('.pv-strip__scroll'),
     stripBar: $('.pv-strip__bar i'),
     minimap: $('.pv-minimap'),
+    minimapArea: $('.pv-minimap__area'),
+    minimapPlan: $('.pv-minimap__plan'),
     minimapCanvas: $<HTMLCanvasElement>('.pv-minimap canvas'),
     minimapDots: $('.pv-minimap__dots'),
     start: $('.pv-start'),
@@ -147,7 +162,7 @@ export function createTourUi(o: TourUiOptions) {
   // ---- Affichage animé des blocs ---------------------------------------------------
   const fade = (target: gsap.TweenTarget, on: boolean, extra: gsap.TweenVars = {}) =>
     gsap.to(target, { autoAlpha: on ? 1 : 0, duration: D(on ? 0.5 : 0.3), ease: on ? 'power2.out' : 'power2.in', overwrite: 'auto', ...extra });
-  gsap.set([el.head, el.bottom, el.info, el.veil, el.veilInfo, el.hotspots, el.collection, el.about, el.infoClose], { autoAlpha: 0 });
+  gsap.set([el.head, el.bottom, el.info, el.veil, el.veilInfo, el.hotspots, el.collection, el.about, el.infoClose, el.arrows], { autoAlpha: 0 });
 
   let shown = false;
   function applyScreen() {
@@ -165,8 +180,10 @@ export function createTourUi(o: TourUiOptions) {
     fade(el.infoClose, show && screen === 'info');
     fade(el.info, show && screen === 'info', { x: show && screen === 'info' ? 0 : -24 });
     fade(el.veilInfo, show && screen === 'info');
-    // Fiche ouverte : « à propos » masqué (la croix de la fiche prend sa place).
-    fade(el.aboutBtn, screen !== 'info' && !transition);
+    // Flèches du carrousel : écran de visite seulement (la fiche occupe le bord gauche).
+    fade(el.arrows, show && screen === 'auto');
+    // « À propos » : vue extérieure seulement.
+    fade(el.aboutBtn, status.state === 'idle' && !collectionOpen);
     fade(el.hotspots, show && screen === 'auto' && status.state === 'loop');
     if (screen === 'info') {
       revealInfo();
@@ -311,7 +328,7 @@ export function createTourUi(o: TourUiOptions) {
   function measureSafe() {
     const r = o.container.getBoundingClientRect();
     const head = el.head.getBoundingClientRect();
-    const ctrl = root.querySelector('.pv-controls')!.getBoundingClientRect();
+    const ctrl = el.row.getBoundingClientRect();
     safe = {
       left: 16,
       right: r.width - 16,
@@ -501,7 +518,8 @@ export function createTourUi(o: TourUiOptions) {
     g.rotate((mapRot * Math.PI) / 180);
     g.drawImage(m.canvas, -m.canvas.width / 2, -m.canvas.height / 2);
     g.restore();
-    el.minimap.style.aspectRatio = `${w} / ${h}`;
+    planAspect = w / h;
+    fitMinimap();
     el.minimapDots.innerHTML = o
       .works()
       .map((wk, i) => {
@@ -511,6 +529,18 @@ export function createTourUi(o: TourUiOptions) {
       .join('');
     markMinimap();
   }
+  let planAspect = 1;
+  /** Plan inscrit dans la zone sous « Plans », proportions conservées (les points suivent). */
+  function fitMinimap() {
+    const aw = el.minimapArea.clientWidth;
+    const ah = el.minimapArea.clientHeight;
+    if (!aw || !ah) return;
+    const w = Math.min(aw, ah * planAspect);
+    el.minimapPlan.style.width = `${w}px`;
+    el.minimapPlan.style.height = `${w / planAspect}px`;
+  }
+  const minimapObserver = new ResizeObserver(fitMinimap);
+  minimapObserver.observe(el.minimapArea);
   /** Position (x, z) monde → coordonnées (0–1) dans la mini-carte tournée. */
   function mapUv(x: number, z: number): [number, number] {
     const m = o.minimap!;
@@ -590,6 +620,9 @@ export function createTourUi(o: TourUiOptions) {
     'about-close': () => openAbout(false),
     'info-open': () => setScreen('info'),
     'info-close': () => setScreen('auto'),
+    // Provisoire : carte interactive (étape « Carte ») et orbite libre (étape « Cube »).
+    map: () => toast('Carte interactive : bientôt disponible'),
+    orbit: () => toast('Orbite libre : bientôt disponible'),
   };
   root.addEventListener('click', (e) => {
     const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
@@ -698,6 +731,7 @@ export function createTourUi(o: TourUiOptions) {
       window.removeEventListener('resize', alignClose);
       window.removeEventListener('hashchange', onHash);
       MOBILE.removeEventListener('change', layoutMinimap);
+      minimapObserver.disconnect();
       gsap.killTweensOf(root.querySelectorAll('*'));
       root.remove();
     },
