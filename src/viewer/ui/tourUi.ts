@@ -92,9 +92,14 @@ export function createTourUi(o: TourUiOptions) {
       <div class="pv-strip">
         <div class="pv-strip__scroll"></div>
         <div class="pv-strip__bar"><i></i></div>
+        <div class="pv-spotcard" role="status" aria-live="polite">
+          <p class="pv-spotcard__text"></p>
+          <button type="button" class="pv-spotcard__close" data-act="spot-close" aria-label="Fermer">${ICONS.close}</button>
+        </div>
       </div>
       <button type="button" class="pv-round pv-round--dark pv-home pv-home--corner" data-act="stop" aria-label="Revenir à la vue extérieure">${ICONS.pantheon}</button>
     </div>
+    <button type="button" class="pv-round pv-info-close--bottom" data-act="info-close" aria-label="Fermer la fiche">${ICONS.close}</button>
     <div class="pv-start">
       <button type="button" class="pv-round pv-round--dark pv-start__icon" data-act="map" aria-label="Ouvrir la carte">${ICONS.map}</button>
       <button type="button" class="pv-pill pv-pill--dark pv-start__go" data-act="start">Visite guidée</button>
@@ -126,6 +131,9 @@ export function createTourUi(o: TourUiOptions) {
     author: $('.pv-author'),
     more: $('.pv-more'),
     infoClose: $('.pv-info-close'),
+    infoCloseBottom: $('.pv-info-close--bottom'),
+    spotcard: $('.pv-spotcard'),
+    spotcardText: $('.pv-spotcard__text'),
     info: $('.pv-info'),
     infoScroll: $('.pv-info__scroll'),
     infoThumb: $('.pv-info .pv-info__thumb'),
@@ -162,7 +170,7 @@ export function createTourUi(o: TourUiOptions) {
   // ---- Affichage animé des blocs ---------------------------------------------------
   const fade = (target: gsap.TweenTarget, on: boolean, extra: gsap.TweenVars = {}) =>
     gsap.to(target, { autoAlpha: on ? 1 : 0, duration: D(on ? 0.5 : 0.3), ease: on ? 'power2.out' : 'power2.in', overwrite: 'auto', ...extra });
-  gsap.set([el.head, el.bottom, el.info, el.veil, el.veilInfo, el.hotspots, el.collection, el.about, el.infoClose, el.arrows], { autoAlpha: 0 });
+  gsap.set([el.head, el.bottom, el.info, el.veil, el.veilInfo, el.hotspots, el.collection, el.about, el.infoClose, el.infoCloseBottom, el.spotcard, el.arrows], { autoAlpha: 0 });
 
   let shown = false;
   function applyScreen() {
@@ -174,11 +182,18 @@ export function createTourUi(o: TourUiOptions) {
     if (show && !shown) animateTitle();
     shown = show;
     fade(el.start, status.state === 'idle' && !collectionOpen);
+    const mobile = MOBILE.matches;
+    const info = show && screen === 'info';
     fade([el.head, el.veil], show);
-    fade(el.bottom, show, { y: show ? 0 : 16 });
+    // Fiche sur mobile : plus aucune commande autour, une croix en bas au centre.
+    const bottom = show && !(mobile && screen === 'info');
+    fade(el.bottom, bottom, { y: bottom ? 0 : 16 });
     fade(el.more, show && screen === 'auto');
-    fade(el.infoClose, show && screen === 'info');
-    fade(el.info, show && screen === 'info', { x: show && screen === 'info' ? 0 : -24 });
+    fade(el.infoClose, info && !mobile);
+    fade(el.infoCloseBottom, info && mobile);
+    if (info && mobile) placeInfo();
+    else el.info.style.top = '';
+    fade(el.info, info, { x: info ? 0 : -24 });
     fade(el.veilInfo, show && screen === 'info');
     // Flèches du carrousel : écran de visite seulement (la fiche occupe le bord gauche).
     fade(el.arrows, show && screen === 'auto');
@@ -257,6 +272,11 @@ export function createTourUi(o: TourUiOptions) {
     el.infoScroll.scrollTop = 0;
     updateScrollThumb(el.infoScroll, el.infoThumb);
   }
+  /** Mobile : la fiche commence juste sous l'auteur (« Découvrir » n'y est plus). */
+  function placeInfo() {
+    const top = el.author.getBoundingClientRect().bottom - root.getBoundingClientRect().top;
+    el.info.style.top = `${Math.round(top + 22)}px`;
+  }
   function revealInfo() {
     gsap.fromTo(
       el.infoScroll.querySelectorAll('.pv-block'),
@@ -301,24 +321,67 @@ export function createTourUi(o: TourUiOptions) {
       el.hotspots.append(dot, text);
       return { pos: new Vector3(...h.position), dot, text, x: 0, y: 0, init: false };
     });
-    active = 0;
+    active = -1;
     cycle = 0;
-    activate(0, false);
+    closeSpotCard();
+    // Desktop : premier point affiché d'emblée, puis cycle. Mobile : rien avant un tap.
+    if (!MOBILE.matches) activate(0, false);
   }
+  /**
+   * Point d'intérêt actif. Desktop : son texte flotte à côté du point. Mobile : le
+   * texte s'affiche par-dessus le bandeau pendant 5 s (croix pour fermer).
+   */
   function activate(k: number, animate = true) {
     if (!spots.length) return;
     active = ((k % spots.length) + spots.length) % spots.length;
     cycle = 0;
-    spots.forEach((s, j) => {
-      s.dot.classList.toggle('is-active', j === active);
-      s.text.classList.toggle('is-active', j === active);
-    });
+    markSpots();
+    if (MOBILE.matches) return openSpotCard(spots[active].text.textContent ?? '');
     textSplit?.revert();
     const t = spots[active].text;
     if (animate && !REDUCED && t.textContent) {
       textSplit = new SplitText(t, { type: 'words' });
       gsap.from(textSplit.words, { autoAlpha: 0, y: 8, duration: 0.45, ease: 'power2.out', stagger: 0.02 });
     }
+  }
+  function markSpots() {
+    spots.forEach((s, j) => {
+      s.dot.classList.toggle('is-active', j === active);
+      s.text.classList.toggle('is-active', j === active);
+    });
+  }
+
+  // Encart mobile par-dessus le bandeau : 5 s (décompte figé en pause ou en prise en main).
+  const SPOTCARD_MS = 5000;
+  let cardMs = -1;
+  let cardSplit: SplitText | null = null;
+  function openSpotCard(text: string) {
+    el.spotcardText.textContent = text;
+    cardSplit?.revert();
+    cardSplit = null;
+    cardMs = 0;
+    fade(el.spotcard, true);
+    if (!REDUCED && text) {
+      cardSplit = new SplitText(el.spotcardText, { type: 'words' });
+      gsap.from(cardSplit.words, { autoAlpha: 0, y: 8, duration: 0.45, ease: 'power2.out', stagger: 0.02 });
+    }
+  }
+  function closeSpotCard() {
+    if (cardMs < 0) return;
+    cardMs = -1;
+    fade(el.spotcard, false);
+    if (MOBILE.matches) {
+      active = -1;
+      markSpots();
+    }
+  }
+  function onMobileChange() {
+    layoutMinimap();
+    if (workIndex >= 0) {
+      const w = o.works()[workIndex];
+      if (w) buildHotspots(w);
+    }
+    applyScreen();
   }
 
   const ndc = new Vector3();
@@ -393,8 +456,11 @@ export function createTourUi(o: TourUiOptions) {
       const ty = flipY ? s.y + 12 : s.y - 10 - th;
       s.text.style.transform = `translate(${Math.max(safe.left, tx)}px, ${ty}px)`;
     });
-    // Cycle automatique (arrêté en pause ou pendant une prise en main).
-    if (!tour.manualPaused && !status.userControl && spots.length > 1) {
+    // Pause ou prise en main : cycle et décompte de l'encart figés, texte maintenu.
+    if (tour.manualPaused || status.userControl) return;
+    if (MOBILE.matches) {
+      if (cardMs >= 0 && (cardMs += dt * 1000) >= SPOTCARD_MS) closeSpotCard();
+    } else if (spots.length > 1) {
       cycle += dt * 1000;
       if (cycle >= o.hotspotIntervalMs()) activate(active + 1);
     }
@@ -558,7 +624,7 @@ export function createTourUi(o: TourUiOptions) {
     const d = (e.target as HTMLElement).closest<HTMLElement>('[data-work]');
     if (d) goToWork(Number(d.dataset.work));
   });
-  MOBILE.addEventListener('change', layoutMinimap);
+  MOBILE.addEventListener('change', onMobileChange);
 
   // ---- Partage, à propos, toast -----------------------------------------------------
   let toastTween: gsap.core.Timeline | null = null;
@@ -620,6 +686,7 @@ export function createTourUi(o: TourUiOptions) {
     'about-close': () => openAbout(false),
     'info-open': () => setScreen('info'),
     'info-close': () => setScreen('auto'),
+    'spot-close': () => closeSpotCard(),
     // Provisoire : carte interactive (étape « Carte ») et orbite libre (étape « Cube »).
     map: () => toast('Carte interactive : bientôt disponible'),
     orbit: () => toast('Orbite libre : bientôt disponible'),
@@ -727,10 +794,11 @@ export function createTourUi(o: TourUiOptions) {
       batch.forEach((t) => t.kill());
       titleSplit?.revert();
       textSplit?.revert();
+      cardSplit?.revert();
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', alignClose);
       window.removeEventListener('hashchange', onHash);
-      MOBILE.removeEventListener('change', layoutMinimap);
+      MOBILE.removeEventListener('change', onMobileChange);
       minimapObserver.disconnect();
       gsap.killTweensOf(root.querySelectorAll('*'));
       root.remove();
