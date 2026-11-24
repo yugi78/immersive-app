@@ -382,6 +382,44 @@
     "minimap": {
       "rotationDesktop": 90,
       "rotationMobile": 0
+    },
+    "map": {
+      "title": "Panthéon de Paris",
+      "subtitle": "Carte interactive",
+      "hint": "Rapprochez-vous, zoomez et cliquez sur les points d'intérêt.",
+      "background": "#beb6ae",
+      "planRotationDesktop": -17.5,
+      "planRotationMobile": -107.5,
+      "views": [
+        {
+          "name": "Vue 1",
+          "center": [7.11, 106.4, 118.91],
+          "yaw": 0,
+          "width": 130,
+          "height": 90
+        },
+        {
+          "name": "Vue 2",
+          "center": [7.11, 106.4, 118.91],
+          "yaw": 90,
+          "width": 130,
+          "height": 90
+        },
+        {
+          "name": "Vue 3",
+          "center": [7.11, 106.4, 118.91],
+          "yaw": 180,
+          "width": 130,
+          "height": 90
+        },
+        {
+          "name": "Vue 4",
+          "center": [7.11, 106.4, 118.91],
+          "yaw": 270,
+          "width": 130,
+          "height": 90
+        }
+      ]
     }
   }
 }

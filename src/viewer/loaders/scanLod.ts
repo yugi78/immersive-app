@@ -7,7 +7,9 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  OrthographicCamera,
   SRGBColorSpace,
+  type Plane,
   Sphere,
   Texture,
   Vector3,
@@ -243,14 +245,22 @@ export async function createScanLod(opts: ScanLodOptions) {
    * `lookahead` : destination d'une transition ; les tuiles vues depuis là passent
    * en haute définition en priorité, avant même l'arrivée.
    */
-  function update(cam: PerspectiveCamera, lookahead?: { position: Vector3; target: Vector3 } | null, now = performance.now()) {
+  function update(
+    cam: PerspectiveCamera | OrthographicCamera,
+    lookahead?: { position: Vector3; target: Vector3 } | null,
+    now = performance.now(),
+    /** Plan de coupe (carte, vues de face) : les tuiles entièrement devant sont ignorées. */
+    clip?: Plane | null,
+  ) {
     if (now - lastUpdate < 150) return;
     lastUpdate = now;
     projView.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     frustum.setFromProjectionMatrix(projView);
     const viewH = opts.renderer.domElement.height; // pixels réels (pixelRatio inclus)
-    const k = viewH / (2 * Math.tan((cam.fov * Math.PI) / 360));
-    if (lookahead) {
+    // Caméra orthogonale (carte) : taille à l'écran indépendante de la distance.
+    const ortho = cam instanceof OrthographicCamera ? (viewH * cam.zoom) / (cam.top - cam.bottom) : 0;
+    const k = cam instanceof PerspectiveCamera ? viewH / (2 * Math.tan((cam.fov * Math.PI) / 360)) : 0;
+    if (lookahead && cam instanceof PerspectiveCamera) {
       aheadCam.fov = cam.fov;
       aheadCam.aspect = cam.aspect;
       aheadCam.near = cam.near;
@@ -273,6 +283,14 @@ export async function createScanLod(opts: ScanLodOptions) {
     //    le budget et l'œuvre regardée restait en 256.
     const tier = new Map<TileState, number>();
     for (const t of tiles) {
+      if (ortho) {
+        t.screenPx = 2 * t.sphere.radius * ortho;
+        const cut = clip && clip.distanceToPoint(t.sphere.center) < -t.sphere.radius;
+        // Tuile coupée : aucune définition utile (elle n'est pas dessinée).
+        if (cut) t.screenPx = 0;
+        tier.set(t, !cut && frustum.intersectsSphere(t.sphere) ? 2 : 0);
+        continue;
+      }
       const d = Math.max(cam.position.distanceTo(t.sphere.center) - t.sphere.radius, 0.01);
       t.screenPx = ((2 * t.sphere.radius) / d) * k;
       let level = frustum.intersectsSphere(t.sphere) ? 2 : 0;

@@ -988,3 +988,287 @@
   height: 24px;
   stroke-width: 2;
 }
+
+/* ---- Carte interactive (maquettes desktop_carte / mobile_carte) ---- */
+.pv-map {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+}
+.pv-hand {
+  z-index: 6;
+}
+.pv-toast {
+  z-index: 7;
+}
+.pv-map__surface {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+}
+.pv-map__surface:active {
+  cursor: grabbing;
+}
+.pv-map__veil {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: min(820px, 100%);
+  height: 420px;
+  background: radial-gradient(ellipse 65% 70% at 0% 0%, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.18) 55%, transparent 80%);
+  pointer-events: none;
+}
+.pv-map__head {
+  position: absolute;
+  top: clamp(16px, 3.5vh, 30px);
+  left: 30px;
+  max-width: min(440px, calc(100% - 60px));
+  pointer-events: none;
+}
+.pv-map__title {
+  margin: 0;
+  font-size: clamp(32px, 3.6vw, 46px);
+  font-weight: 520;
+  font-stretch: 112%;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+.pv-map__sub {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 450;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.pv-map__hint {
+  margin: 28px 0 0;
+  font-size: 16px;
+  font-weight: 420;
+  line-height: 1.3;
+}
+.pv-map__dots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pv-map__dot {
+  left: 0;
+  top: 0;
+}
+.pv-map__dot:not(.is-current) {
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  background: radial-gradient(circle, #4d6bff 0%, #2747ff 40%, rgb(39 71 255 / 0.35) 60%, rgb(39 71 255 / 0) 100%);
+}
+.pv-map__dot.is-current {
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+}
+.pv-map__views {
+  position: absolute;
+  left: 30px;
+  bottom: 37px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  box-sizing: border-box;
+  width: 160px;
+  height: min(620px, calc(100% - 330px));
+  padding: 6px;
+  border-radius: 14px;
+  background: var(--pv-black);
+  pointer-events: auto;
+}
+.pv-map__view {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--pv-white);
+  opacity: 0.6;
+  transition: opacity 0.3s ease, box-shadow 0.3s ease;
+}
+.pv-map__view:hover,
+.pv-map__view.is-current {
+  opacity: 1;
+}
+.pv-map__view.is-current {
+  box-shadow: inset 0 0 0 2px #4d6bff;
+}
+.pv-map__view canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pv-map__back {
+  position: absolute;
+  right: 132px;
+  bottom: 37px;
+  height: 58px !important;
+  gap: 16px !important;
+  padding: 0 22px 0 22px !important;
+  font-size: 14px !important;
+  line-height: 1.1 !important;
+  text-align: left;
+}
+.pv-map__back i svg,
+.pv-map__card-go i svg {
+  width: 16px;
+  height: 16px;
+}
+.pv-map__home {
+  position: absolute;
+  right: 44px;
+  bottom: 38px;
+  width: 60px;
+  height: 60px;
+}
+
+/* Encart d'une œuvre : à côté du point (desktop), en bas (mobile). */
+.pv-map__card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 250px;
+  padding: 8px 8px 12px;
+  border-radius: 14px;
+  background: var(--pv-black);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.25);
+  pointer-events: auto;
+}
+.pv-map__card-img img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 9px;
+}
+.pv-map__card-body {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 0 6px;
+}
+.pv-map__card-title {
+  margin: 0;
+  padding-right: 22px;
+  font-size: 22px;
+  font-weight: 640;
+  font-stretch: 125%;
+  line-height: 1.05;
+}
+.pv-map__card-author {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+.pv-map__card-go {
+  height: 36px !important;
+  gap: 10px !important;
+  padding: 0 16px 0 12px !important;
+  background: var(--pv-white) !important;
+  color: var(--pv-black) !important;
+}
+.pv-map__card-go i {
+  color: var(--pv-black) !important;
+}
+.pv-map__card-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--pv-white);
+  color: var(--pv-black) !important;
+}
+.pv-map__card-close svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.4;
+}
+.pv-map__card-img + .pv-map__card-body .pv-map__card-title {
+  padding-right: 0;
+}
+
+@media (max-width: 719px) {
+  .pv-map__head {
+    top: max(24px, env(safe-area-inset-top));
+    left: 24px;
+  }
+  .pv-map__title {
+    font-size: clamp(30px, 9.2vw, 46px);
+  }
+  .pv-map__sub {
+    font-size: 15px;
+  }
+  .pv-map__hint {
+    margin-top: 18px;
+    font-size: 13px;
+  }
+  .pv-map__views {
+    left: 16px;
+    right: 16px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    flex-direction: row;
+    width: auto;
+    height: 90px;
+    padding: 5px;
+    gap: 4px;
+    border-radius: 12px;
+  }
+  .pv-map__view {
+    border-radius: 9px;
+  }
+  .pv-map__back {
+    right: 80px;
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 106px);
+    height: 44px !important;
+    padding: 0 16px !important;
+    font-size: 12px !important;
+  }
+  .pv-map__home {
+    right: 16px;
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 106px);
+    width: 44px;
+    height: 44px;
+  }
+  .pv-map__home svg {
+    width: 28px;
+    height: 28px;
+  }
+  .pv-map__card {
+    left: 16px !important;
+    right: 16px;
+    top: auto !important;
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 104px);
+    width: auto;
+    grid-template-columns: 96px 1fr;
+    align-items: center;
+    padding: 6px;
+  }
+  .pv-map__card-title {
+    font-size: 18px;
+  }
+  .pv-map__card-author {
+    margin-bottom: 6px;
+  }
+  .pv-map__card-close {
+    top: 8px;
+    right: 8px;
+  }
+}

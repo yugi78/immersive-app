@@ -7,6 +7,8 @@ import type { Tour, TourStatus } from '../tour/tour';
 import { withBase } from '../url';
 import { ICONS } from './icons';
 import type { MinimapImage } from './minimap';
+import type { MapViewer } from '../map/mapView';
+import { createMapUi, type MapUi } from './mapUi';
 import './tourUi.css';
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
@@ -20,6 +22,8 @@ export interface TourUiOptions {
   hotspotIntervalMs: () => number;
   ui: () => UiConfig;
   minimap: MinimapImage | null;
+  /** Carte interactive (rendu orthogonal en direct), ou null. */
+  map: MapViewer | null;
   /** Hash d'URL par œuvre (#slug). */
   hash: boolean;
 }
@@ -171,6 +175,8 @@ export function createTourUi(o: TourUiOptions) {
   let workIndex = -1;
   let collectionOpen = false;
   let aboutOpen = false;
+  let mapOpen = false;
+  let mapUi: MapUi | null = null;
   let hidden = false; // interface masquée pendant la prise en main
 
   // ---- Affichage animé des blocs ---------------------------------------------------
@@ -234,11 +240,11 @@ export function createTourUi(o: TourUiOptions) {
     // Entrée et sortie (passage extérieur ↔ intérieur) : aucune interface, la
     // transition se suffit à elle-même.
     const transition = status.state === 'enter' || status.state === 'exit';
-    const show = inTour && !hidden && !transition && !handActive;
-    fade(el.resume, inTour && hidden && !transition);
+    const show = inTour && !hidden && !transition && !handActive && !mapOpen;
+    fade(el.resume, inTour && hidden && !transition && !mapOpen);
     if (show && !shown) animateTitle();
     shown = show;
-    fade(el.start, status.state === 'idle' && !collectionOpen);
+    fade(el.start, status.state === 'idle' && !collectionOpen && !mapOpen);
     const mobile = MOBILE.matches;
     const info = show && screen === 'info';
     fade([el.head, el.veil], show);
@@ -255,7 +261,7 @@ export function createTourUi(o: TourUiOptions) {
     // Flèches du carrousel : écran de visite seulement (la fiche occupe le bord gauche).
     fade(el.arrows, show && screen === 'auto');
     // « À propos » : vue extérieure seulement.
-    fade(el.aboutBtn, status.state === 'idle' && !collectionOpen);
+    fade(el.aboutBtn, status.state === 'idle' && !collectionOpen && !mapOpen);
     fade(el.hotspots, show && screen === 'auto' && status.state === 'loop');
     if (screen === 'info') {
       revealInfo();
@@ -745,7 +751,7 @@ export function createTourUi(o: TourUiOptions) {
     'info-close': () => setScreen('auto'),
     'spot-close': () => closeSpotCard(),
     // Provisoire : carte interactive (étape « Carte ») et orbite libre (étape « Cube »).
-    map: () => toast('Carte interactive : bientôt disponible'),
+    map: () => mapUi?.open(0),
     // Cube : orbite libre, main qui secoue 1 s (sans texte), à chaque fois.
     orbit: () => {
       tour.orbit();
@@ -756,6 +762,28 @@ export function createTourUi(o: TourUiOptions) {
       tour.resume();
     },
   };
+  if (o.map) {
+    mapUi = createMapUi({
+      root,
+      map: o.map,
+      tour,
+      works: o.works,
+      ui: o.ui,
+      mobile: () => MOBILE.matches,
+      showHand,
+      hideHand,
+      goToWork,
+      onToggle: (on) => {
+        mapOpen = on;
+        if (on) {
+          openCollection(false);
+          if (screen === 'info') screen = 'auto';
+        }
+        applyScreen();
+      },
+    });
+  }
+
   root.addEventListener('click', (e) => {
     const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
     if (act) actions[act]?.();
@@ -763,6 +791,8 @@ export function createTourUi(o: TourUiOptions) {
 
   const onKey = (e: KeyboardEvent) => {
     if (e.defaultPrevented) return;
+    if (mapUi?.onKey(e)) return void e.preventDefault();
+    if (mapOpen) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     if (e.key === 'Escape') {
@@ -829,6 +859,7 @@ export function createTourUi(o: TourUiOptions) {
 
   let measureT = 0;
   function refresh() {
+    mapUi?.refresh();
     buildStrip();
     buildCollection();
     layoutMinimap();
@@ -861,13 +892,18 @@ export function createTourUi(o: TourUiOptions) {
         if (!tour.hasDragged) showHand(true, 2);
       }
       updateHotspots(dt);
+      mapUi?.update(dt);
     },
     /** Œuvres ou réglages d'interface modifiés (back-office). */
     refresh,
     /** Œuvre demandée par le hash au chargement, ou -1. */
+    /** Carte interactive (back-office : aperçu d'une vue). */
+    openMap: (view = 0) => mapUi?.open(view),
+    closeMap: () => mapUi?.close(),
     initialIndex: () => (o.hash ? workFromHash() : -1),
     dispose() {
       off();
+      mapUi?.dispose();
       batch.forEach((t) => t.kill());
       titleSplit?.revert();
       textSplit?.revert();

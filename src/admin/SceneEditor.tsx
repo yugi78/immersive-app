@@ -2,12 +2,13 @@ import { createUsePuck, FieldGroup, FieldTab, Puck, type Config, type Data } fro
 import '@puckeditor/core/puck.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createViewer, type Viewer } from '../viewer';
-import { defaultConfig, type ContentBlock, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
+import { defaultConfig, type ContentBlock, type MapView, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
 import { newWorkId, uniqueSlugs } from '../viewer/tour/slug';
 import { bridge, useActiveWork, useViewer } from './bridge';
 import { checkbox, colorField, slider } from './fields';
 import { boundsField, cameraPointsField, focusOffsetField, pointField, previewField } from './tourFields';
 import { blocksField, hotspotsField, thumbnailField } from './workFields';
+import { mapViewsField } from './mapFields';
 
 const usePuckState = createUsePuck();
 
@@ -59,6 +60,13 @@ type SceneProps = {
   aboutHtml: string;
   minimapRotDesktop: string;
   minimapRotMobile: string;
+  mapTitle: string;
+  mapSubtitle: string;
+  mapHint: string;
+  mapBackground: string;
+  mapPlanRotDesktop: number;
+  mapPlanRotMobile: number;
+  mapViews: MapView[];
   // Debug (non enregistré).
   flyEnabled: boolean;
   flySpeed: number;
@@ -115,6 +123,13 @@ const SCENE_KEYS = [
   'aboutHtml',
   'minimapRotDesktop',
   'minimapRotMobile',
+  'mapTitle',
+  'mapSubtitle',
+  'mapHint',
+  'mapBackground',
+  'mapPlanRotDesktop',
+  'mapPlanRotMobile',
+  'mapViews',
   'tourHub',
   'tourWorks',
   'flyEnabled',
@@ -196,6 +211,15 @@ function uiFromProps(p: SceneProps): UiConfig {
   return {
     aboutHtml: p.aboutHtml ?? '',
     minimap: { rotationDesktop: Number(p.minimapRotDesktop), rotationMobile: Number(p.minimapRotMobile) },
+    map: {
+      title: p.mapTitle ?? '',
+      subtitle: p.mapSubtitle ?? '',
+      hint: p.mapHint ?? '',
+      background: p.mapBackground,
+      planRotationDesktop: p.mapPlanRotDesktop,
+      planRotationMobile: p.mapPlanRotMobile,
+      views: p.mapViews ?? [],
+    },
   };
 }
 
@@ -313,6 +337,13 @@ const config: Config<{}, Record<string, unknown>> = {
         label: 'Mini-carte : rotation du plan (mobile)',
         options: [0, 90, 180, 270].map((d) => ({ label: `${d}°`, value: String(d) })),
       },
+      mapTitle: { type: 'text', label: 'Titre' },
+      mapSubtitle: { type: 'text', label: 'Sous-titre (souligné)' },
+      mapHint: { type: 'textarea', label: 'Consigne' },
+      mapBackground: colorField('Couleur de fond (par défaut : celle du sol)'),
+      mapPlanRotDesktop: slider('Plan : rotation (écran large)', -180, 180, 1, '°'),
+      mapPlanRotMobile: slider('Plan : rotation (mobile)', -180, 180, 1, '°'),
+      mapViews: mapViewsField,
       tourHub: pointField('Point central (passage entre deux œuvres)', { key: () => 'hub', pick: true, capture: true }),
       tourWorks: {
         type: 'array',
@@ -427,6 +458,21 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.minimapRotMobile}
           </FieldGroup>
         </FieldTab>
+        <FieldTab label="Plans">
+          <FieldGroup label="Textes et fond" defaultExpanded>
+            {fields.mapTitle}
+            {fields.mapSubtitle}
+            {fields.mapHint}
+            {fields.mapBackground}
+          </FieldGroup>
+          <FieldGroup label="Plan (vue de dessus)" defaultExpanded>
+            {fields.mapPlanRotDesktop}
+            {fields.mapPlanRotMobile}
+          </FieldGroup>
+          <FieldGroup label="Vues de face" defaultExpanded>
+            {fields.mapViews}
+          </FieldGroup>
+        </FieldTab>
         <FieldTab label="Debug">
           {fields.flyEnabled}
           {fields.flySpeed}
@@ -492,6 +538,13 @@ const initialData: Data<{}, Record<string, unknown>> = {
       aboutHtml: ui.aboutHtml,
       minimapRotDesktop: String(ui.minimap.rotationDesktop),
       minimapRotMobile: String(ui.minimap.rotationMobile),
+      mapTitle: ui.map.title,
+      mapSubtitle: ui.map.subtitle,
+      mapHint: ui.map.hint,
+      mapBackground: ui.map.background,
+      mapPlanRotDesktop: ui.map.planRotationDesktop,
+      mapPlanRotMobile: ui.map.planRotationMobile,
+      mapViews: ui.map.views,
       flyEnabled: false,
       flySpeed: 3,
       showTourHelpers: true,

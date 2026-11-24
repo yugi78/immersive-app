@@ -87,6 +87,33 @@ export interface TourConfig {
 }
 
 /** Interface publique : « À propos », mini-carte. */
+/**
+ * Vue de face (orthogonale) d'un mur pour la carte : plan de coupe vertical passant
+ * par `center`, regard horizontal selon `yaw` ; tout ce qui est devant le plan est
+ * coupé. `width` × `height` : cadre affiché (mètres) avant zoom.
+ */
+export interface MapView {
+  name: string;
+  center: Vec3;
+  /** Direction du regard (degrés autour de la verticale, comme la caméra : 0 = vers -z). */
+  yaw: number;
+  width: number;
+  height: number;
+}
+
+export interface MapConfig {
+  title: string;
+  subtitle: string;
+  hint: string;
+  /** Fond de la carte (#rrggbb), par défaut la couleur du sol. */
+  background: string;
+  /** Rotation du plan (degrés) : écran large / écran étroit. */
+  planRotationDesktop: number;
+  planRotationMobile: number;
+  /** Les 4 vues de face des murs. */
+  views: MapView[];
+}
+
 export interface UiConfig {
   /** Crédits (HTML, texte riche). */
   aboutHtml: string;
@@ -95,6 +122,7 @@ export interface UiConfig {
     rotationDesktop: number;
     rotationMobile: number;
   };
+  map: MapConfig;
 }
 
 export type SceneConfig = Omit<typeof raw, 'tour' | 'ui'> & {

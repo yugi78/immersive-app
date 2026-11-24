@@ -18,6 +18,7 @@ import { createProgress } from './ui/progress';
 import { createTour, type Tour } from './tour/tour';
 import { createTourUi, type TourUi } from './ui/tourUi';
 import { renderMinimap, type MinimapImage } from './ui/minimap';
+import { createMapView, enableLayer, LAYER_PLAN, LAYER_WALLS } from './map/mapView';
 import type { EditorTools } from './editor/editor';
 import './ui/viewer.css';
 
@@ -62,6 +63,8 @@ export interface Viewer {
   setUi(ui: UiConfig): void;
   /** Visite guidée : démarrer, naviguer, quitter. */
   tour: Pick<Tour, 'start' | 'goTo' | 'next' | 'prev' | 'stop' | 'togglePause' | 'status' | 'onChange' | 'cancel'>;
+  /** Carte interactive : ouvrir une vue (0 : plan, 1–4 : murs), fermer, cadrer une vue depuis la caméra. */
+  map: { open(view?: number): void; close(): void; frameFromCamera(): { center: Vec3; yaw: number } };
   /** Outils d'édition (option `editor`), sinon null. */
   editor: EditorTools | null;
   /** Objets internes pour l'inspection (mode debug uniquement). */
@@ -206,6 +209,12 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     throw err;
   }
   cutaway.apply(scan.root);
+  // Calques de la carte : plan = sol + tranche ; vues de face = sol + maquette + scan.
+  for (const a of assets) {
+    if (a.item.id === 'sol' || a.item.role === 'cut-fill') enableLayer(a.root, LAYER_PLAN);
+    if (a.item.id === 'sol' || a.item.role === 'clay-cut') enableLayer(a.root, LAYER_WALLS);
+  }
+  enableLayer(scan.root, LAYER_WALLS);
   // Couleur du scan (uniforms partagés par toutes les tuiles), après la découpe.
   const scanGrade = createScanGrade(cfg.scanGrade);
   scanGrade.apply(scan.root);
@@ -267,6 +276,9 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   } catch (err) {
     console.warn('[viewer] mini-carte indisponible', err);
   }
+  // Carte interactive : rendu orthogonal en direct de la scène (plan, vues de face).
+  const mobileQuery = window.matchMedia('(max-width: 719px)');
+  const mapView = createMapView({ renderer, scene, box: reference.box, config: () => uiCfg.map, mobile: () => mobileQuery.matches });
   // Commandes créées à la fin de l'intro (pas de visite pendant l'ouverture).
   function onIntroDone() {
     orbit.start();
@@ -278,6 +290,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       hotspotIntervalMs: () => tourCfg.hotspotIntervalMs ?? 6000,
       ui: () => uiCfg,
       minimap,
+      map: mapView,
       hash: opts.urlHash ?? true,
     });
     const i = tourUi.initialIndex();
@@ -316,6 +329,15 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   });
 
   function frame(delta: number) {
+    // Carte ouverte : la visite est en pause, seule la vue orthogonale est rendue.
+    if (mapView.active) {
+      mapView.update(delta);
+      tourUi?.update(delta);
+      cutaway.update(camera.position, orbit.controls.target, 0);
+      if (mapView.view > 0) scan.update(mapView.camera, null, undefined, mapView.clip);
+      mapView.render();
+      return;
+    }
     if (!intro.done) {
       if (intro.update(delta)) onIntroDone();
     } else if (tour.active) {
@@ -386,9 +408,15 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     },
     setUi(next) {
       uiCfg = structuredClone(next);
+      mapView.refresh();
       tourUi?.refresh();
     },
     tour,
+    map: {
+      open: (view = 0) => tourUi?.openMap(view),
+      close: () => tourUi?.closeMap(),
+      frameFromCamera: () => mapView.frameFromCamera(camera),
+    },
     editor: editorTools,
     debug: debug ? debugHandle : undefined,
     dispose() {

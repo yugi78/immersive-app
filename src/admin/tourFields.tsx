@@ -22,7 +22,7 @@ const btn: CSSProperties = {
 const btnOn: CSSProperties = { ...btn, background: '#1c7ed6', borderColor: '#1c7ed6', color: '#fff' };
 const row: CSSProperties = { display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' };
 
-function Button({ on, children, ...p }: { on?: boolean; children: ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
+export function Button({ on, children, ...p }: { on?: boolean; children: ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
   return (
     <button type="button" style={{ ...(on ? btnOn : btn), opacity: p.disabled ? 0.5 : 1 }} {...p}>
       {children}
@@ -31,7 +31,7 @@ function Button({ on, children, ...p }: { on?: boolean; children: ReactNode; onC
 }
 
 /** Trois saisies x / y / z. */
-function XYZ({ value, onChange, readOnly }: { value: Vec3; onChange: (v: Vec3) => void; readOnly?: boolean }) {
+export function XYZ({ value, onChange, readOnly }: { value: Vec3; onChange: (v: Vec3) => void; readOnly?: boolean }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
       {(['x', 'y', 'z'] as const).map((axis, k) => (

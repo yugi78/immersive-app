@@ -121,6 +121,27 @@ OBJECT_KEYS.ui = {
     };
     return { rotationDesktop: rot(m.rotationDesktop, 'rotationDesktop'), rotationMobile: rot(m.rotationMobile, 'rotationMobile') };
   },
+  // Carte interactive : textes, fond, rotation du plan, 4 vues de face.
+  map: (v, n) => {
+    const m = (v ?? {}) as Record<string, unknown>;
+    if (!Array.isArray(m.views)) throw new Error(`${n}.views doit être une liste`);
+    return {
+      title: str(m.title ?? '', `${n}.title`),
+      subtitle: str(m.subtitle ?? '', `${n}.subtitle`),
+      hint: str(m.hint ?? '', `${n}.hint`),
+      background: str(m.background, `${n}.background`, /^#[0-9a-f]{6}$/i),
+      planRotationDesktop: num(m.planRotationDesktop, `${n}.planRotationDesktop`),
+      planRotationMobile: num(m.planRotationMobile, `${n}.planRotationMobile`),
+      views: m.views.map((x: unknown, i: number) => {
+        const w = (x ?? {}) as Record<string, unknown>;
+        const p = `${n}.views[${i}]`;
+        const width = num(w.width, `${p}.width`);
+        const height = num(w.height, `${p}.height`);
+        if (width <= 0 || height <= 0) throw new Error(`${p} : cadre vide`);
+        return { name: str(w.name ?? '', `${p}.name`), center: vec3(w.center, `${p}.center`), yaw: num(w.yaw, `${p}.yaw`), width, height };
+      }),
+    };
+  },
 };
 
 export type Patch = Record<string, Record<string, unknown>>;
