@@ -79,6 +79,8 @@ export interface TourConfig {
   hotspotIntervalMs: number;
   /** Reprise du parcours après une prise en main de la caméra (orbite sur l'œuvre). */
   resumeDelayMs: number;
+  /** Reprise après le bouton cube (orbite libre) sans interaction : plus long qu'après un glisser. */
+  cubeResumeMs: number;
   /** Point de passage central entre deux œuvres (évite les piliers). */
   hub: { position: Vec3 };
   works: TourWork[];

@@ -100,6 +100,8 @@ export function createTourUi(o: TourUiOptions) {
       <button type="button" class="pv-round pv-round--dark pv-home pv-home--corner" data-act="stop" aria-label="Revenir à la vue extérieure">${ICONS.pantheon}</button>
     </div>
     <button type="button" class="pv-round pv-info-close--bottom" data-act="info-close" aria-label="Fermer la fiche">${ICONS.close}</button>
+    <div class="pv-hand" aria-hidden="true"><div class="pv-hand__icon">${ICONS.hand}</div><p class="pv-hand__text">Déplacez-vous librement</p></div>
+    <button type="button" class="pv-round pv-resume" data-act="resume" aria-label="Reprendre la visite">${ICONS.back}</button>
     <div class="pv-start">
       <button type="button" class="pv-round pv-round--dark pv-start__icon" data-act="map" aria-label="Ouvrir la carte">${ICONS.map}</button>
       <button type="button" class="pv-pill pv-pill--dark pv-start__go" data-act="start">Visite guidée</button>
@@ -133,6 +135,10 @@ export function createTourUi(o: TourUiOptions) {
     infoClose: $('.pv-info-close'),
     infoCloseBottom: $('.pv-info-close--bottom'),
     spotcard: $('.pv-spotcard'),
+    hand: $('.pv-hand'),
+    handIcon: $('.pv-hand__icon'),
+    handText: $('.pv-hand__text'),
+    resume: $('.pv-resume'),
     spotcardText: $('.pv-spotcard__text'),
     info: $('.pv-info'),
     infoScroll: $('.pv-info__scroll'),
@@ -170,7 +176,57 @@ export function createTourUi(o: TourUiOptions) {
   // ---- Affichage animé des blocs ---------------------------------------------------
   const fade = (target: gsap.TweenTarget, on: boolean, extra: gsap.TweenVars = {}) =>
     gsap.to(target, { autoAlpha: on ? 1 : 0, duration: D(on ? 0.5 : 0.3), ease: on ? 'power2.out' : 'power2.in', overwrite: 'auto', ...extra });
-  gsap.set([el.head, el.bottom, el.info, el.veil, el.veilInfo, el.hotspots, el.collection, el.about, el.infoClose, el.infoCloseBottom, el.spotcard, el.arrows], { autoAlpha: 0 });
+  gsap.set([el.head, el.bottom, el.info, el.veil, el.veilInfo, el.hotspots, el.collection, el.about, el.infoClose, el.infoCloseBottom, el.spotcard, el.arrows, el.hand, el.resume], { autoAlpha: 0 });
+
+  // ---- Main « Déplacez-vous librement » ---------------------------------------------
+  let handTl: gsap.core.Timeline | null = null;
+  let handActive = false;
+  /**
+   * Main qui secoue (geste de glisser), avec ou sans texte, pendant `seconds`.
+   * Pendant ce temps l'interface de la visite reste masquée.
+   */
+  function showHand(withText: boolean, seconds: number) {
+    handTl?.kill();
+    handActive = true;
+    el.handText.style.display = withText ? '' : 'none';
+    const swing = Math.max(seconds - 0.45, 0.3);
+    handTl = gsap
+      .timeline({ onComplete: endHand })
+      .fromTo(el.hand, { autoAlpha: 0, scale: 0.9 }, { autoAlpha: 1, scale: 1, duration: 0.2, ease: 'power2.out' })
+      .to(
+        el.handIcon,
+        REDUCED
+          ? { duration: swing }
+          : {
+              keyframes: [
+                { rotation: -16, x: -10 },
+                { rotation: 14, x: 10 },
+                { rotation: -16, x: -10 },
+                { rotation: 14, x: 10 },
+                { rotation: 0, x: 0 },
+              ],
+              duration: swing,
+              ease: 'sine.inOut',
+            },
+      )
+      .to(el.hand, { autoAlpha: 0, duration: 0.25, ease: 'power2.in' });
+    applyScreen();
+  }
+  function endHand() {
+    handTl?.kill();
+    handTl = null;
+    gsap.set(el.handIcon, { rotation: 0, x: 0 });
+    if (!handActive) return;
+    handActive = false;
+    applyScreen();
+  }
+  function hideHand() {
+    if (!handActive) return;
+    gsap.to(el.hand, { autoAlpha: 0, duration: 0.2, overwrite: true });
+    endHand();
+  }
+  /** Main d'arrivée : une fois par entrée depuis l'extérieur. */
+  let arrivalHand = false;
 
   let shown = false;
   function applyScreen() {
@@ -178,7 +234,8 @@ export function createTourUi(o: TourUiOptions) {
     // Entrée et sortie (passage extérieur ↔ intérieur) : aucune interface, la
     // transition se suffit à elle-même.
     const transition = status.state === 'enter' || status.state === 'exit';
-    const show = inTour && !hidden && !transition;
+    const show = inTour && !hidden && !transition && !handActive;
+    fade(el.resume, inTour && hidden && !transition);
     if (show && !shown) animateTitle();
     shown = show;
     fade(el.start, status.state === 'idle' && !collectionOpen);
@@ -689,7 +746,15 @@ export function createTourUi(o: TourUiOptions) {
     'spot-close': () => closeSpotCard(),
     // Provisoire : carte interactive (étape « Carte ») et orbite libre (étape « Cube »).
     map: () => toast('Carte interactive : bientôt disponible'),
-    orbit: () => toast('Orbite libre : bientôt disponible'),
+    // Cube : orbite libre, main qui secoue 1 s (sans texte), à chaque fois.
+    orbit: () => {
+      tour.orbit();
+      if (tour.status().userControl) showHand(false, 1);
+    },
+    resume: () => {
+      hideHand();
+      tour.resume();
+    },
   };
   root.addEventListener('click', (e) => {
     const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
@@ -702,6 +767,7 @@ export function createTourUi(o: TourUiOptions) {
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     if (e.key === 'Escape') {
       if (aboutOpen) openAbout(false);
+      else if (status.userControl) actions.resume();
       else if (collectionOpen) openCollection(false);
       else if (screen === 'info') setScreen('auto');
       else if (tour.active) tour.stop();
@@ -746,6 +812,12 @@ export function createTourUi(o: TourUiOptions) {
     if (!inTour) screen = 'exterior';
     if (s.index >= 0 && s.index !== workIndex) setWork(s.index);
     hidden = s.userControl;
+    // Nouvelle entrée depuis l'extérieur : la main d'arrivée pourra s'afficher.
+    if (s.state === 'enter' && prev.state !== 'enter') arrivalHand = false;
+    // Glisser pendant la main : elle disparaît (le geste est compris).
+    if (s.orbitMode === 'drag') hideHand();
+    // Fin de l'orbite : plus de main.
+    if (!s.userControl && prev.userControl) hideHand();
     el.pause.innerHTML = tour.manualPaused ? ICONS.play : ICONS.pause;
     el.pause.setAttribute('aria-label', tour.manualPaused ? 'Reprendre' : 'Pause');
     if (inTour && s.work) setHash(s.work.slug);
@@ -783,6 +855,11 @@ export function createTourUi(o: TourUiOptions) {
         measureT = 0;
         measureSafe();
       }
+      // Main d'arrivée : de 1 s avant l'arrivée sur l'œuvre à 1 s après, puis l'interface.
+      if (!arrivalHand && status.state === 'enter' && tour.phaseRemaining <= 1) {
+        arrivalHand = true;
+        if (!tour.hasDragged) showHand(true, 2);
+      }
       updateHotspots(dt);
     },
     /** Œuvres ou réglages d'interface modifiés (back-office). */
@@ -795,6 +872,7 @@ export function createTourUi(o: TourUiOptions) {
       titleSplit?.revert();
       textSplit?.revert();
       cardSplit?.revert();
+      handTl?.kill();
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', alignClose);
       window.removeEventListener('hashchange', onHash);

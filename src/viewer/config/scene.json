@@ -133,6 +133,7 @@
     "hotspotIntervalMs": 6000,
     "cutFadeStart": 0.96,
     "resumeDelayMs": 2000,
+    "cubeResumeMs": 5000,
     "hub": {
       "position": [
         15.11,

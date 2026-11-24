@@ -47,6 +47,7 @@ type SceneProps = {
   tourLoopSpeed: number;
   tourCutFadeStart: number;
   tourResumeS: number;
+  tourCubeResumeS: number;
   tourHotspotS: number;
   tourHub: Vec3;
   tourWorks: TourWorkItem[];
@@ -101,6 +102,7 @@ const SCENE_KEYS = [
   'tourLoopSpeed',
   'tourCutFadeStart',
   'tourResumeS',
+  'tourCubeResumeS',
   'tourHotspotS',
   'aboutHtml',
   'minimapRotDesktop',
@@ -153,6 +155,7 @@ function tourFromProps(p: SceneProps): TourConfig {
     loopSpeed: p.tourLoopSpeed,
     cutFadeStart: p.tourCutFadeStart,
     resumeDelayMs: Math.round(p.tourResumeS * 1000),
+    cubeResumeMs: Math.round((p.tourCubeResumeS ?? 5) * 1000),
     hotspotIntervalMs: Math.round(p.tourHotspotS * 1000),
     hub: { position: p.tourHub },
     works: works.map((w, i) => ({
@@ -273,7 +276,8 @@ const config: Config<{}, Record<string, unknown>> = {
       tourExitS: slider('Sortie (retour à l’orbite)', 0.5, 15, 0.1, 's'),
       tourLoopSpeed: slider('Vitesse de la caméra sur l’œuvre (mouvement entre les points)', 0.05, 5, 0.05, 'm/s'),
       tourCutFadeStart: slider('Extinction de la découpe à l’entrée (fraction du trajet)', 0.3, 0.98, 0.01, null),
-      tourResumeS: slider('Reprise du parcours après une prise en main', 0.5, 20, 0.5, 's'),
+      tourResumeS: slider('Reprise du parcours après un glisser (prise en main)', 0.5, 20, 0.5, 's'),
+      tourCubeResumeS: slider('Reprise du parcours après le bouton cube, sans interaction', 1, 30, 0.5, 's'),
       tourHotspotS: slider('Points d’intérêt : durée d’affichage de chaque point', 1, 30, 0.5, 's'),
       aboutHtml: { type: 'richtext', label: '« À propos » : crédits' },
       minimapRotDesktop: {
@@ -372,6 +376,7 @@ const config: Config<{}, Record<string, unknown>> = {
           <FieldGroup label="Mouvement sur l’œuvre" defaultExpanded>
             {fields.tourLoopSpeed}
             {fields.tourResumeS}
+            {fields.tourCubeResumeS}
             {fields.tourHotspotS}
           </FieldGroup>
           <FieldGroup label="Point central" defaultExpanded>
@@ -437,6 +442,7 @@ const initialData: Data<{}, Record<string, unknown>> = {
       tourLoopSpeed: tour.loopSpeed,
       tourCutFadeStart: tour.cutFadeStart,
       tourResumeS: tour.resumeDelayMs / 1000,
+      tourCubeResumeS: (tour.cubeResumeMs ?? 5000) / 1000,
       tourHotspotS: (tour.hotspotIntervalMs ?? 6000) / 1000,
       tourHub: tour.hub.position,
       tourWorks: tour.works.map((w): TourWorkItem => {

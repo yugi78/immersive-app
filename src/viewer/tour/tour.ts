@@ -14,6 +14,8 @@ export interface TourStatus {
   paused: boolean;
   /** L'utilisateur tourne librement autour de l'œuvre (interface masquée). */
   userControl: boolean;
+  /** Origine de la prise en main : glisser sur l'écran ou bouton cube. */
+  orbitMode: 'drag' | 'cube' | null;
 }
 
 interface Phase {
@@ -87,6 +89,10 @@ export function createTour(opts: TourOptions) {
   let user: null | 'drag' | 'return' = null;
   let lastInteract = 0;
   let dragging = false;
+  /** Prise en main lancée par le bouton cube : délai de reprise plus long. */
+  let cubeMode = false;
+  /** L'utilisateur a déjà glissé au moins une fois (la main d'aide n'est plus utile). */
+  let hasDragged = false;
   let ret = { t: 0, pos: new Vector3(), quat: new Quaternion() };
   // Prise en main seulement après un vrai glisser (quelques pixels) : un simple
   // tap (point d'intérêt, bouton sur mobile) ne masque pas l'interface.
@@ -99,6 +105,7 @@ export function createTour(opts: TourOptions) {
     if (!press || !dragging || user === 'drag') return;
     if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > DRAG_PX) {
       user = 'drag';
+      hasDragged = true;
       emit();
     }
   };
@@ -107,6 +114,7 @@ export function createTour(opts: TourOptions) {
   userOrbit.addEventListener('start', () => {
     if (!phase || phase.kind !== 'loop') return;
     dragging = true;
+    if (cubeMode) hasDragged = true;
   });
   userOrbit.addEventListener('end', () => {
     dragging = false;
@@ -134,6 +142,7 @@ export function createTour(opts: TourOptions) {
       work: works()[index] ?? null,
       paused: manualPause || user !== null,
       userControl: user === 'drag',
+      orbitMode: user === 'drag' ? (cubeMode ? 'cube' : 'drag') : null,
     };
   }
   function emit() {
@@ -164,6 +173,14 @@ export function createTour(opts: TourOptions) {
     userOrbit.enabled = on;
     user = null;
     dragging = false;
+    cubeMode = false;
+  }
+
+  /** Retour en douceur vers le parcours, là où il s'était arrêté. */
+  function beginReturn() {
+    user = 'return';
+    cubeMode = false;
+    ret = { t: 0, pos: camera.position.clone(), quat: camera.quaternion.clone() };
   }
 
   function startLoop(w: TourWork) {
@@ -265,10 +282,10 @@ export function createTour(opts: TourOptions) {
           clampToBox(camera.position, w.bounds);
           camera.lookAt(userOrbit.target);
         }
-        if (!dragging && performance.now() - lastInteract > cfg.resumeDelayMs) {
-          // Retour vers le parcours, là où il s'était arrêté.
-          user = 'return';
-          ret = { t: 0, pos: camera.position.clone(), quat: camera.quaternion.clone() };
+        const delay = cubeMode ? (cfg.cubeResumeMs ?? 5000) : cfg.resumeDelayMs;
+        if (!dragging && performance.now() - lastInteract > delay) {
+          beginReturn();
+          emit();
         }
         camera.updateMatrixWorld();
         return false;
@@ -373,13 +390,36 @@ export function createTour(opts: TourOptions) {
       if (!phase || phase.kind === 'exit') return;
       // Pendant une prise en main, le bouton relance directement le parcours.
       if (user === 'drag') {
-        user = 'return';
-        ret = { t: 0, pos: camera.position.clone(), quat: camera.quaternion.clone() };
+        beginReturn();
         manualPause = false;
       } else {
         manualPause = !manualPause;
       }
       emit();
+    },
+    /** Bouton cube : orbite libre autour de l'œuvre (interface masquée) sans glisser. */
+    orbit() {
+      if (!phase || phase.kind !== 'loop' || user === 'drag') return;
+      user = 'drag';
+      cubeMode = true;
+      dragging = false;
+      lastInteract = performance.now();
+      emit();
+    },
+    /** Bouton retour : reprend tout de suite le parcours après une prise en main. */
+    resume() {
+      if (user !== 'drag') return;
+      beginReturn();
+      manualPause = false;
+      emit();
+    },
+    get hasDragged() {
+      return hasDragged;
+    },
+    /** Temps restant (s) de l'entrée, de la transition ou de la sortie en cours ; Infinity en boucle. */
+    get phaseRemaining() {
+      if (!phase || phase.kind === 'loop') return Infinity;
+      return phase.duration - phase.elapsed;
     },
     onChange(l: (s: TourStatus) => void) {
       listeners.add(l);

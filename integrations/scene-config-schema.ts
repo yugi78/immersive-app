@@ -12,7 +12,7 @@ const NUMBER_KEYS = {
   mist: ['startDistance', 'endDistance'],
   clay: ['hue', 'saturation', 'contrast', 'brightness', 'gamma'],
   dof: ['focusDistance', 'focusRange', 'aperture', 'maxBlur'],
-  tour: ['cutFadeStart', 'resumeDelayMs', 'loopSpeed', 'hotspotIntervalMs'],
+  tour: ['cutFadeStart', 'resumeDelayMs', 'cubeResumeMs', 'loopSpeed', 'hotspotIntervalMs'],
 } as const;
 
 /** Cases à cocher, par section. */
