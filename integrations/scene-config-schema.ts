@@ -11,6 +11,7 @@ const NUMBER_KEYS = {
   cutaway: ['radius', 'feather', 'fadeStartDistance', 'fadeEndDistance', 'cameraRadius'],
   mist: ['startDistance', 'endDistance'],
   clay: ['hue', 'saturation', 'contrast', 'brightness', 'gamma'],
+  scanGrade: ['saturation', 'contrast', 'shadows', 'highlights'],
   dof: ['focusDistance', 'focusRange', 'aperture', 'maxBlur'],
   tour: ['cutFadeStart', 'resumeDelayMs', 'cubeResumeMs', 'loopSpeed', 'hotspotIntervalMs'],
 } as const;

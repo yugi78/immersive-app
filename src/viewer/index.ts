@@ -4,6 +4,7 @@ import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
 import { createMist } from './scene/mist';
 import { createClayGrade } from './scene/clayGrade';
+import { createScanGrade } from './scene/scanGrade';
 import { createDof } from './scene/dof';
 import { withBase } from './url';
 import { createScanLod } from './loaders/scanLod';
@@ -38,6 +39,7 @@ export interface ViewerOptions {
 export type CutawaySettings = SceneConfig['cutaway'];
 export type MistSettings = SceneConfig['mist'];
 export type ClaySettings = SceneConfig['clay'];
+export type ScanGradeSettings = SceneConfig['scanGrade'];
 export type DofSettings = SceneConfig['dof'];
 
 export interface Viewer {
@@ -50,6 +52,8 @@ export interface Viewer {
   setMist(patch: Partial<MistSettings>): void;
   /** Modifie le réglage colorimétrique commun aux maquettes clay, à chaud. */
   setClay(patch: Partial<ClaySettings>): void;
+  /** Modifie le réglage colorimétrique des textures du scan, à chaud. */
+  setScanGrade(patch: Partial<ScanGradeSettings>): void;
   /** Modifie le flou de profondeur de champ à chaud (dont l'activation). */
   setDof(patch: Partial<DofSettings>): void;
   /** Remplace les données de la visite guidée à chaud (back-office). */
@@ -202,6 +206,9 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     throw err;
   }
   cutaway.apply(scan.root);
+  // Couleur du scan (uniforms partagés par toutes les tuiles), après la découpe.
+  const scanGrade = createScanGrade(cfg.scanGrade);
+  scanGrade.apply(scan.root);
   scene.add(scan.root);
 
   // Debug : compteur des niveaux de texture chargés.
@@ -369,6 +376,9 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     },
     setClay(patch) {
       clayGrade.set(patch);
+    },
+    setScanGrade(patch) {
+      scanGrade.set(patch);
     },
     setTour(next) {
       tourCfg = structuredClone(next);

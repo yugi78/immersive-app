@@ -34,6 +34,10 @@ type SceneProps = {
   clayContrast: number;
   clayBrightness: number;
   clayGamma: number;
+  scanSaturation: number;
+  scanContrast: number;
+  scanShadows: number;
+  scanHighlights: number;
   dofEnabled: boolean;
   dofAutoFocus: boolean;
   dofFocusDistance: number;
@@ -90,6 +94,10 @@ const SCENE_KEYS = [
   'clayContrast',
   'clayBrightness',
   'clayGamma',
+  'scanSaturation',
+  'scanContrast',
+  'scanShadows',
+  'scanHighlights',
   'dofEnabled',
   'dofAutoFocus',
   'dofFocusDistance',
@@ -117,6 +125,16 @@ const SCENE_KEYS = [
 /** Extrait nos réglages des props Puck (qui contiennent aussi puck, id, children…). */
 function pickSceneProps(props: Record<string, unknown>): SceneProps {
   return Object.fromEntries(SCENE_KEYS.map((k) => [k, props[k]])) as SceneProps;
+}
+
+/** Réglage colorimétrique des textures du scan. */
+function scanGradePatch(p: SceneProps) {
+  return {
+    saturation: p.scanSaturation,
+    contrast: p.scanContrast,
+    shadows: p.scanShadows,
+    highlights: p.scanHighlights,
+  };
 }
 
 /** Réglage colorimétrique commun aux maquettes clay (ville, Panthéon, sol). */
@@ -207,6 +225,7 @@ function ViewerPreview(props: SceneProps) {
     });
     v.setMist({ startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor });
     v.setClay(clayPatch(p));
+    v.setScanGrade(scanGradePatch(p));
     v.setDof(dofPatch(p));
     const tour = tourFromProps(p);
     v.setTour(tour);
@@ -265,6 +284,10 @@ const config: Config<{}, Record<string, unknown>> = {
       clayContrast: slider('Clay — contraste', 0, 2, 0.01, null),
       clayBrightness: slider('Clay — luminosité', -0.5, 0.5, 0.01, null),
       clayGamma: slider('Clay — gamma', 0.2, 3, 0.01, null),
+      scanSaturation: slider('Scan — saturation', 0, 2, 0.01, null),
+      scanContrast: slider('Scan — contraste', 0.5, 2, 0.01, null),
+      scanShadows: slider('Scan — ombres (déboucher / assombrir)', -1, 1, 0.01, null),
+      scanHighlights: slider('Scan — hautes lumières', -1, 1, 0.01, null),
       dofEnabled: checkbox('Flou de profondeur — activé'),
       dofAutoFocus: checkbox('Flou — mise au point auto sur le Panthéon'),
       dofFocusDistance: slider('Flou — distance de mise au point (si auto décoché)', 5, 1500, 5),
@@ -351,6 +374,12 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.clayBrightness}
             {fields.clayGamma}
           </FieldGroup>
+          <FieldGroup label="Couleur du scan" defaultExpanded>
+            {fields.scanSaturation}
+            {fields.scanContrast}
+            {fields.scanShadows}
+            {fields.scanHighlights}
+          </FieldGroup>
           <FieldGroup label="Flou de profondeur de champ" defaultExpanded>
             {fields.dofEnabled}
             {fields.dofAutoFocus}
@@ -411,7 +440,7 @@ const config: Config<{}, Record<string, unknown>> = {
   },
 };
 
-const { focus, cutaway, mist, clay, dof, tour, ui } = defaultConfig;
+const { focus, cutaway, mist, clay, scanGrade, dof, tour, ui } = defaultConfig;
 const initialData: Data<{}, Record<string, unknown>> = {
   root: {
     props: {
@@ -430,6 +459,10 @@ const initialData: Data<{}, Record<string, unknown>> = {
       clayContrast: clay.contrast,
       clayBrightness: clay.brightness,
       clayGamma: clay.gamma,
+      scanSaturation: scanGrade.saturation,
+      scanContrast: scanGrade.contrast,
+      scanShadows: scanGrade.shadows,
+      scanHighlights: scanGrade.highlights,
       dofEnabled: dof.enabled,
       dofAutoFocus: dof.autoFocus,
       dofFocusDistance: dof.focusDistance,
@@ -489,6 +522,7 @@ export default function SceneEditor() {
           },
           mist: { startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor },
           clay: clayPatch(p),
+          scanGrade: scanGradePatch(p),
           dof: dofPatch(p),
           tour: tourFromProps(p),
           ui: uiFromProps(p),

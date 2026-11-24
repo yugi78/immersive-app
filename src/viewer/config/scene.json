@@ -94,6 +94,12 @@
     "brightness": 0,
     "gamma": 1.67
   },
+  "scanGrade": {
+    "saturation": 1,
+    "contrast": 1,
+    "shadows": 0,
+    "highlights": 0
+  },
   "dof": {
     "enabled": true,
     "autoFocus": true,
