@@ -41,7 +41,6 @@ export function createMapUi(o: MapUiOptions) {
   el.innerHTML = `
     <div class="pv-map__surface"></div>
     <div class="pv-map__bg"></div>
-    <div class="pv-map__veil"></div>
     <header class="pv-map__head">
       <h2 class="pv-map__title"></h2>
       <p class="pv-map__sub"></p>
@@ -146,9 +145,17 @@ export function createMapUi(o: MapUiOptions) {
   }
 
   // ---- Vues -------------------------------------------------------------------------
-  function selectView(i: number) {
+  let viewTl: gsap.core.Timeline | null = null;
+  function selectView(i: number, animate = false) {
     closeCard();
-    map.setView(i);
+    if (animate && map.active && i !== map.view && !REDUCED) {
+      viewTl?.kill();
+      viewTl = gsap
+        .timeline()
+        .to(e.bg, { xPercent: 0, autoAlpha: 1, duration: 0.25, ease: 'power1.in' })
+        .add(() => map.setView(i))
+        .to(e.bg, { autoAlpha: 0, duration: 0.4, ease: 'power1.out' }, '+=0.05');
+    } else map.setView(i);
     viewBtns.forEach((b, j) => {
       b.classList.toggle('is-current', j === i);
       b.setAttribute('aria-selected', String(j === i));
@@ -156,11 +163,19 @@ export function createMapUi(o: MapUiOptions) {
   }
 
   /** Zone libre de l'écran pour cadrer la vue (hors titres, vignettes et boutons). */
+  const box = (n: HTMLElement) => ({
+    left: n.offsetLeft,
+    top: n.offsetTop,
+    right: n.offsetLeft + n.offsetWidth,
+    bottom: n.offsetTop + n.offsetHeight,
+  });
   function measureSafe() {
-    const r = o.root.getBoundingClientRect();
-    const head = e.head.getBoundingClientRect();
-    const views = e.views.getBoundingClientRect();
-    const back = e.back.getBoundingClientRect();
+    // Positions de mise en page (offset*) : indépendantes des glissements animés (GSAP),
+    // sinon le cadrage suit l'animation d'entrée et le plan saute de quelques pixels.
+    const r = { left: 0, top: 0, width: el.clientWidth, height: el.clientHeight };
+    const head = box(e.head);
+    const views = box(e.views);
+    const back = box(e.back);
     if (o.mobile()) {
       const top = head.bottom - r.top + 12;
       const bottom = Math.min(views.top, back.top) - r.top - 12;
@@ -243,7 +258,7 @@ export function createMapUi(o: MapUiOptions) {
     const dot = t.closest<HTMLElement>('.pv-map__dot');
     if (dot) return openCard(Number(dot.dataset.work));
     const v = t.closest<HTMLElement>('[data-view]');
-    if (v) return selectView(Number(v.dataset.view));
+    if (v) return selectView(Number(v.dataset.view), true);
     const act = t.closest<HTMLElement>('[data-map]')?.dataset.map;
     if (act === 'back') {
       if (tour.active) close();
@@ -326,6 +341,7 @@ export function createMapUi(o: MapUiOptions) {
     if (resume && pausedByMap && tour.active && tour.manualPaused) tour.togglePause();
     pausedByMap = false;
     tl?.kill();
+    viewTl?.kill();
     // 1. La carte 3D s'efface dans le fond gris ; 2. le fond glisse et découvre la visite.
     tl = gsap
       .timeline()

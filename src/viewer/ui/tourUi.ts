@@ -195,18 +195,21 @@ export function createTourUi(o: TourUiOptions) {
     handTl?.kill();
     handActive = true;
     el.handText.style.display = withText ? '' : 'none';
-    const swing = Math.max(seconds - 0.25, 0.3);
+    // Glissement sur toute la durée ; la main s'affirme (50 → 100 %) sur la première
+    // moitié, puis s'efface en pleine course sur la seconde.
+    const half = seconds / 2;
     handTl = gsap
       .timeline({ onComplete: endHand })
-      .fromTo(el.hand, { autoAlpha: 0, scale: 0.9 }, { autoAlpha: 1, scale: 1, duration: 0.2, ease: 'power2.out' })
+      .fromTo(el.hand, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2, ease: 'power2.out' }, 0)
       // Un seul glissement lent de gauche à droite ; la main s'affirme (50 → 100 %).
       .fromTo(
         el.handIcon,
         { x: REDUCED ? 0 : -26, opacity: 0.5 },
-        { x: REDUCED ? 0 : 26, opacity: 1, duration: swing, ease: 'sine.inOut' },
+        { x: REDUCED ? 0 : 26, duration: seconds, ease: 'sine.inOut' },
         0,
       )
-      .to(el.hand, { autoAlpha: 0, duration: 0.25, ease: 'power2.in' });
+      .to(el.handIcon, { opacity: 1, duration: half, ease: 'power1.out' }, 0)
+      .to(el.hand, { autoAlpha: 0, duration: half, ease: 'power1.in' }, half);
     applyScreen();
   }
   function endHand() {
