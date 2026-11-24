@@ -40,6 +40,7 @@ export function createMapUi(o: MapUiOptions) {
   el.setAttribute('aria-label', 'Carte interactive');
   el.innerHTML = `
     <div class="pv-map__surface"></div>
+    <div class="pv-map__bg"></div>
     <div class="pv-map__veil"></div>
     <header class="pv-map__head">
       <h2 class="pv-map__title"></h2>
@@ -59,7 +60,7 @@ export function createMapUi(o: MapUiOptions) {
     <div class="pv-map__views" role="tablist" aria-label="Vues">
       ${Array.from({ length: VIEWS }, (_, i) => `<button type="button" class="pv-map__view" role="tab" data-view="${i}" aria-label="${i === 0 ? 'Plan' : `Vue de face ${i}`}"><canvas width="240" height="200"></canvas></button>`).join('')}
     </div>
-    <button type="button" class="pv-pill pv-pill--dark pv-map__back" data-map="close"><i>${ICONS.play}</i><span class="pv-map__back-text"></span></button>
+    <button type="button" class="pv-pill pv-pill--dark pv-map__back" data-map="back"><i>${ICONS.play}</i><span class="pv-map__back-text"></span></button>
     <button type="button" class="pv-round pv-round--dark pv-home pv-map__home" data-map="home" aria-label="Revenir à la vue extérieure">${ICONS.pantheon}</button>`;
   o.root.appendChild(el);
 
@@ -79,10 +80,13 @@ export function createMapUi(o: MapUiOptions) {
     back: $('.pv-map__back'),
     backText: $('.pv-map__back-text'),
     home: $('.pv-map__home'),
+    bg: $('.pv-map__bg'),
   };
   const viewBtns = [...el.querySelectorAll<HTMLButtonElement>('.pv-map__view')];
   const canvases = viewBtns.map((b) => b.querySelector('canvas')!);
   gsap.set([el, e.card], { autoAlpha: 0 });
+  /** Éléments de l'écran qui apparaissent après le glissement du fond. */
+  const chrome = () => [e.head, e.dots, e.views, e.back, e.home];
 
   let open = false;
   /** Visite mise en pause par l'ouverture de la carte (reprise à la fermeture). */
@@ -102,7 +106,7 @@ export function createMapUi(o: MapUiOptions) {
     dots = o.works().map((w, i) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'pv-minimap__dot pv-map__dot';
+      b.className = 'pv-map__dot';
       b.dataset.work = String(i);
       b.setAttribute('aria-label', w.title);
       e.dots.appendChild(b);
@@ -111,8 +115,7 @@ export function createMapUi(o: MapUiOptions) {
     markDots();
   }
   function markDots() {
-    const cur = tour.active ? tour.status().index : -1;
-    dots.forEach((d, i) => d.el.classList.toggle('is-current', i === card || (card < 0 && i === cur)));
+    dots.forEach((d, i) => d.el.classList.toggle('is-current', i === card));
   }
 
   // ---- Encart d'une œuvre ---------------------------------------------------------
@@ -139,8 +142,7 @@ export function createMapUi(o: MapUiOptions) {
   /** Mobile : l'encart prend la place des boutons du bas. */
   function fadeButtons() {
     const hide = card >= 0 && o.mobile();
-    gsap.to(e.back, { autoAlpha: hide ? 0 : 1, duration: D(0.25), overwrite: true });
-    gsap.to(e.home, { autoAlpha: hide || !tour.active ? 0 : 1, duration: D(0.25), overwrite: true });
+    gsap.to([e.back, e.home], { autoAlpha: hide ? 0 : 1, duration: D(0.25), overwrite: true });
   }
 
   // ---- Vues -------------------------------------------------------------------------
@@ -243,10 +245,17 @@ export function createMapUi(o: MapUiOptions) {
     const v = t.closest<HTMLElement>('[data-view]');
     if (v) return selectView(Number(v.dataset.view));
     const act = t.closest<HTMLElement>('[data-map]')?.dataset.map;
-    if (act === 'close') close();
-    else if (act === 'home') {
+    if (act === 'back') {
+      if (tour.active) close();
+      else {
+        close();
+        tour.start(0);
+      }
+    } else if (act === 'home') {
+      // En visite : retour à la vue extérieure ; dehors : simple fermeture.
+      const stop = tour.active;
       close(false);
-      tour.stop();
+      if (stop) tour.stop();
     } else if (act === 'card-close') closeCard();
     else if (act === 'go' && card >= 0) {
       const i = card;
@@ -257,6 +266,7 @@ export function createMapUi(o: MapUiOptions) {
   });
 
   // ---- Ouverture / fermeture -------------------------------------------------------
+  let tl: gsap.core.Timeline | null = null;
   function openMap(view = 0) {
     if (open) return selectView(view);
     open = true;
@@ -271,24 +281,41 @@ export function createMapUi(o: MapUiOptions) {
         pausedByMap = true;
       }
     }
-    e.backText.innerHTML = tour.active ? 'Retour à<br>la visite' : 'Fermer<br>la carte';
-    map.open(view);
-    selectView(view);
-    measureSafe();
-    map.update(1);
+    e.backText.innerHTML = tour.active ? 'Retour à<br>la visite' : 'Lancer<br>la visite';
+    e.bg.style.background = o.ui().map.background;
     o.onToggle(true);
-    gsap.fromTo(el, { autoAlpha: 0 }, { autoAlpha: 1, duration: D(0.45), ease: 'power2.out' });
-    gsap.fromTo([e.head.children, e.views, e.back], { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: D(0.5), ease: 'power2.out', stagger: D(0.05), delay: D(0.1) });
-    fadeButtons();
-    // Vignettes rendues après une image (programmes de rendu prêts).
-    requestAnimationFrame(() => {
-      try {
-        map.thumbnails(canvases);
-      } catch (err) {
-        console.warn('[carte] vignettes indisponibles', err);
-      }
-    });
-    o.showHand(true, 2);
+    tl?.kill();
+    gsap.set(el, { autoAlpha: 1 });
+    gsap.set(chrome(), { autoAlpha: 0 });
+    // 1. Le fond gris glisse sur la vue 3D ; 2. la carte 3D apparaît en fondu dessous.
+    tl = gsap
+      .timeline()
+      .fromTo(e.bg, { xPercent: -100, autoAlpha: 1 }, { xPercent: 0, duration: D(0.6), ease: 'power3.inOut' })
+      .add(() => {
+        map.open(view);
+        selectView(view);
+        measureSafe();
+        map.update(1);
+        lastMobile = o.mobile();
+        // Vignettes rendues après une image (programmes de rendu prêts).
+        requestAnimationFrame(renderThumbs);
+        o.showHand(true, 2);
+      })
+      .to(e.bg, { autoAlpha: 0, duration: D(0.55), ease: 'power1.inOut' })
+      .fromTo(
+        [e.head, e.views, e.back, e.home, e.dots],
+        { autoAlpha: 0, y: 12 },
+        { autoAlpha: 1, y: 0, duration: D(0.5), ease: 'power2.out', stagger: D(0.05), clearProps: 'transform' },
+        '<0.1',
+      )
+      .add(fadeButtons);
+  }
+  function renderThumbs() {
+    try {
+      map.thumbnails(canvases);
+    } catch (err) {
+      console.warn('[carte] vignettes indisponibles', err);
+    }
   }
   /** `resume` : relance la visite mise en pause par la carte. */
   function close(resume = true) {
@@ -296,24 +323,36 @@ export function createMapUi(o: MapUiOptions) {
     open = false;
     closeCard();
     o.hideHand();
-    gsap.to(el, {
-      autoAlpha: 0,
-      duration: D(0.35),
-      ease: 'power2.in',
-      onComplete: () => {
-        if (!open) map.close();
-      },
-    });
     if (resume && pausedByMap && tour.active && tour.manualPaused) tour.togglePause();
     pausedByMap = false;
-    o.onToggle(false);
+    tl?.kill();
+    // 1. La carte 3D s'efface dans le fond gris ; 2. le fond glisse et découvre la visite.
+    tl = gsap
+      .timeline()
+      .to(chrome(), { autoAlpha: 0, duration: D(0.2), ease: 'power2.in' })
+      .fromTo(e.bg, { xPercent: 0, autoAlpha: 0 }, { autoAlpha: 1, duration: D(0.4), ease: 'power1.inOut' }, '<')
+      .add(() => {
+        map.close();
+        o.onToggle(false);
+      })
+      .to(e.bg, { xPercent: 100, duration: D(0.6), ease: 'power3.inOut' })
+      .set(el, { autoAlpha: 0 });
   }
 
   // ---- Chaque image -------------------------------------------------------------------
   let measureT = 0;
+  let lastMobile = false;
   const tmp = new Vector3();
   function update(dt: number) {
-    if (!open) return;
+    if (!open || !map.active) return;
+    if (o.mobile() !== lastMobile) {
+      lastMobile = o.mobile();
+      map.refresh();
+      map.setView(map.view);
+      measureSafe();
+      requestAnimationFrame(renderThumbs);
+      fadeButtons();
+    }
     measureT += dt;
     if (measureT > 0.5) {
       measureT = 0;
