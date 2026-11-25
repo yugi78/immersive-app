@@ -197,7 +197,7 @@
               80.53,
               106.81
             ],
-            "text": "La Gloire est une peinture de François Gérard achevée en 1837, destinée à un pendentif de la coupole du dôme de l'église Sainte-Geneviève\n"
+            "text": "La Gloire, l'un des quatre pendentifs de la coupole conçus par François Gérard : commandés en 1821, peints entre 1831 et 1837."
           },
           {
             "id": "h-d8bd1n",
@@ -206,7 +206,7 @@
               85.38,
               107.97
             ],
-            "text": "Représentation de la Gloire"
+            "text": "Au centre, la Gloire : une figure féminine vêtue de blanc, couronnée de rayons de lumière."
           },
           {
             "id": "h-gb8tpy",
@@ -215,11 +215,20 @@
               85.25,
               108.35
             ],
-            "text": "Napoléon 1er enlaçant la gloire"
+            "text": "Napoléon Ier étreint la Gloire. Écarté de la coupole de Gros sous la Restauration, l'Empereur revient dans le décor du Panthéon après 1830, grâce à Gérard."
           }
         ],
         "content": {
-          "blocks": []
+          "blocks": [
+            {
+              "type": "text",
+              "html": "<p>Sous la coupole peinte par Antoine-Jean Gros, <em>L'Apothéose de sainte Geneviève</em>, les quatre pendentifs portent des allégories conçues par François Gérard : <em>la Mort</em>, <em>la Patrie</em>, <em>la Justice</em> et <em>la Gloire</em>.</p><p>Commandés en 1821, sous la Restauration, ils sont exécutés entre 1831 et 1837, année de la mort du peintre.</p>"
+            },
+            {
+              "type": "text",
+              "html": "<p>Au cœur de la composition, la Gloire, couronnée de rayons, est étreinte par Napoléon Ier. Autour d'eux, d'autres figures allégoriques accompagnent la scène ; les mots-clés de l'étude préparatoire du Louvre évoquent la Victoire, la Religion, la Vérité et l'Armée.</p><p>Ce retour de l'Empereur est un geste politique. Gros avait dû renoncer à le représenter dans la coupole après 1814 ; c'est sous la monarchie de Juillet, après 1830, que Gérard peut le réintroduire dans le décor.</p>"
+            }
+          ]
         }
       },
       {
@@ -276,7 +285,7 @@
               80.48,
               130.29
             ],
-            "text": "La Patrie est une œuvre allégorique commandée à François Gérard en 1821 et achevée en 1837 (année de sa mort), qui glorifie le dévouement des citoyens envers la nation."
+            "text": "La Patrie : commandée à Gérard en 1821, peinte entre 1831 et 1837, année de la mort du peintre. Son titre est inscrit au bas du pendentif."
           },
           {
             "id": "h-ufhqhz",
@@ -285,7 +294,7 @@
               85.59,
               128.99
             ],
-            "text": "L'allégorie de la Patrie : Au centre et en hauteur se dresse une imposante figure féminine drapée à l'antique, incarnant la Nation protectrice et souveraine."
+            "text": "Au centre, la Patrie, casquée et armée d'une lance, à la manière d'une Minerve antique : la nation souveraine et protectrice."
           },
           {
             "id": "h-p1jyzg",
@@ -294,11 +303,20 @@
               84.35,
               128.76
             ],
-            "text": "Les composantes du Peuple français : Autour et au pied de cette figure centrale sont rassemblés les différents ordres et forces vives de la société qui soutiennent et défendent le pays."
+            "text": "Autour d'elle se pressent des hommes en armes : les citoyens venus défendre la nation."
           }
         ],
         "content": {
-          "blocks": []
+          "blocks": [
+            {
+              "type": "text",
+              "html": "<p>Sous la coupole peinte par Antoine-Jean Gros, <em>L'Apothéose de sainte Geneviève</em>, les quatre pendentifs portent des allégories conçues par François Gérard : <em>la Mort</em>, <em>la Patrie</em>, <em>la Justice</em> et <em>la Gloire</em>.</p><p>Commandés en 1821, sous la Restauration, ils sont exécutés entre 1831 et 1837, année de la mort du peintre.</p>"
+            },
+            {
+              "type": "text",
+              "html": "<p>Debout au centre, casquée et armée, la Patrie domine la scène. Des citoyens en armes se rassemblent autour d'elle, tandis qu'en haut à droite une figure ailée vêtue de rouge s'avance vers elle.</p><p>L'allégorie célèbre le dévouement des citoyens envers la nation, un thème en écho à la devise du fronton : « Aux grands hommes, la patrie reconnaissante ».</p>"
+            }
+          ]
         }
       },
       {
@@ -350,7 +368,7 @@
               80.46,
               124.79
             ],
-            "text": "La Justice (parfois appelée La Loi dans les esquisses préparatoires) est une peinture allégorique monumentale de François Gérard achevée en 1837."
+            "text": "La Justice, parfois appelée « la Loi » dans les esquisses, est l'un des quatre pendentifs de Gérard, peints entre 1831 et 1837."
           },
           {
             "id": "h-0pan32",
@@ -359,7 +377,7 @@
               85.38,
               124.17
             ],
-            "text": "La figure centrale de la Justice. Debout au cœur de la composition et drapée à l'antique, elle incarne la Loi souveraine, impartiale et civilisatrice."
+            "text": "Debout au centre, la Justice tient son glaive. À l'arrière-plan se dresse un édifice à colonnes : le Panthéon lui-même."
           },
           {
             "id": "h-g8x8wc",
@@ -368,11 +386,20 @@
               82.4,
               125.29
             ],
-            "text": "Les vices terrassés à ses pieds. Dans le registre inférieur, Gérard a mis en scène un véritable combat moral en personnifiant les fléaux sociaux que la Justice combat et repousse : la Violence, la Fourberie, la Vanité, la Calomnie et l'Envie"
+            "text": "À ses pieds gisent les vices terrassés. Dans une étude préparatoire, Gérard les nomme : la Violence, la Fourberie, la Vanité, la Calomnie et l'Envie."
           }
         ],
         "content": {
-          "blocks": []
+          "blocks": [
+            {
+              "type": "text",
+              "html": "<p>Sous la coupole peinte par Antoine-Jean Gros, <em>L'Apothéose de sainte Geneviève</em>, les quatre pendentifs portent des allégories conçues par François Gérard : <em>la Mort</em>, <em>la Patrie</em>, <em>la Justice</em> et <em>la Gloire</em>.</p><p>Commandés en 1821, sous la Restauration, ils sont exécutés entre 1831 et 1837, année de la mort du peintre.</p>"
+            },
+            {
+              "type": "text",
+              "html": "<p>La Justice, drapée à l'antique, se tient au centre, glaive en main. Derrière elle, Gérard a représenté le Panthéon lui-même.</p><p>Dans le registre inférieur, les vices sont renversés. Une étude du Louvre en donne les noms, inscrits par l'artiste le long du cadre : la Violence, la Fourberie, la Vanité, la Calomnie et l'Envie. Une étude du Petit Palais, vers 1830, porte le titre « la Loi ».</p>"
+            }
+          ]
         }
       }
     ]
@@ -393,29 +420,45 @@
       "views": [
         {
           "name": "Vue 1",
-          "center": [7.11, 106.4, 118.91],
-          "yaw": 0,
+          "center": [
+            7.11,
+            106.4,
+            118.91
+          ],
+          "yaw": -17,
           "width": 130,
           "height": 90
         },
         {
           "name": "Vue 2",
-          "center": [7.11, 106.4, 118.91],
-          "yaw": 90,
+          "center": [
+            7.11,
+            106.4,
+            118.91
+          ],
+          "yaw": 74,
           "width": 130,
           "height": 90
         },
         {
           "name": "Vue 3",
-          "center": [7.11, 106.4, 118.91],
-          "yaw": 180,
+          "center": [
+            7.11,
+            106.4,
+            118.91
+          ],
+          "yaw": 163,
           "width": 130,
           "height": 90
         },
         {
           "name": "Vue 4",
-          "center": [7.11, 106.4, 118.91],
-          "yaw": 270,
+          "center": [
+            7.11,
+            106.4,
+            118.91
+          ],
+          "yaw": -107,
           "width": 130,
           "height": 90
         }
