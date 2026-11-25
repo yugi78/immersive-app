@@ -1,5 +1,5 @@
 import { FieldLabel, type CustomField } from '@puckeditor/core';
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 import type { MapView, Vec3 } from '../viewer/config/types';
 import { useViewer } from './bridge';
 import { Icon } from './icons';
@@ -38,6 +38,15 @@ function MapViewsUI({ value, onChange, readOnly }: { value: MapView[]; onChange:
   const viewer = useViewer();
   const views = value ?? [];
   const set = (i: number, patch: Partial<MapView>) => onChange(views.map((v, j) => (j === i ? { ...v, ...patch } : v)));
+  /** Change l'ordre des vues (= ordre des vignettes de la carte). */
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= views.length || from === to) return;
+    const next = [...views];
+    const [v] = next.splice(from, 1);
+    next.splice(to, 0, v);
+    onChange(next);
+  };
+  const [drag, setDrag] = useState<number | null>(null);
   const addWall = () => {
     const ref = views.find((v) => v.kind === 'wall') ?? views[0];
     const wall: MapView = {
@@ -68,15 +77,40 @@ function MapViewsUI({ value, onChange, readOnly }: { value: MapView[]; onChange:
           glisse d'un point à l'autre. Astuce : en vol libre, placez-vous au bon endroit puis « Depuis la caméra ».
         </p>
         {views.map((v, i) => (
-          <div key={i} className="bo-item">
+          <div
+            key={i}
+            className={`bo-item${drag === i ? ' is-drag' : ''}`}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (drag !== null) move(drag, i);
+              setDrag(null);
+            }}
+          >
             <div className="bo-item__head">
-              <span className="bo-item__handle" style={{ cursor: 'default' }}>
+              <span className="bo-item__handle">
+                <span
+                  className="bo-grip"
+                  draggable={!readOnly}
+                  title="Glisser pour changer l'ordre"
+                  onDragStart={(e) => {
+                    setDrag(i);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragEnd={() => setDrag(null)}
+                >
+                  <Icon.grip size={16} />
+                </span>
                 <span className="bo-num">{i + 1}</span>
                 <input className="bo-input bo-input--title" value={v.name} disabled={readOnly} aria-label="Nom de la vue" onChange={(e) => set(i, { name: e.currentTarget.value })} />
               </span>
+              <span style={{ ...row, flexWrap: 'nowrap', gap: 2 }}>
+                <Button variant="ghost" icon={<Icon.chevronUp size={15} />} title="Monter (vignette précédente)" disabled={readOnly || i === 0} onClick={() => move(i, i - 1)} />
+                <Button variant="ghost" icon={<Icon.chevronDown size={15} />} title="Descendre (vignette suivante)" disabled={readOnly || i === views.length - 1} onClick={() => move(i, i + 1)} />
               {v.kind === 'wall' && views.filter((x) => x.kind === 'wall').length > 1 && (
                 <Button variant="ghost" icon={<Icon.trash size={15} />} title="Supprimer cette vue" onClick={() => onChange(views.filter((_, j) => j !== i))} />
               )}
+              </span>
             </div>
             <span style={small}>{KIND_LABEL[v.kind]}</span>
             <span style={small}>{v.kind === 'wall' ? 'Point de la vue (le plan de coupe y passe)' : 'Point de la vue · Y = hauteur de coupe'}</span>

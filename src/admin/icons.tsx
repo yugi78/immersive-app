@@ -181,6 +181,26 @@ export const Icon = {
       <path d="M4.4 7.6 12 12l7.6-4.4M12 12v8.8" />
     </Svg>
   ),
+  chevronUp: (p: P) => (
+    <Svg {...p} strokeWidth={2}>
+      <path d="m6 15 6-6 6 6" />
+    </Svg>
+  ),
+  chevronDown: (p: P) => (
+    <Svg {...p} strokeWidth={2}>
+      <path d="m6 9 6 6 6-6" />
+    </Svg>
+  ),
+  grip: (p: P) => (
+    <Svg {...p} fill="currentColor" stroke="none">
+      <circle cx="9" cy="6" r="1.5" />
+      <circle cx="15" cy="6" r="1.5" />
+      <circle cx="9" cy="12" r="1.5" />
+      <circle cx="15" cy="12" r="1.5" />
+      <circle cx="9" cy="18" r="1.5" />
+      <circle cx="15" cy="18" r="1.5" />
+    </Svg>
+  ),
   close: (p: P) => (
     <Svg {...p} strokeWidth={2}>
       <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />

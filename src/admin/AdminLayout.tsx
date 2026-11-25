@@ -61,6 +61,13 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
           : { cls: 'is-ok', text: 'Enregistré dans scene.json' };
 
   const setTab = (t: string) => dispatch({ type: 'setUi', ui: { fieldTab: t } });
+  // L'historique de Puck contient aussi l'onglet ouvert : on annule les réglages
+  // sans quitter l'onglet courant.
+  const step = (go: () => void) => {
+    const keep = tab;
+    go();
+    dispatch({ type: 'setUi', ui: { fieldTab: keep } });
+  };
 
   return (
     <div className="bo">
@@ -80,10 +87,10 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
         </span>
         <div className="bo-spacer" />
         <div className="bo-group">
-          <button type="button" className="bo-iconbtn" aria-label="Annuler" title="Annuler (Ctrl+Z)" disabled={!history.hasPast} onClick={() => history.back()}>
+          <button type="button" className="bo-iconbtn" aria-label="Annuler" title="Annuler (Ctrl+Z)" disabled={!history.hasPast} onClick={() => step(history.back)}>
             <Icon.undo />
           </button>
-          <button type="button" className="bo-iconbtn" aria-label="Rétablir" title="Rétablir (Ctrl+Maj+Z)" disabled={!history.hasFuture} onClick={() => history.forward()}>
+          <button type="button" className="bo-iconbtn" aria-label="Rétablir" title="Rétablir (Ctrl+Maj+Z)" disabled={!history.hasFuture} onClick={() => step(history.forward)}>
             <Icon.redo />
           </button>
         </div>
