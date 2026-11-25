@@ -10,6 +10,7 @@ import { boundsField, cameraPointsField, focusOffsetField, pointField, previewFi
 import { blocksField, hotspotsField, thumbnailField, workTabsField, WorkSummary } from './workFields';
 import { mapViewsField } from './mapFields';
 import { AdminLayout, type SaveState } from './AdminLayout';
+import { isFull, publishContent } from './backend';
 import './admin.css';
 
 const usePuckState = createUsePuck();
@@ -481,11 +482,13 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.mapViews}
           </FieldGroup>
         </FieldTab>
+{isFull && (
         <FieldTab label="Debug">
           {fields.flyEnabled}
           {fields.flySpeed}
           {fields.showTourHelpers}
         </FieldTab>
+        )}
       </>
     ),
     // Props brutes lues dans l'état Puck : les champs texte riche y sont du HTML,
@@ -567,11 +570,8 @@ export default function SceneEditor() {
   async function publish(data: Data<{}, Record<string, unknown>>) {
     const p = pickSceneProps(data.root.props ?? {});
     setSave({ kind: 'saving' });
-    try {
-      const res = await fetch('/__admin/scene-config', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
+    // Seul le CONTENU est publié (content.json) : jamais la structure de la scène.
+    const result = await publishContent({
           focus: { offsetX: p.focusOffset[0], heightOffset: p.focusOffset[1], offsetZ: p.focusOffset[2] },
           cutaway: {
             radius: p.cutRadius,
@@ -587,13 +587,12 @@ export default function SceneEditor() {
           dof: dofPatch(p),
           tour: tourFromProps(p),
           ui: uiFromProps(p),
-        }),
-      });
-      const json = await res.json().catch(() => ({}));
-      setSave(res.ok ? { kind: 'saved' } : { kind: 'error', message: `Erreur : ${json.error ?? res.status}` });
-    } catch (err) {
-      setSave({ kind: 'error', message: `Erreur : ${err instanceof Error ? err.message : String(err)} (serveur de dev lancé ?)` });
-    }
+    });
+    setSave(
+      result.ok
+        ? { kind: 'saved', message: result.pendingDeploy ? 'Publié · en ligne d’ici 1 à 2 min' : undefined }
+        : { kind: 'error', message: `Erreur : ${result.error}` },
+    );
   }
 
   // Composition Puck : notre mise en page (en-tête, onglets à icônes, aperçu agrandi).

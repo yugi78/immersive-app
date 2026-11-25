@@ -1,5 +1,6 @@
 import { createUsePuck, Puck, type Data } from '@puckeditor/core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { isFull, LOCAL } from './backend';
 import { bridge, useDevice, useViewer } from './bridge';
 import { Icon } from './icons';
 
@@ -14,7 +15,7 @@ const TABS: { tab: string; label: string; icon: ReactNode; bottom?: boolean }[] 
   { tab: 'Plans', label: 'Plans', icon: <Icon.map size={20} /> },
   { tab: 'Interface', label: 'Interface', icon: <Icon.layout size={20} /> },
   { tab: 'Debug', label: 'Debug', icon: <Icon.bug size={20} />, bottom: true },
-];
+].filter((t) => isFull || t.tab !== 'Debug');
 const SUBTITLES: Record<string, string> = {
   Scène: 'Brume, couleurs des maquettes et du scan, flou',
   'Caméra orbitale': "Point de focus de la vue extérieure",
@@ -54,11 +55,11 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
   const pill =
     save.kind === 'saving'
       ? { cls: 'is-busy', text: 'Enregistrement…' }
-      : save.kind === 'error' && dirty
+      : save.kind === 'error'
         ? { cls: 'is-error', text: save.message ?? 'Erreur' }
         : dirty
           ? { cls: 'is-dirty', text: 'Modifications non publiées' }
-          : { cls: 'is-ok', text: 'Publié' };
+          : { cls: 'is-ok', text: save.kind === 'saved' && save.message ? save.message : 'Publié' };
 
   const setTab = (t: string) => dispatch({ type: 'setUi', ui: { fieldTab: t } });
   // L'historique de Puck contient aussi l'onglet ouvert : on annule les réglages
@@ -78,9 +79,14 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
           </span>
           <span className="bo-brand__text">
             <b>Panthéon interactif</b>
-            <span>Back-office</span>
+            <span>{isFull ? 'Administration complète' : 'Espace client'}</span>
           </span>
         </div>
+        {LOCAL && (
+          <a className="bo-modelink" href={isFull ? '?client' : '?'} title="Basculer entre l'administration complète et l'espace client (test local)">
+            {isFull ? 'Voir l’espace client' : 'Mode complet'}
+          </a>
+        )}
         <span className={`bo-pill ${pill.cls}`} role="status" title={pill.text}>
           <i />
           {pill.text}

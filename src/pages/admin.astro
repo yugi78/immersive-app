@@ -17,12 +17,7 @@ import SceneEditor from '../admin/SceneEditor';
 		</style>
 	</head>
 	<body>
-		{
-			import.meta.env.DEV ? (
-				<SceneEditor client:only="react" />
-			) : (
-				<p style="font-family: system-ui; padding: 24px">Le back-office n'est disponible qu'en développement (astro dev).</p>
-			)
-		}
+		{/* En local : administration complète. En ligne : espace client (protégé par la connexion). */}
+		<SceneEditor client:only="react" />
 	</body>
 </html>

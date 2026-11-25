@@ -3,6 +3,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode }
 import { Icon } from './icons';
 import type { ContentBlock, TourHotspot, Vec3 } from '../viewer/config/types';
 import { withBase } from '../viewer/url';
+import { uploadImage } from './backend';
 import { bridge, useViewer, useWorkTab } from './bridge';
 import { Button, GizmoButton, workIndex } from './tourFields';
 
@@ -15,13 +16,6 @@ import { Button, GizmoButton, workIndex } from './tourFields';
 const row: CSSProperties = { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' };
 const muted: CSSProperties = { fontSize: 12, color: 'var(--bo-muted)' };
 
-/** Envoie une image au serveur de dev (public/media/) ; renvoie son URL depuis la racine. */
-export async function uploadImage(file: Blob, name: string): Promise<string> {
-  const res = await fetch(`/__admin/upload?name=${encodeURIComponent(name)}`, { method: 'POST', body: file });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-  return json.url as string;
-}
 
 const extOf = (f: File) => (/\.(webp|jpe?g|png|avif)$/i.exec(f.name)?.[1] ?? 'jpg').toLowerCase();
 const stamp = () => Date.now().toString(36);
