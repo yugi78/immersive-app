@@ -419,7 +419,20 @@
       "planRotationMobile": -107.5,
       "views": [
         {
+          "name": "Plan",
+          "kind": "plan",
+          "center": [
+            7.11,
+            72.5,
+            116.51
+          ],
+          "yaw": 0,
+          "width": 130,
+          "height": 100
+        },
+        {
           "name": "Vue 1",
+          "kind": "wall",
           "center": [
             7.11,
             106,
@@ -431,6 +444,7 @@
         },
         {
           "name": "Vue 2",
+          "kind": "wall",
           "center": [
             14.51,
             106.4,
@@ -442,6 +456,7 @@
         },
         {
           "name": "Vue 3",
+          "kind": "wall",
           "center": [
             7.11,
             106.4,
@@ -453,6 +468,7 @@
         },
         {
           "name": "Vue 4",
+          "kind": "wall",
           "center": [
             15.31,
             106.4,
@@ -461,6 +477,18 @@
           "yaw": -107,
           "width": 130,
           "height": 90
+        },
+        {
+          "name": "Plafonds",
+          "kind": "ceiling",
+          "center": [
+            7.11,
+            80,
+            116.51
+          ],
+          "yaw": 0,
+          "width": 130,
+          "height": 100
         }
       ]
     }

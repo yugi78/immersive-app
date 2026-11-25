@@ -477,7 +477,7 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.mapPlanRotDesktop}
             {fields.mapPlanRotMobile}
           </FieldGroup>
-          <FieldGroup label="Vues de face" defaultExpanded>
+          <FieldGroup label="Points de vue" defaultExpanded>
             {fields.mapViews}
           </FieldGroup>
         </FieldTab>

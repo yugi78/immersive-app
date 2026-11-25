@@ -2,8 +2,10 @@ import {
   Box3,
   Color,
   MathUtils,
+  Matrix4,
   OrthographicCamera,
   Plane,
+  Quaternion,
   SRGBColorSpace,
   Vector3,
   WebGLRenderTarget,
@@ -14,8 +16,8 @@ import {
 import type { MapConfig, MapView } from '../config/types';
 
 /** Calques de rendu : la carte ne montre que ce qui la concerne. */
-export const LAYER_PLAN = 1; // vue de dessus : sol + tranche de coupe
-export const LAYER_WALLS = 2; // vues de face : sol + maquette + scan
+export const LAYER_PLAN = 1; // sol + tranche de coupe (mini-carte)
+export const LAYER_WALLS = 2; // carte : sol + maquette + scan, coupés par le plan de la vue
 
 /** Marque des objets (et leurs descendants) comme visibles dans un calque de la carte. */
 export function enableLayer(root: Object3D, layer: number) {
@@ -34,10 +36,13 @@ interface Frame {
   forward: Vector3;
   width: number;
   height: number;
-  /** Plan de coupe (vues de face) : on garde ce qui est au-delà. */
-  clip: Plane | null;
-  layer: number;
+  /** Plan de coupe : passe par le centre, normal au regard ; on garde ce qui est au-delà. */
+  clip: Plane;
 }
+
+/** Durée de la transition animée d'une vue à l'autre (s). */
+const TRANSITION_S = 1.3;
+const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 /** Zone de l'écran (px) où cadrer la vue : la carte évite titres et vignettes. */
 export interface SafeRect {
@@ -59,9 +64,11 @@ export interface MapViewOptions {
 /**
  * Carte interactive : rendu orthogonal EN DIRECT de la scène principale (net à
  * tous les zooms, le scan se charge en haute définition à la demande).
- * Vue 0 : plan, vue de dessus du sol et de la tranche de coupe (calque 1).
- * Vues 1–4 : vues de face des murs, plan de coupe vertical (calque 2).
- * Zoom (molette, pincement) et déplacement (glisser) amortis.
+ * Chaque vue est un POINT : un centre et un regard (plan : vers le bas ; murs :
+ * horizontal ; plafonds : vers le haut). Le plan de coupe passe par le point,
+ * perpendiculaire au regard ; tout ce qui est devant est coupé. D'une vue à
+ * l'autre, la caméra glisse et pivote (position, orientation, cadre et plan de
+ * coupe interpolés). Zoom (molette, pincement) et déplacement (glisser) amortis.
  */
 export function createMapView(o: MapViewOptions) {
   const { renderer, scene } = o;
@@ -69,47 +76,86 @@ export function createMapView(o: MapViewOptions) {
   const bg = new Color();
   let active = false;
   let view = 0;
-  let frame: Frame = planFrame();
+  let frame: Frame;
   let safe: SafeRect = { left: 0, top: 0, width: 1, height: 1 };
 
   // Zoom et décalage (mètres, dans le plan de l'écran) : cible et valeur amortie.
   const want = { zoom: 1, x: 0, y: 0 };
   const cur = { zoom: 1, x: 0, y: 0 };
 
-  function planFrame(): Frame {
-    const cfg = o.config();
-    const rot = MathUtils.degToRad(o.mobile() ? cfg.planRotationMobile : cfg.planRotationDesktop);
-    // Regard vers le bas ; haut de l'image = -z (tourné autour de la verticale).
-    const up = new Vector3(0, 0, -1).applyAxisAngle(UP, rot);
-    const right = new Vector3(1, 0, 0).applyAxisAngle(UP, rot);
-    const forward = new Vector3(0, -1, 0);
+  /** Emprise du Panthéon sur des axes d'écran donnés (cadre du plan et des plafonds). */
+  function footprint(right: Vector3, up: Vector3) {
     const b = o.box;
-    // Emprise du Panthéon sur les axes de l'écran (+ marge).
+    const c = b.getCenter(new Vector3());
     let w = 0;
     let h = 0;
-    const c = b.getCenter(new Vector3());
     for (const x of [b.min.x, b.max.x])
       for (const z of [b.min.z, b.max.z]) {
         const d = new Vector3(x - c.x, 0, z - c.z);
         w = Math.max(w, Math.abs(d.dot(right)) * 2);
         h = Math.max(h, Math.abs(d.dot(up)) * 2);
       }
-    return { center: new Vector3(c.x, b.max.y + 10, c.z), right, up, forward, width: w * 1.06, height: h * 1.06, clip: null, layer: LAYER_PLAN };
+    return { w: w * 1.06, h: h * 1.06 };
   }
 
-  function wallFrame(v: MapView): Frame {
-    const a = MathUtils.degToRad(v.yaw);
-    const forward = new Vector3(-Math.sin(a), 0, -Math.cos(a));
-    const right = new Vector3(Math.cos(a), 0, -Math.sin(a));
+  function frameFor(v: MapView): Frame {
     const center = new Vector3(...v.center);
-    const clip = new Plane().setFromNormalAndCoplanarPoint(forward, center);
-    return { center, right, up: UP.clone(), forward, width: Math.max(v.width, 1), height: Math.max(v.height, 1), clip, layer: LAYER_WALLS };
+    let forward: Vector3;
+    let up: Vector3;
+    let width = Math.max(v.width, 1);
+    let height = Math.max(v.height, 1);
+    if (v.kind === 'wall') {
+      const a = MathUtils.degToRad(v.yaw);
+      forward = new Vector3(-Math.sin(a), 0, -Math.cos(a));
+      up = UP.clone();
+    } else {
+      // Plan (regard vers le bas) ou plafonds (vers le haut) : haut de l'image = -z,
+      // tourné selon l'orientation du plan (écran large / mobile).
+      const cfg = o.config();
+      const rot = MathUtils.degToRad(o.mobile() ? cfg.planRotationMobile : cfg.planRotationDesktop);
+      forward = new Vector3(0, v.kind === 'ceiling' ? 1 : -1, 0);
+      up = new Vector3(0, 0, -1).applyAxisAngle(UP, rot);
+    }
+    const right = new Vector3().crossVectors(forward, up).normalize();
+    if (v.kind !== 'wall') ({ w: width, h: height } = footprint(right, up));
+    return { center, right, up, forward, width, height, clip: new Plane().setFromNormalAndCoplanarPoint(forward, center) };
+  }
+
+  /** Vue de repli si la configuration est vide : plan au centre du Panthéon. */
+  function fallback(): MapView {
+    const c = o.box.getCenter(new Vector3());
+    return { name: 'Plan', kind: 'plan', center: [c.x, o.box.min.y + 8, c.z], yaw: 0, width: 100, height: 100 };
   }
 
   function frameOf(i: number): Frame {
     const views = o.config()?.views ?? [];
-    return i === 0 || !views[i - 1] ? planFrame() : wallFrame(views[i - 1]);
+    return frameFor(views[i] ?? views[0] ?? fallback());
   }
+
+  /** Repère intermédiaire entre deux vues (t de 0 à 1) : glissement et rotation. */
+  const qa = new Quaternion();
+  const qb = new Quaternion();
+  const mBasis = new Matrix4();
+  const quatOf = (f: Frame, q: Quaternion) => q.setFromRotationMatrix(mBasis.makeBasis(f.right, f.up, f.forward.clone().negate()));
+  function blend(a: Frame, b: Frame, t: number): Frame {
+    quatOf(a, qa);
+    quatOf(b, qb);
+    const q = qa.slerp(qb, t);
+    const right = new Vector3(1, 0, 0).applyQuaternion(q);
+    const up = new Vector3(0, 1, 0).applyQuaternion(q);
+    const forward = new Vector3(0, 0, -1).applyQuaternion(q);
+    const center = a.center.clone().lerp(b.center, t);
+    return {
+      center,
+      right,
+      up,
+      forward,
+      width: MathUtils.lerp(a.width, b.width, t),
+      height: MathUtils.lerp(a.height, b.height, t),
+      clip: new Plane().setFromNormalAndCoplanarPoint(forward, center),
+    };
+  }
+  let anim: { from: Frame; to: Frame; t: number } | null = null;
 
   /** Mètres par pixel CSS à zoom 1 : la vue entière tient dans la zone libre. */
   const baseScale = (f: Frame, r: SafeRect) => Math.max(f.width / Math.max(r.width, 1), f.height / Math.max(r.height, 1));
@@ -130,7 +176,7 @@ export function createMapView(o: MapViewOptions) {
     cam.up.copy(f.up);
     cam.lookAt(cam.position.clone().add(f.forward));
     cam.updateMatrixWorld();
-    cam.layers.set(f.layer);
+    cam.layers.set(LAYER_WALLS);
   }
 
   const size = () => ({ w: renderer.domElement.clientWidth || 1, h: renderer.domElement.clientHeight || 1 });
@@ -149,13 +195,28 @@ export function createMapView(o: MapViewOptions) {
     st.y = MathUtils.clamp(st.y, -frame.height / 2, frame.height / 2);
   }
 
-  function setView(i: number) {
+  function setView(i: number, animate = false) {
+    const to = frameOf(i);
+    if (animate && active && frame) {
+      // Départ = la vue telle qu'affichée : décalage et zoom intégrés au repère.
+      const from: Frame = {
+        ...frame,
+        center: frame.center.clone().addScaledVector(frame.right, cur.x).addScaledVector(frame.up, cur.y),
+        width: frame.width / cur.zoom,
+        height: frame.height / cur.zoom,
+      };
+      anim = { from, to, t: 0 };
+      frame = from;
+    } else {
+      anim = null;
+      frame = to;
+    }
     view = i;
-    frame = frameOf(i);
     want.zoom = cur.zoom = 1;
     want.x = cur.x = 0;
     want.y = cur.y = 0;
   }
+  frame = frameOf(0);
 
   // ---- Rendu ------------------------------------------------------------------------
   function withMapState<T>(f: Frame, fn: () => T): T {
@@ -163,7 +224,7 @@ export function createMapView(o: MapViewOptions) {
     const prevClip = renderer.clippingPlanes;
     bg.set(o.config().background);
     scene.background = bg;
-    renderer.clippingPlanes = f.clip ? [f.clip] : [];
+    renderer.clippingPlanes = [f.clip];
     try {
       return fn();
     } finally {
@@ -180,7 +241,7 @@ export function createMapView(o: MapViewOptions) {
     get view() {
       return view;
     },
-    /** Plan de coupe de la vue courante (vues de face), pour le LOD du scan. */
+    /** Plan de coupe de la vue affichée, pour le LOD du scan. */
     get clip() {
       return frame.clip;
     },
@@ -196,14 +257,20 @@ export function createMapView(o: MapViewOptions) {
     /** Réglages modifiés (back-office) : recadre la vue courante sans changer le zoom. */
     refresh() {
       if (!active) return;
-      frame = frameOf(view);
+      if (anim) anim.to = frameOf(view);
+      else frame = frameOf(view);
       clampPan(want);
+    },
+    /** Transition en cours entre deux vues (zoom et déplacement suspendus). */
+    get animating() {
+      return anim !== null;
     },
     setSafeRect(r: SafeRect) {
       safe = r;
     },
     /** Zoom autour d'un point de l'écran (facteur multiplicatif). */
     zoomAt(x: number, y: number, factor: number) {
+      if (anim) return;
       const before = screenToPlane(x, y, want);
       want.zoom = MathUtils.clamp(want.zoom * factor, ZOOM_MIN, ZOOM_MAX);
       const after = screenToPlane(x, y, want);
@@ -213,6 +280,7 @@ export function createMapView(o: MapViewOptions) {
     },
     /** Déplacement de la vue (pixels écran) : suit le doigt / la souris. */
     panBy(dx: number, dy: number, immediate = false) {
+      if (anim) return;
       const s = baseScale(frame, safe) / want.zoom;
       want.x -= dx * s;
       want.y += dy * s;
@@ -232,6 +300,11 @@ export function createMapView(o: MapViewOptions) {
     },
     /** Amortit zoom et déplacement, puis place la caméra. */
     update(dt: number) {
+      if (anim) {
+        anim.t = Math.min(anim.t + dt / TRANSITION_S, 1);
+        frame = anim.t >= 1 ? anim.to : blend(anim.from, anim.to, ease(anim.t));
+        if (anim.t >= 1) anim = null;
+      }
       const k = 1 - Math.exp(-14 * dt);
       cur.zoom += (want.zoom - cur.zoom) * k;
       cur.x += (want.x - cur.x) * k;
@@ -247,7 +320,7 @@ export function createMapView(o: MapViewOptions) {
      * coupé (devant le plan de coupe) ou hors du cadre de la vue.
      */
     project(p: Vector3, out = new Vector3()): { x: number; y: number } | null {
-      if (frame.clip && frame.clip.distanceToPoint(p) < 0) return null;
+      if (anim || frame.clip.distanceToPoint(p) < 0) return null;
       const d = p.clone().sub(frame.center);
       if (Math.abs(d.dot(frame.right)) > frame.width / 2 || Math.abs(d.dot(frame.up)) > frame.height / 2) return null;
       out.copy(p).project(camera);
@@ -255,7 +328,7 @@ export function createMapView(o: MapViewOptions) {
       return { x: ((out.x + 1) / 2) * w, y: ((1 - out.y) / 2) * h };
     },
     /**
-     * Vignettes des 5 vues : rendu ponctuel en basse résolution (vue entière),
+     * Vignettes des vues : rendu ponctuel en basse résolution (vue entière),
      * dessiné dans les canvas donnés.
      */
     thumbnails(canvases: HTMLCanvasElement[]) {
@@ -282,7 +355,7 @@ export function createMapView(o: MapViewOptions) {
       });
       renderer.setRenderTarget(prevTarget);
     },
-    /** Cadrage d'une vue de face depuis une caméra (back-office) : centre et direction. */
+    /** Cadrage d'une vue depuis une caméra (back-office) : centre (position) et direction horizontale. */
     frameFromCamera(cam: { position: Vector3; getWorldDirection(v: Vector3): Vector3 }) {
       const dir = cam.getWorldDirection(new Vector3());
       const yaw = MathUtils.radToDeg(Math.atan2(-dir.x, -dir.z));

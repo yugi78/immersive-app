@@ -88,15 +88,19 @@ export interface TourConfig {
 
 /** Interface publique : « À propos », mini-carte. */
 /**
- * Vue de face (orthogonale) d'un mur pour la carte : plan de coupe vertical passant
- * par `center`, regard horizontal selon `yaw` ; tout ce qui est devant le plan est
- * coupé. `width` × `height` : cadre affiché (mètres) avant zoom.
+ * Vue de la carte (caméra orthogonale) : un point et un regard. Le plan de coupe passe
+ * par le point, perpendiculaire au regard ; tout ce qui est devant est coupé. La
+ * carte passe d'une vue à l'autre par une transition animée.
  */
 export interface MapView {
   name: string;
+  /** plan : regard vers le bas ; wall : vue de face (horizontale) ; ceiling : plafonds, regard vers le haut. */
+  kind: 'plan' | 'wall' | 'ceiling';
+  /** Point de la vue : le plan de coupe y passe (plan / plafonds : sa hauteur = hauteur de coupe). */
   center: Vec3;
-  /** Direction du regard (degrés autour de la verticale, comme la caméra : 0 = vers -z). */
+  /** Direction du regard (degrés autour de la verticale, comme la caméra : 0 = vers -z). Murs seulement. */
   yaw: number;
+  /** Cadre (m) avant zoom. Murs seulement (plan et plafonds : emprise du Panthéon). */
   width: number;
   height: number;
 }
@@ -110,7 +114,7 @@ export interface MapConfig {
   /** Rotation du plan (degrés) : écran large / écran étroit. */
   planRotationDesktop: number;
   planRotationMobile: number;
-  /** Les 4 vues de face des murs. */
+  /** Vues dans l'ordre des vignettes : plan, vues de face, plafonds. */
   views: MapView[];
 }
 

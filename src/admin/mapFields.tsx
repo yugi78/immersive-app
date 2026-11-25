@@ -32,75 +32,102 @@ function Num({ label, value, onChange, step = 1, min, max }: { label: string; va
   );
 }
 
+const KIND_LABEL: Record<MapView['kind'], string> = { plan: 'Plan · regard vers le bas', wall: 'Vue de face', ceiling: 'Plafonds · regard vers le haut' };
+
 function MapViewsUI({ value, onChange, readOnly }: { value: MapView[]; onChange: (v: MapView[]) => void; readOnly?: boolean }) {
   const viewer = useViewer();
   const views = value ?? [];
   const set = (i: number, patch: Partial<MapView>) => onChange(views.map((v, j) => (j === i ? { ...v, ...patch } : v)));
+  const addWall = () => {
+    const ref = views.find((v) => v.kind === 'wall') ?? views[0];
+    const wall: MapView = {
+      name: `Vue ${views.filter((v) => v.kind === 'wall').length + 1}`,
+      kind: 'wall',
+      center: ref ? ([...ref.center] as Vec3) : [0, 100, 0],
+      yaw: 0,
+      width: ref?.width ?? 130,
+      height: ref?.height ?? 90,
+    };
+    // Avant les plafonds (dernière vignette), s'ils existent.
+    const at = views.findIndex((v) => v.kind === 'ceiling');
+    onChange(at < 0 ? [...views, wall] : [...views.slice(0, at), wall, ...views.slice(at)]);
+  };
   return (
-    <FieldLabel label="Vues de face des murs (vignettes 2 à 5)" readOnly={readOnly}>
+    <FieldLabel label="Points de vue (une vignette chacun)" readOnly={readOnly}>
       <div style={{ display: 'grid', gap: 8 }}>
         <div style={row}>
           <Button variant="primary" icon={<Icon.map size={15} />} disabled={!viewer} onClick={() => viewer?.map.open(0)}>
-            Aperçu du plan
+            Ouvrir la carte
           </Button>
           <Button icon={<Icon.close size={15} />} disabled={!viewer} onClick={() => viewer?.map.close()}>
-            Fermer la carte
+            Fermer
           </Button>
         </div>
         <p style={{ ...small, margin: 0 }}>
-          Astuce : en vol libre (onglet Debug), placez-vous face au mur, puis « Cadrer depuis la caméra » : le plan de coupe passe par
-          la caméra et tout ce qui est devant est coupé.
+          Chaque vue est un point : le plan de coupe y passe, perpendiculaire au regard, et tout ce qui est devant est coupé. La carte
+          glisse d'un point à l'autre. Astuce : en vol libre, placez-vous au bon endroit puis « Depuis la caméra ».
         </p>
         {views.map((v, i) => (
           <div key={i} className="bo-item">
             <div className="bo-item__head">
               <span className="bo-item__handle" style={{ cursor: 'default' }}>
-                <span className="bo-num">{i + 2}</span>
+                <span className="bo-num">{i + 1}</span>
                 <input className="bo-input bo-input--title" value={v.name} disabled={readOnly} aria-label="Nom de la vue" onChange={(e) => set(i, { name: e.currentTarget.value })} />
               </span>
+              {v.kind === 'wall' && views.filter((x) => x.kind === 'wall').length > 1 && (
+                <Button variant="ghost" icon={<Icon.trash size={15} />} title="Supprimer cette vue" onClick={() => onChange(views.filter((_, j) => j !== i))} />
+              )}
             </div>
-            <span style={small}>Centre du plan de coupe (x, y, z)</span>
+            <span style={small}>{KIND_LABEL[v.kind]}</span>
+            <span style={small}>{v.kind === 'wall' ? 'Point de la vue (le plan de coupe y passe)' : 'Point de la vue · Y = hauteur de coupe'}</span>
             <XYZ value={v.center} onChange={(c: Vec3) => set(i, { center: c })} readOnly={readOnly} />
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={small}>Regard</span>
-              <span className="bo-slider" style={{ flex: 1, display: 'flex' }}>
-                <input
-                  type="range"
-                  min={-180}
-                  max={180}
-                  step={0.5}
-                  value={v.yaw}
-                  aria-label="Direction du regard"
-                  disabled={readOnly}
-                  onChange={(e) => set(i, { yaw: Number(e.currentTarget.value) })}
-                  style={{ ['--bo-fill' as string]: `${((v.yaw + 180) / 360) * 100}%` }}
-                />
-              </span>
-              <Num label="°" value={v.yaw} step={0.5} onChange={(yaw) => set(i, { yaw })} />
-            </div>
-            <div style={row}>
-              <Num label="Largeur (m)" value={v.width} min={1} onChange={(width) => set(i, { width: Math.max(width, 1) })} />
-              <Num label="Hauteur (m)" value={v.height} min={1} onChange={(height) => set(i, { height: Math.max(height, 1) })} />
-            </div>
+            {v.kind === 'wall' && (
+              <>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={small}>Regard</span>
+                  <span className="bo-slider" style={{ flex: 1, display: 'flex' }}>
+                    <input
+                      type="range"
+                      min={-180}
+                      max={180}
+                      step={0.5}
+                      value={v.yaw}
+                      aria-label="Direction du regard"
+                      disabled={readOnly}
+                      onChange={(e) => set(i, { yaw: Number(e.currentTarget.value) })}
+                      style={{ ['--bo-fill' as string]: `${((v.yaw + 180) / 360) * 100}%` }}
+                    />
+                  </span>
+                  <Num label="°" value={v.yaw} step={0.5} onChange={(yaw) => set(i, { yaw })} />
+                </div>
+                <div style={row}>
+                  <Num label="Largeur (m)" value={v.width} min={1} onChange={(width) => set(i, { width: Math.max(width, 1) })} />
+                  <Num label="Hauteur (m)" value={v.height} min={1} onChange={(height) => set(i, { height: Math.max(height, 1) })} />
+                </div>
+              </>
+            )}
             <div style={row}>
               <Button
                 variant="primary"
                 icon={<Icon.camera size={15} />}
                 disabled={!viewer || readOnly}
-                title="Centre = position de la caméra, regard = sa direction (horizontale)"
+                title={v.kind === 'wall' ? 'Point = position de la caméra, regard = sa direction (horizontale)' : 'Point = position de la caméra (sa hauteur = hauteur de coupe)'}
                 onClick={() => {
                   const f = viewer!.map.frameFromCamera();
-                  set(i, { center: f.center, yaw: f.yaw });
+                  set(i, v.kind === 'wall' ? { center: f.center, yaw: f.yaw } : { center: f.center });
                 }}
               >
-                Cadrer depuis la caméra
+                Depuis la caméra
               </Button>
-              <Button icon={<Icon.eye size={15} />} disabled={!viewer} onClick={() => viewer?.map.open(i + 1)}>
+              <Button icon={<Icon.eye size={15} />} disabled={!viewer} onClick={() => viewer?.map.open(i)}>
                 Aperçu
               </Button>
             </div>
           </div>
         ))}
+        <Button variant="dashed" icon={<Icon.plus size={15} />} disabled={readOnly} onClick={addWall}>
+          Ajouter une vue de face
+        </Button>
       </div>
     </FieldLabel>
   );
@@ -108,6 +135,6 @@ function MapViewsUI({ value, onChange, readOnly }: { value: MapView[]; onChange:
 
 export const mapViewsField: CustomField<MapView[]> = {
   type: 'custom',
-  label: 'Vues de face',
+  label: 'Points de vue',
   render: ({ value, onChange, readOnly }) => <MapViewsUI value={value} onChange={onChange} readOnly={readOnly} />,
 };

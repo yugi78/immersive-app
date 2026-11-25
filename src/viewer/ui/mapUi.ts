@@ -24,7 +24,6 @@ export interface MapUiOptions {
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const D = (s: number) => (REDUCED ? 0 : s);
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-const VIEWS = 5;
 
 /**
  * Écran « Carte interactive » (maquettes desktop_carte / mobile_carte) : plan et
@@ -57,7 +56,6 @@ export function createMapUi(o: MapUiOptions) {
       <button type="button" class="pv-map__card-close" data-map="card-close" aria-label="Fermer">${ICONS.close}</button>
     </div>
     <div class="pv-map__views" role="tablist" aria-label="Vues">
-      ${Array.from({ length: VIEWS }, (_, i) => `<button type="button" class="pv-map__view" role="tab" data-view="${i}" aria-label="${i === 0 ? 'Plan' : `Vue de face ${i}`}"><canvas width="240" height="200"></canvas></button>`).join('')}
     </div>
     <button type="button" class="pv-pill pv-pill--dark pv-map__back" data-map="back"><i>${ICONS.play}</i><span class="pv-map__back-text"></span></button>
     <button type="button" class="pv-round pv-round--dark pv-home pv-map__home" data-map="home" aria-label="Revenir à la vue extérieure">${ICONS.pantheon}</button>`;
@@ -81,8 +79,17 @@ export function createMapUi(o: MapUiOptions) {
     home: $('.pv-map__home'),
     bg: $('.pv-map__bg'),
   };
-  const viewBtns = [...el.querySelectorAll<HTMLButtonElement>('.pv-map__view')];
-  const canvases = viewBtns.map((b) => b.querySelector('canvas')!);
+  // Une vignette par vue de la configuration (plan, vues de face, plafonds).
+  let viewBtns: HTMLButtonElement[] = [];
+  let canvases: HTMLCanvasElement[] = [];
+  function buildViews() {
+    const views = o.ui().map.views;
+    e.views.innerHTML = views
+      .map((v, i) => `<button type="button" class="pv-map__view" role="tab" data-view="${i}" aria-label="${esc(v.name || `Vue ${i + 1}`)}"><canvas width="240" height="200"></canvas></button>`)
+      .join('');
+    viewBtns = [...e.views.querySelectorAll<HTMLButtonElement>('.pv-map__view')];
+    canvases = viewBtns.map((b) => b.querySelector('canvas')!);
+  }
   gsap.set([el, e.card], { autoAlpha: 0 });
   /** Éléments de l'écran qui apparaissent après le glissement du fond. */
   const chrome = () => [e.head, e.dots, e.views, e.back, e.home];
@@ -145,17 +152,11 @@ export function createMapUi(o: MapUiOptions) {
   }
 
   // ---- Vues -------------------------------------------------------------------------
-  let viewTl: gsap.core.Timeline | null = null;
+  /** Vue choisie : la caméra glisse et pivote jusqu'au point de la vue (transition animée). */
   function selectView(i: number, animate = false) {
     closeCard();
-    if (animate && map.active && i !== map.view && !REDUCED) {
-      viewTl?.kill();
-      viewTl = gsap
-        .timeline()
-        .to(e.bg, { xPercent: 0, autoAlpha: 1, duration: 0.25, ease: 'power1.in' })
-        .add(() => map.setView(i))
-        .to(e.bg, { autoAlpha: 0, duration: 0.4, ease: 'power1.out' }, '+=0.05');
-    } else map.setView(i);
+    if (i === map.view && animate) return;
+    map.setView(i, animate && map.active && !REDUCED);
     viewBtns.forEach((b, j) => {
       b.classList.toggle('is-current', j === i);
       b.setAttribute('aria-selected', String(j === i));
@@ -283,10 +284,11 @@ export function createMapUi(o: MapUiOptions) {
   // ---- Ouverture / fermeture -------------------------------------------------------
   let tl: gsap.core.Timeline | null = null;
   function openMap(view = 0) {
-    if (open) return selectView(view);
+    if (open) return selectView(view, true);
     open = true;
     renderTexts();
     buildDots();
+    buildViews();
     // Visite : on rend la main au parcours puis on met en pause le temps de la carte.
     pausedByMap = false;
     if (tour.active) {
@@ -341,7 +343,6 @@ export function createMapUi(o: MapUiOptions) {
     if (resume && pausedByMap && tour.active && tour.manualPaused) tour.togglePause();
     pausedByMap = false;
     tl?.kill();
-    viewTl?.kill();
     // 1. La carte 3D s'efface dans le fond gris ; 2. le fond glisse et découvre la visite.
     tl = gsap
       .timeline()
@@ -409,7 +410,11 @@ export function createMapUi(o: MapUiOptions) {
       if (!open) return;
       renderTexts();
       buildDots();
+      const current = map.view;
+      buildViews();
+      viewBtns.forEach((b, j) => b.classList.toggle('is-current', j === current));
       map.refresh();
+      requestAnimationFrame(renderThumbs);
     },
     onKey(ev: KeyboardEvent) {
       if (!open) return false;

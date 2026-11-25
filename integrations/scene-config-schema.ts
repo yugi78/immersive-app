@@ -138,7 +138,8 @@ OBJECT_KEYS.ui = {
         const width = num(w.width, `${p}.width`);
         const height = num(w.height, `${p}.height`);
         if (width <= 0 || height <= 0) throw new Error(`${p} : cadre vide`);
-        return { name: str(w.name ?? '', `${p}.name`), center: vec3(w.center, `${p}.center`), yaw: num(w.yaw, `${p}.yaw`), width, height };
+        const kind = str(w.kind ?? 'wall', `${p}.kind`, /^(plan|wall|ceiling)$/);
+        return { name: str(w.name ?? '', `${p}.name`), kind, center: vec3(w.center, `${p}.center`), yaw: num(w.yaw, `${p}.yaw`), width, height };
       }),
     };
   },

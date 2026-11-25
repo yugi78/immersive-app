@@ -371,7 +371,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   renderer.domElement.style.visibility = '';
   progress.hide();
 
-  const debugHandle = { scene, camera, renderer, controls: orbit.controls, reference, cutaway, setLeakBackground, intro, frame, scan, dof, tour, editor: editorTools };
+  const debugHandle = { scene, camera, renderer, controls: orbit.controls, reference, cutaway, setLeakBackground, intro, frame, scan, dof, tour, editor: editorTools, mapView };
   if (debug) Object.assign(window, { __viewer: debugHandle });
 
   return {
