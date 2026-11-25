@@ -1321,6 +1321,7 @@
   top: clamp(16px, 4vh, 40px);
   left: clamp(16px, 2vw, 24px);
   right: 200px;
+  font-size: clamp(32px, 4.2vw, 56px);
   pointer-events: none;
 }
 .pv-ext-dots {
@@ -1372,6 +1373,7 @@
   .pv-ext-title {
     left: 28px;
     right: 110px;
+    font-size: clamp(30px, 9vw, 46px);
     top: max(20px, env(safe-area-inset-top));
   }
 }

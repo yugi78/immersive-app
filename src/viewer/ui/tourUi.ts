@@ -253,9 +253,7 @@ export function createTourUi(o: TourUiOptions) {
     fade(el.start, status.state === 'idle' && !collectionOpen && !mapOpen);
     const mobile = MOBILE.matches;
     const info = show && screen === 'info';
-    // Voile sombre en haut à gauche : titre de l'œuvre, ou titre du site à l'extérieur.
-    fade(el.head, show);
-    fade(el.veil, show || (status.state === 'idle' && !collectionOpen && !mapOpen));
+    fade([el.head, el.veil], show);
     // Fiche sur mobile : plus aucune commande autour, une croix en bas au centre.
     const bottom = show && !(mobile && screen === 'info');
     fade(el.bottom, bottom, { y: bottom ? 0 : 16 });
