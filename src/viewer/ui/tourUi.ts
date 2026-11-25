@@ -17,6 +17,14 @@ export interface TourUiOptions {
   container: HTMLElement;
   tour: Tour;
   camera: PerspectiveCamera;
+  /** Découpe courante (cylindre caméra → cible) : points d'œuvre visibles de l'extérieur. */
+  cut: {
+    uCutCam: { value: Vector3 };
+    uCutTarget: { value: Vector3 };
+    uCutRadius: { value: number };
+    uCutFeather: { value: number };
+    uCutStrength: { value: number };
+  } | null;
   works: () => TourWork[];
   /** Durée d'affichage d'un point d'intérêt (ms). */
   hotspotIntervalMs: () => number;
@@ -59,6 +67,8 @@ export function createTourUi(o: TourUiOptions) {
   root.className = 'pv-ui';
   root.innerHTML = `
     <div class="pv-veil"></div>
+    <div class="pv-ext-dots"></div>
+    <h1 class="pv-title pv-ext-title"></h1>
     <div class="pv-veil pv-veil--info"></div>
     <div class="pv-hotspots"></div>
     <header class="pv-head" data-tour>
@@ -166,6 +176,8 @@ export function createTourUi(o: TourUiOptions) {
     collectionThumb: $('.pv-collection .pv-info__thumb'),
     about: $('.pv-about'),
     aboutBtn: $('.pv-about-btn'),
+    extTitle: $('.pv-ext-title'),
+    extDots: $('.pv-ext-dots'),
     aboutText: $('.pv-about__text'),
     toast: $('.pv-toast'),
   };
@@ -241,7 +253,9 @@ export function createTourUi(o: TourUiOptions) {
     fade(el.start, status.state === 'idle' && !collectionOpen && !mapOpen);
     const mobile = MOBILE.matches;
     const info = show && screen === 'info';
-    fade([el.head, el.veil], show);
+    // Voile sombre en haut à gauche : titre de l'œuvre, ou titre du site à l'extérieur.
+    fade(el.head, show);
+    fade(el.veil, show || (status.state === 'idle' && !collectionOpen && !mapOpen));
     // Fiche sur mobile : plus aucune commande autour, une croix en bas au centre.
     const bottom = show && !(mobile && screen === 'info');
     fade(el.bottom, bottom, { y: bottom ? 0 : 16 });
@@ -256,6 +270,11 @@ export function createTourUi(o: TourUiOptions) {
     fade(el.arrows, show && screen === 'auto');
     // « À propos » : vue extérieure seulement.
     fade(el.aboutBtn, status.state === 'idle' && !collectionOpen && !mapOpen);
+    // Vue extérieure : titre du site (animé à chaque apparition) et points d'œuvre.
+    const ext = status.state === 'idle' && !collectionOpen && !mapOpen;
+    if (ext && !extShown) animateExtTitle();
+    extShown = ext;
+    fade([el.extTitle, el.extDots], ext);
     fade(el.hotspots, show && screen === 'auto' && status.state === 'loop');
     if (screen === 'info') {
       revealInfo();
@@ -279,6 +298,73 @@ export function createTourUi(o: TourUiOptions) {
     buildHotspots(w);
     markStrip();
     markMinimap();
+  }
+
+  // ---- Vue extérieure : titre du site, points d'œuvre ------------------------------
+  let extShown = false;
+  let extSplit: SplitText | null = null;
+  function animateExtTitle() {
+    el.extTitle.textContent = o.ui().title ?? '';
+    extSplit?.revert();
+    extSplit = null;
+    if (REDUCED || !el.extTitle.textContent) return;
+    extSplit = new SplitText(el.extTitle, { type: 'chars', charsClass: 'pv-char' });
+    gsap.from(extSplit.chars, { yPercent: 60, autoAlpha: 0, duration: 0.6, ease: 'power3.out', stagger: 0.025, delay: 0.15 });
+  }
+  interface ExtDot {
+    btn: HTMLButtonElement;
+    pos: Vector3;
+    a: number;
+  }
+  let extDots: ExtDot[] = [];
+  function buildExtDots() {
+    el.extDots.innerHTML = '';
+    extDots = o.works().map((w, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pv-ext-dot';
+      btn.dataset.work = String(i);
+      btn.setAttribute('aria-label', `Visiter : ${w.title}`);
+      btn.innerHTML = `<i class="pv-map__dot"></i><span>${esc(w.title)}</span>`;
+      el.extDots.appendChild(btn);
+      return { btn, pos: new Vector3(...w.focus), a: 0 };
+    });
+  }
+  el.extDots.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-work]');
+    if (b) tour.start(Number(b.dataset.work));
+  });
+  const cutAxis = new Vector3();
+  const cutRel = new Vector3();
+  /**
+   * Un point d'œuvre n'est montré que s'il est réellement visible par l'ouverture
+   * de la découpe : dans le cylindre (rayon), et AU-DELÀ de sa fin (la découpe
+   * efface tout ce qui est entre la caméra et la cible : une œuvre côté caméra est
+   * coupée avec son mur, son point flotterait dans le vide).
+   */
+  function extVisible(p: Vector3) {
+    const c = o.cut;
+    if (!c || c.uCutStrength.value < 0.6) return false;
+    cutAxis.subVectors(c.uCutTarget.value, c.uCutCam.value);
+    const len = Math.max(cutAxis.length(), 1e-3);
+    cutRel.subVectors(p, c.uCutCam.value);
+    const t = cutRel.dot(cutAxis) / (len * len);
+    const d = cutRel.addScaledVector(cutAxis, -t).length();
+    return t > 1 && d < c.uCutRadius.value - c.uCutFeather.value;
+  }
+  function updateExtDots(dt: number) {
+    if (!extShown) return;
+    const W = o.container.clientWidth;
+    const H = o.container.clientHeight;
+    const k = 1 - Math.exp(-8 * dt);
+    for (const d of extDots) {
+      ndc.copy(d.pos).project(camera);
+      const onScreen = ndc.z < 1 && Math.abs(ndc.x) < 0.95 && Math.abs(ndc.y) < 0.95;
+      d.a += ((onScreen && extVisible(d.pos) ? 1 : 0) - d.a) * k;
+      d.btn.style.opacity = d.a.toFixed(3);
+      d.btn.style.visibility = d.a < 0.02 ? 'hidden' : '';
+      d.btn.style.transform = `translate(${((ndc.x + 1) / 2) * W}px, ${((1 - ndc.y) / 2) * H}px)`;
+    }
   }
 
   /** Apparition du titre lettre par lettre, puis de l'auteur. */
@@ -854,6 +940,8 @@ export function createTourUi(o: TourUiOptions) {
   let measureT = 0;
   function refresh() {
     mapUi?.refresh();
+    buildExtDots();
+    if (extShown) el.extTitle.textContent = o.ui().title ?? '';
     buildStrip();
     buildCollection();
     layoutMinimap();
@@ -886,6 +974,7 @@ export function createTourUi(o: TourUiOptions) {
         if (!tour.hasDragged) showHand(true, 2);
       }
       updateHotspots(dt);
+      updateExtDots(dt);
       mapUi?.update(dt);
     },
     /** Œuvres ou réglages d'interface modifiés (back-office). */

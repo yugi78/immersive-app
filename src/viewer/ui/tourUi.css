@@ -1312,3 +1312,64 @@
     right: 8px;
   }
 }
+
+/* ---- Vue extérieure : titre du site, points d'œuvre visibles par la découpe ---- */
+.pv-ext-title {
+  position: absolute;
+  top: clamp(16px, 4vh, 40px);
+  left: clamp(16px, 2vw, 24px);
+  right: 200px;
+  pointer-events: none;
+}
+.pv-ext-dots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.pv-ext-dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  white-space: nowrap;
+  font-size: 14px;
+  font-style: italic;
+  font-weight: 640;
+  text-shadow: 0 1px 10px rgb(0 0 0 / 0.55);
+  /* Le rond est centré sur le point de l'œuvre, le titre à sa droite. */
+  translate: -5px -50%;
+}
+.pv-ext-dot .pv-map__dot {
+  position: relative;
+  display: block;
+  margin: 0;
+  flex: none;
+}
+.pv-ext-dot span {
+  opacity: 0;
+  translate: -4px 0;
+  transition: opacity 0.25s ease, translate 0.25s ease;
+}
+.pv-ext-dot:hover span,
+.pv-ext-dot:focus-visible span {
+  opacity: 1;
+  translate: 0 0;
+}
+@media (hover: none) {
+  .pv-ext-dot span {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@media (max-width: 719px) {
+  .pv-ext-title {
+    left: 28px;
+    right: 110px;
+    top: max(20px, env(safe-area-inset-top));
+  }
+}

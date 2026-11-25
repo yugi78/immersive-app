@@ -57,6 +57,7 @@ type SceneProps = {
   tourHub: Vec3;
   tourWorks: TourWorkItem[];
   // Interface publique.
+  siteTitle: string;
   aboutHtml: string;
   minimapRotDesktop: string;
   minimapRotMobile: string;
@@ -120,6 +121,7 @@ const SCENE_KEYS = [
   'tourResumeS',
   'tourCubeResumeS',
   'tourHotspotS',
+  'siteTitle',
   'aboutHtml',
   'minimapRotDesktop',
   'minimapRotMobile',
@@ -209,6 +211,7 @@ function tourFromProps(p: SceneProps): TourConfig {
 /** Réglages de l'interface publique au format de scene.json. */
 function uiFromProps(p: SceneProps): UiConfig {
   return {
+    title: p.siteTitle ?? '',
     aboutHtml: p.aboutHtml ?? '',
     minimap: { rotationDesktop: Number(p.minimapRotDesktop), rotationMobile: Number(p.minimapRotMobile) },
     map: {
@@ -326,6 +329,7 @@ const config: Config<{}, Record<string, unknown>> = {
       tourResumeS: slider('Reprise du parcours après un glisser (prise en main)', 0.5, 20, 0.5, 's'),
       tourCubeResumeS: slider('Reprise du parcours après le bouton cube, sans interaction', 1, 30, 0.5, 's'),
       tourHotspotS: slider('Points d’intérêt : durée d’affichage de chaque point', 1, 30, 0.5, 's'),
+      siteTitle: { type: 'text', label: 'Titre de la vue extérieure' },
       aboutHtml: { type: 'richtext', label: '« À propos » : crédits' },
       minimapRotDesktop: {
         type: 'select',
@@ -450,6 +454,9 @@ const config: Config<{}, Record<string, unknown>> = {
           </FieldGroup>
         </FieldTab>
         <FieldTab label="Interface">
+          <FieldGroup label="Vue extérieure" defaultExpanded>
+            {fields.siteTitle}
+          </FieldGroup>
           <FieldGroup label="À propos" defaultExpanded>
             {fields.aboutHtml}
           </FieldGroup>
@@ -535,6 +542,7 @@ const initialData: Data<{}, Record<string, unknown>> = {
           contentRest,
         };
       }),
+      siteTitle: ui.title ?? 'Panthéon de Paris',
       aboutHtml: ui.aboutHtml,
       minimapRotDesktop: String(ui.minimap.rotationDesktop),
       minimapRotMobile: String(ui.minimap.rotationMobile),

@@ -378,6 +378,7 @@
     ]
   },
   "ui": {
+    "title": "Panthéon de Paris",
     "aboutHtml": "<p>Maquette immersive du Panthéon.</p><p>Crédits à compléter.</p>",
     "minimap": {
       "rotationDesktop": 90,

@@ -291,6 +291,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       ui: () => uiCfg,
       minimap,
       map: mapView,
+      cut: cutaway.uniforms,
       hash: opts.urlHash ?? true,
     });
     const i = tourUi.initialIndex();
