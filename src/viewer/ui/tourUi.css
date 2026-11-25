@@ -1045,19 +1045,21 @@
   inset: 0;
   pointer-events: none;
 }
-/* Points des œuvres : ronds pleins ; l'œuvre cliquée un peu plus grande, avec l'onde. */
+/* Points des œuvres (carte, vue extérieure) : même aspect que les points d'intérêt
+   de la visite. Rond sombre cerclé ; sélectionné / survolé : blanc lumineux, avec l'onde. */
 .pv-map__dot {
   position: absolute;
   left: 0;
   top: 0;
-  width: 10px;
-  height: 10px;
-  margin: -5px 0 0 -5px;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--pv-white);
-  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.25), 0 1px 6px rgb(0 0 0 / 0.45);
+  background: #111;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.25);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 .pv-map__dot::after {
   /* Zone de clic agrandie. */
@@ -1065,12 +1067,13 @@
   position: absolute;
   inset: -12px;
 }
-.pv-map__dot.is-current {
-  width: 14px;
-  height: 14px;
-  margin: -7px 0 0 -7px;
+.pv-map__dot.is-current,
+.pv-ext-dot:hover .pv-map__dot,
+.pv-ext-dot:focus-visible .pv-map__dot {
+  background: var(--pv-white);
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.25), 0 0 18px rgb(255 255 255 / 0.6);
 }
-/* Onde : même taille qu'avant (≈ 34 px de départ), seul le rond central a réduit. */
+/* Onde blanche autour du point sélectionné sur la carte. */
 .pv-map__dot.is-current::before {
   content: '';
   position: absolute;
@@ -1081,7 +1084,6 @@
   border: 1.5px solid var(--pv-white);
   border-radius: 50%;
   translate: -50% -50%;
-  filter: drop-shadow(0 0 2px rgb(0 0 0 / 0.35));
   animation: pv-sonar 2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
   pointer-events: none;
 }
@@ -1342,7 +1344,7 @@
   font-weight: 640;
   text-shadow: 0 1px 10px rgb(0 0 0 / 0.55);
   /* Le rond est centré sur le point de l'œuvre, le titre à sa droite. */
-  translate: -5px -50%;
+  translate: -6px -50%;
 }
 .pv-ext-dot .pv-map__dot {
   position: relative;

@@ -143,7 +143,7 @@ export function createTourUi(o: TourUiOptions) {
     veil: $('.pv-veil'),
     veilInfo: $('.pv-veil--info'),
     head: $('.pv-head'),
-    title: $('.pv-title'),
+    title: $('.pv-head .pv-title'),
     author: $('.pv-author'),
     more: $('.pv-more'),
     infoClose: $('.pv-info-close'),
