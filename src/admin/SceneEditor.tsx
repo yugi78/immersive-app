@@ -16,7 +16,7 @@ const usePuckState = createUsePuck();
 
 /**
  * Back-office Puck : réglages de scène (hauteur du focus, découpe) avec aperçu
- * 3D en direct. « Publier » écrit les valeurs dans src/viewer/config/scene.json
+ * 3D en direct. « Publier » écrit les valeurs dans src/viewer/config/content.json
  * via l'API de dev (integrations/scene-config-api.ts).
  */
 
@@ -47,7 +47,7 @@ type SceneProps = {
   dofFocusRange: number;
   dofAperture: number;
   dofMaxBlur: number;
-  // Visite guidée (durées en secondes dans Puck, en ms dans scene.json).
+  // Visite guidée (durées en secondes dans Puck, en ms dans content.json).
   tourEnterS: number;
   tourBetweenS: number;
   tourExitS: number;
@@ -177,7 +177,7 @@ function dofPatch(p: SceneProps) {
   };
 }
 
-/** Données de la visite au format de scene.json (slugs dérivés des titres, uniques). */
+/** Données de la visite au format de content.json (slugs dérivés des titres, uniques). */
 function tourFromProps(p: SceneProps): TourConfig {
   const works = p.tourWorks ?? [];
   const slugs = uniqueSlugs(works.map((w) => w.infos?.title ?? ''));
@@ -208,7 +208,7 @@ function tourFromProps(p: SceneProps): TourConfig {
   };
 }
 
-/** Réglages de l'interface publique au format de scene.json. */
+/** Réglages de l'interface publique au format de content.json. */
 function uiFromProps(p: SceneProps): UiConfig {
   return {
     aboutHtml: p.aboutHtml ?? '',

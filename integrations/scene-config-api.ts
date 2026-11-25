@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 /**
  * API de dev pour le back-office Puck : écrit les réglages de scène directement
- * dans src/viewer/config/scene.json. N'existe que sur le serveur de dev
+ * dans src/viewer/config/content.json. N'existe que sur le serveur de dev
  * (astro dev), jamais dans le site construit.
  *
  *   POST /__admin/scene-config  { focus: { ... }, cutaway: { ... }, mist: { ... }, ... }
@@ -26,7 +26,8 @@ export default function sceneConfigApi(): AstroIntegration {
     name: 'scene-config-api',
     hooks: {
       'astro:server:setup': ({ server, logger }) => {
-        const file = fileURLToPath(new URL('../src/viewer/config/scene.json', import.meta.url));
+        // Le back-office ne modifie que le CONTENU (content.json), jamais la structure (scene.json).
+        const file = fileURLToPath(new URL('../src/viewer/config/content.json', import.meta.url));
         const schema = fileURLToPath(new URL('./scene-config-schema.ts', import.meta.url));
 
         const media = fileURLToPath(new URL('../public/media/', import.meta.url));
@@ -74,10 +75,12 @@ export default function sceneConfigApi(): AstroIntegration {
             const patch = sanitize(JSON.parse(raw));
             const config = JSON.parse(await readFile(file, 'utf8'));
             for (const [section, values] of Object.entries(patch)) {
+              // Garde-fou : seules les sections déjà présentes dans content.json sont modifiables.
+              if (!(section in config)) throw new Error(`Section hors contenu : ${section}`);
               config[section] = { ...config[section], ...values };
             }
             await writeFile(file, JSON.stringify(config, null, 2) + '\n', 'utf8');
-            logger.info(`scene.json mis à jour : ${JSON.stringify(patch)}`);
+            logger.info(`content.json mis à jour : ${Object.keys(patch).join(', ')}`);
             send(200, { ok: true, config });
           } catch (err) {
             send(400, { error: err instanceof Error ? err.message : String(err) });

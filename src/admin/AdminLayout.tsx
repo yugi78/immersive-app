@@ -58,7 +58,7 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
         ? { cls: 'is-error', text: save.message ?? 'Erreur' }
         : dirty
           ? { cls: 'is-dirty', text: 'Modifications non publiées' }
-          : { cls: 'is-ok', text: 'Enregistré dans scene.json' };
+          : { cls: 'is-ok', text: 'Publié' };
 
   const setTab = (t: string) => dispatch({ type: 'setUi', ui: { fieldTab: t } });
   // L'historique de Puck contient aussi l'onglet ouvert : on annule les réglages

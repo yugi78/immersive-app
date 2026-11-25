@@ -1,4 +1,22 @@
-import raw from './scene.json';
+import sceneRaw from './scene.json';
+import contentRaw from './content.json';
+
+/**
+ * La configuration est répartie en deux fichiers, par propriétaire :
+ * - scene.json   : la STRUCTURE (fichiers 3D, scan, rendu, caméra, intro, orbite),
+ *   gérée par le développeur en local ;
+ * - content.json : le CONTENU (visite, œuvres, carte, interface, découpe, brume,
+ *   couleurs, flou), modifié par le client dans le back-office en ligne.
+ * Chacun n'écrit que son fichier : pas de conflit, rien de perdu à la mise à jour.
+ * Les deux sont fusionnés ici ; le reste du code voit une seule configuration.
+ */
+const { version: contentVersion, ...content } = contentRaw;
+const raw = { ...sceneRaw, ...content };
+
+/** Version du format de content.json (migrations futures). */
+export const CONTENT_VERSION = contentVersion;
+/** Sections de la configuration qui appartiennent à content.json. */
+export const CONTENT_KEYS = Object.keys(content) as (keyof typeof content)[];
 
 /**
  * - context  : ville, sans découpe
@@ -135,5 +153,5 @@ export type SceneConfig = Omit<typeof raw, 'tour' | 'ui'> & {
   ui: UiConfig;
 };
 
-/** Configuration de scène par défaut (sera fournie par le back-office plus tard). */
+/** Configuration complète : structure (scene.json) + contenu (content.json). */
 export const defaultConfig = raw as unknown as SceneConfig;
