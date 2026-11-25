@@ -8,6 +8,9 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "build:cloudflare": "astro build && node scripts/prune-dist.mjs",
+    "build:github-pages": "astro build && node scripts/prune-dist.mjs --sans-admin",
+    "hash-password": "node scripts/hash-password.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

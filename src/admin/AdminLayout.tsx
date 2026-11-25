@@ -110,6 +110,20 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
             Mobile
           </button>
         </div>
+        {!LOCAL && (
+          <button
+            type="button"
+            className="bo-iconbtn"
+            aria-label="Se déconnecter"
+            title="Se déconnecter"
+            onClick={async () => {
+              await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+              location.assign('/connexion/');
+            }}
+          >
+            <Icon.close />
+          </button>
+        )}
         <button type="button" className="bo-btn bo-btn--primary bo-btn--lg" disabled={save.kind === 'saving'} onClick={() => onPublish(data)}>
           <Icon.upload size={16} />
           Publier

@@ -39,7 +39,8 @@ jobs:
       - run: npm ci
 
       - name: Build
-        run: npm run build
+        # Sans l'espace client : GitHub Pages n'a pas de fonctions serveur pour le protéger.
+        run: npm run build:github-pages
         env:
           # Préfixe des URL selon la config Pages : vide avec le domaine personnalisé,
           # « /pantheon » sans (voir astro.config.mjs).

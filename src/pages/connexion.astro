@@ -1,0 +1,152 @@
+---
+/**
+ * Connexion à l'espace client (en ligne). Le formulaire appelle /api/login (fonction
+ * Cloudflare) qui pose un cookie de session, puis ramène vers /admin.
+ */
+---
+
+<html lang="fr">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="robots" content="noindex" />
+		<title>Connexion — Espace client</title>
+		<style is:global>
+			@font-face {
+				font-family: 'Mona Sans';
+				src: url('/fonts/mona-sans/mona-sans-vf.woff2') format('woff2');
+				font-weight: 200 900;
+				font-stretch: 75% 125%;
+				font-display: swap;
+			}
+			html,
+			body {
+				margin: 0;
+				height: 100%;
+				background: #f3f2ef;
+				color: #141414;
+				font-family: 'Mona Sans', system-ui, sans-serif;
+			}
+			main {
+				min-height: 100%;
+				display: grid;
+				place-items: center;
+				padding: 24px;
+				box-sizing: border-box;
+			}
+			form {
+				width: min(380px, 100%);
+				display: grid;
+				gap: 16px;
+				padding: 32px 28px 28px;
+				border-radius: 20px;
+				background: #fff;
+				box-shadow: 0 10px 40px rgb(20 20 20 / 0.08);
+			}
+			.mark {
+				width: 40px;
+				height: 40px;
+				border-radius: 12px;
+				background: #141414;
+				color: #fff;
+				display: grid;
+				place-items: center;
+			}
+			h1 {
+				margin: 4px 0 0;
+				font-size: 22px;
+				font-weight: 650;
+			}
+			p {
+				margin: -8px 0 4px;
+				color: #6b6862;
+				font-size: 14px;
+			}
+			label {
+				display: grid;
+				gap: 6px;
+				font-size: 13px;
+				color: #6b6862;
+				font-weight: 500;
+			}
+			input {
+				height: 44px;
+				padding: 0 12px;
+				border: 1px solid #d6d3cd;
+				border-radius: 12px;
+				font: inherit;
+				font-size: 15px;
+				color: #141414;
+			}
+			input:focus {
+				outline: 2px solid #3b5bff;
+				outline-offset: -1px;
+				border-color: transparent;
+			}
+			button {
+				height: 46px;
+				margin-top: 4px;
+				border: 0;
+				border-radius: 12px;
+				background: #3b5bff;
+				color: #fff;
+				font: inherit;
+				font-weight: 600;
+				font-size: 15px;
+				cursor: pointer;
+			}
+			button:disabled {
+				opacity: 0.6;
+				cursor: default;
+			}
+			.error {
+				min-height: 18px;
+				margin: 0;
+				color: #b42318;
+				font-size: 13px;
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<form id="login" novalidate>
+				<span class="mark" aria-hidden="true">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20v-7M10 20v-7M14 20v-7M18 20v-7M4 13h16M6 13a6 6 0 0 1 12 0M12 4v3"></path></svg>
+				</span>
+				<h1>Espace client</h1>
+				<p>Connectez-vous pour modifier la visite.</p>
+				<label>Identifiant <input name="user" autocomplete="username" required /></label>
+				<label>Mot de passe <input name="password" type="password" autocomplete="current-password" required /></label>
+				<p class="error" role="alert" id="error"></p>
+				<button type="submit">Se connecter</button>
+			</form>
+		</main>
+		<script>
+			const form = document.querySelector<HTMLFormElement>('#login')!;
+			const error = document.querySelector<HTMLElement>('#error')!;
+			// Retour après connexion : seulement vers l'espace client (pas de redirection externe).
+			const back = new URLSearchParams(location.search).get('retour') ?? '';
+			const target = /^\/admin(\/|$)/.test(back) ? back : '/admin/';
+			form.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				error.textContent = '';
+				const button = form.querySelector('button')!;
+				button.disabled = true;
+				const data = new FormData(form);
+				try {
+					const res = await fetch('/api/login', {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ user: data.get('user'), password: data.get('password') }),
+					});
+					if (res.ok) return location.assign(target);
+					const json = await res.json().catch(() => ({}));
+					error.textContent = json.error ?? `Erreur ${res.status}`;
+				} catch {
+					error.textContent = 'Connexion impossible. Réessayez.';
+				}
+				button.disabled = false;
+			});
+		</script>
+	</body>
+</html>
