@@ -40,7 +40,33 @@ type Screen = 'exterior' | 'auto' | 'info';
 
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const D = (s: number) => (REDUCED ? 0 : s);
-const MOBILE = window.matchMedia('(max-width: 719px)');
+/** Largeur sous laquelle l'interface passe en version mobile (px, largeur du conteneur). */
+const MOBILE_MAX = 719;
+
+/**
+ * « Requête » mobile sur la largeur du CONTENEUR (et non de la fenêtre) : identique
+ * en plein écran, et juste dans un aperçu réduit (back-office, cadre téléphone).
+ * Même forme qu'un MediaQueryList : matches, change.
+ */
+function containerQuery(el: HTMLElement) {
+  const listeners = new Set<() => void>();
+  let matches = el.clientWidth <= MOBILE_MAX;
+  const ro = new ResizeObserver(() => {
+    const m = el.clientWidth <= MOBILE_MAX;
+    if (m === matches) return;
+    matches = m;
+    listeners.forEach((l) => l());
+  });
+  ro.observe(el);
+  return {
+    get matches() {
+      return matches;
+    },
+    addEventListener: (_: 'change', l: () => void) => void listeners.add(l),
+    removeEventListener: (_: 'change', l: () => void) => void listeners.delete(l),
+    dispose: () => ro.disconnect(),
+  };
+}
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -63,6 +89,7 @@ function loadFont() {
 export function createTourUi(o: TourUiOptions) {
   loadFont();
   const { tour, camera } = o;
+  const MOBILE = containerQuery(o.container);
   const root = document.createElement('div');
   root.className = 'pv-ui';
   root.innerHTML = `
@@ -981,6 +1008,7 @@ export function createTourUi(o: TourUiOptions) {
       window.removeEventListener('resize', alignClose);
       window.removeEventListener('hashchange', onHash);
       MOBILE.removeEventListener('change', onMobileChange);
+      MOBILE.dispose();
       minimapObserver.disconnect();
       gsap.killTweensOf(root.querySelectorAll('*'));
       root.remove();

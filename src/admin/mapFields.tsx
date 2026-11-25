@@ -2,6 +2,7 @@ import { FieldLabel, type CustomField } from '@puckeditor/core';
 import type { CSSProperties } from 'react';
 import type { MapView, Vec3 } from '../viewer/config/types';
 import { useViewer } from './bridge';
+import { Icon } from './icons';
 import { Button, XYZ } from './tourFields';
 
 /**
@@ -9,13 +10,12 @@ import { Button, XYZ } from './tourFields';
  * plan de coupe, direction du regard, cadre) avec cadrage depuis la caméra et aperçu.
  */
 
-const row: CSSProperties = { display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' };
-const card: CSSProperties = { display: 'grid', gap: 6, padding: 8, border: '1px solid #dfe3e8', borderRadius: 6, background: '#fafbfc' };
-const small: CSSProperties = { font: '11px system-ui', color: '#5c6370' };
+const row: CSSProperties = { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' };
+const small: CSSProperties = { fontSize: 12, color: 'var(--bo-muted)' };
 
 function Num({ label, value, onChange, step = 1, min, max }: { label: string; value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number }) {
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 4, font: '11px system-ui' }}>
+    <label className="bo-mini">
       {label}
       <input
         type="number"
@@ -27,7 +27,6 @@ function Num({ label, value, onChange, step = 1, min, max }: { label: string; va
           const n = Number(e.currentTarget.value);
           if (Number.isFinite(n)) onChange(n);
         }}
-        style={{ width: 64 }}
       />
     </label>
   );
@@ -41,10 +40,10 @@ function MapViewsUI({ value, onChange, readOnly }: { value: MapView[]; onChange:
     <FieldLabel label="Vues de face des murs (vignettes 2 à 5)" readOnly={readOnly}>
       <div style={{ display: 'grid', gap: 8 }}>
         <div style={row}>
-          <Button disabled={!viewer} onClick={() => viewer?.map.open(0)}>
+          <Button variant="primary" icon={<Icon.map size={15} />} disabled={!viewer} onClick={() => viewer?.map.open(0)}>
             Aperçu du plan
           </Button>
-          <Button disabled={!viewer} onClick={() => viewer?.map.close()}>
+          <Button icon={<Icon.close size={15} />} disabled={!viewer} onClick={() => viewer?.map.close()}>
             Fermer la carte
           </Button>
         </div>
@@ -53,13 +52,30 @@ function MapViewsUI({ value, onChange, readOnly }: { value: MapView[]; onChange:
           la caméra et tout ce qui est devant est coupé.
         </p>
         {views.map((v, i) => (
-          <div key={i} style={card}>
-            <input value={v.name} disabled={readOnly} onChange={(e) => set(i, { name: e.currentTarget.value })} style={{ font: '600 12px system-ui' }} />
+          <div key={i} className="bo-item">
+            <div className="bo-item__head">
+              <span className="bo-item__handle" style={{ cursor: 'default' }}>
+                <span className="bo-num">{i + 2}</span>
+                <input className="bo-input bo-input--title" value={v.name} disabled={readOnly} aria-label="Nom de la vue" onChange={(e) => set(i, { name: e.currentTarget.value })} />
+              </span>
+            </div>
             <span style={small}>Centre du plan de coupe (x, y, z)</span>
             <XYZ value={v.center} onChange={(c: Vec3) => set(i, { center: c })} readOnly={readOnly} />
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <span style={small}>Regard</span>
-              <input type="range" min={-180} max={180} step={0.5} value={v.yaw} disabled={readOnly} onChange={(e) => set(i, { yaw: Number(e.currentTarget.value) })} style={{ flex: 1 }} />
+              <span className="bo-slider" style={{ flex: 1, display: 'flex' }}>
+                <input
+                  type="range"
+                  min={-180}
+                  max={180}
+                  step={0.5}
+                  value={v.yaw}
+                  aria-label="Direction du regard"
+                  disabled={readOnly}
+                  onChange={(e) => set(i, { yaw: Number(e.currentTarget.value) })}
+                  style={{ ['--bo-fill' as string]: `${((v.yaw + 180) / 360) * 100}%` }}
+                />
+              </span>
               <Num label="°" value={v.yaw} step={0.5} onChange={(yaw) => set(i, { yaw })} />
             </div>
             <div style={row}>
@@ -68,6 +84,8 @@ function MapViewsUI({ value, onChange, readOnly }: { value: MapView[]; onChange:
             </div>
             <div style={row}>
               <Button
+                variant="primary"
+                icon={<Icon.camera size={15} />}
                 disabled={!viewer || readOnly}
                 title="Centre = position de la caméra, regard = sa direction (horizontale)"
                 onClick={() => {
@@ -77,7 +95,7 @@ function MapViewsUI({ value, onChange, readOnly }: { value: MapView[]; onChange:
               >
                 Cadrer depuis la caméra
               </Button>
-              <Button disabled={!viewer} onClick={() => viewer?.map.open(i + 1)}>
+              <Button icon={<Icon.eye size={15} />} disabled={!viewer} onClick={() => viewer?.map.open(i + 1)}>
                 Aperçu
               </Button>
             </div>

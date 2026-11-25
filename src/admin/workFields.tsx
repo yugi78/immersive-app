@@ -1,9 +1,10 @@
 import { AutoField, FieldLabel, type CustomField } from '@puckeditor/core';
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Icon } from './icons';
 import type { ContentBlock, TourHotspot, Vec3 } from '../viewer/config/types';
 import { withBase } from '../viewer/url';
-import { useViewer } from './bridge';
-import { GizmoButton, workIndex } from './tourFields';
+import { bridge, useViewer, useWorkTab } from './bridge';
+import { Button, GizmoButton, workIndex } from './tourFields';
 
 /**
  * Champs Puck du contenu d'une œuvre : vignette (capture 3D ou import),
@@ -11,25 +12,8 @@ import { GizmoButton, workIndex } from './tourFields';
  * (texte riche ou image).
  */
 
-const btn: CSSProperties = {
-  padding: '4px 8px',
-  font: '12px system-ui, sans-serif',
-  border: '1px solid #c9ced6',
-  borderRadius: 4,
-  background: '#fff',
-  cursor: 'pointer',
-};
-const row: CSSProperties = { display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' };
-const card: CSSProperties = { display: 'grid', gap: 6, padding: 6, border: '1px solid #e1e4e8', borderRadius: 4, background: '#fafbfc' };
-const muted: CSSProperties = { font: '11px system-ui', color: '#59606b' };
-
-function Button({ children, ...p }: { children: ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
-  return (
-    <button type="button" style={{ ...btn, opacity: p.disabled ? 0.5 : 1 }} {...p}>
-      {children}
-    </button>
-  );
-}
+const row: CSSProperties = { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' };
+const muted: CSSProperties = { fontSize: 12, color: 'var(--bo-muted)' };
 
 /** Envoie une image au serveur de dev (public/media/) ; renvoie son URL depuis la racine. */
 export async function uploadImage(file: Blob, name: string): Promise<string> {
@@ -50,11 +34,13 @@ const moved = <T,>(list: T[], from: number, to: number) => {
 };
 
 /** Sélecteur de fichier image caché derrière un bouton. */
-function ImportButton({ label, onFile }: { label: string; onFile: (f: File) => void }) {
+function ImportButton({ label, onFile, icon }: { label: string; onFile: (f: File) => void; icon?: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <>
-      <Button onClick={() => input.current?.click()}>{label}</Button>
+      <Button icon={icon ?? <Icon.upload size={15} />} onClick={() => input.current?.click()}>
+        {label}
+      </Button>
       <input
         ref={input}
         type="file"
@@ -89,20 +75,25 @@ function ThumbnailUI({ value, onChange, name }: { value: string; onChange: (v: s
     <FieldLabel label="Vignette (bandeau, collection)">
       <div style={{ display: 'grid', gap: 6 }}>
         {value ? (
-          <img src={withBase(value)} alt="" style={{ width: '100%', aspectRatio: '16 / 10', objectFit: 'cover', borderRadius: 4 }} />
+          <img src={withBase(value)} alt="" className="bo-thumb" />
         ) : (
-          <span style={muted}>Aucune vignette.</span>
+          <span className="bo-thumb bo-thumb--empty">
+            <Icon.image size={22} />
+            Aucune vignette
+          </span>
         )}
         <div style={row}>
           <Button
+            variant="primary"
+            icon={<Icon.camera size={15} />}
             disabled={!viewer?.editor || !!busy}
             title="Rendu de la vue 3D actuelle, sans repères (place d'abord la caméra : aperçu ou vol libre)"
             onClick={() => run('capture', async () => uploadImage(await viewer!.editor!.captureThumbnail(), `oeuvre-${work + 1}-${stamp()}.webp`))}
           >
             Capturer la vue 3D
           </Button>
-          <ImportButton label="Importer une image" onFile={(f) => run('import', () => uploadImage(f, `oeuvre-${work + 1}-${stamp()}.${extOf(f)}`))} />
-          {value && <Button onClick={() => onChange('')}>Retirer</Button>}
+          <ImportButton label="Importer" onFile={(f) => run('import', () => uploadImage(f, `oeuvre-${work + 1}-${stamp()}.${extOf(f)}`))} />
+          {value && <Button variant="ghost" icon={<Icon.trash size={15} />} title="Retirer la vignette" onClick={() => onChange('')} />}
         </div>
         {busy && <span style={muted}>{busy === 'capture' || busy === 'import' ? 'Enregistrement…' : busy}</span>}
       </div>
@@ -142,7 +133,7 @@ function HotspotsUI({ value, onChange, name }: { value: TourHotspot[]; onChange:
 
   return (
     <FieldLabel label="Points d'intérêt (cycle automatique ou clic)">
-      <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'grid', gap: 8 }}>
         {list.map((h, j) => (
           <div
             key={h.id}
@@ -160,33 +151,42 @@ function HotspotsUI({ value, onChange, name }: { value: TourHotspot[]; onChange:
               setDrag(null);
             }}
             onDragEnd={() => setDrag(null)}
-            style={{ ...card, background: drag === j ? '#e7f1fb' : card.background }}
+            className={`bo-item${drag === j ? ' is-drag' : ''}`}
           >
-            <div style={{ ...row, justifyContent: 'space-between' }}>
-              <span style={{ cursor: 'grab', font: '600 12px system-ui' }} title="Glisser pour réordonner">
-                ⠿ Point {j + 1}
+            <div className="bo-item__head">
+              <span className="bo-item__handle" title="Glisser pour réordonner">
+                <span className="bo-num">{j + 1}</span>
+                Point d'intérêt
               </span>
               <span style={row}>
-                <Button disabled={!ed} title="Cliquer ensuite sur le scan (Échap : annuler)" onClick={() => pick(j)}>
-                  {picking === j ? 'Cliquez…' : 'Repointer'}
-                </Button>
-                <GizmoButton markerKey={`hot:${work}:${j}`} onMove={(v: Vec3) => set(j, { position: v })} />
-                <Button title="Supprimer ce point" onClick={() => onChange(list.filter((_, k) => k !== j))}>
-                  ✕
-                </Button>
+                <Button
+                  on={picking === j}
+                  icon={<Icon.target size={15} />}
+                  disabled={!ed}
+                  title={picking === j ? 'Cliquez sur le scan… (Échap : annuler)' : 'Repointer sur le scan'}
+                  onClick={() => pick(j)}
+                />
+                <GizmoButton markerKey={`hot:${work}:${j}`} label="" onMove={(v: Vec3) => set(j, { position: v })} />
+                <Button variant="ghost" icon={<Icon.trash size={15} />} title="Supprimer ce point" onClick={() => onChange(list.filter((_, k) => k !== j))} />
               </span>
             </div>
             <textarea
+              className="bo-textarea"
               value={h.text}
               rows={3}
               placeholder="Texte affiché à côté du point"
               onChange={(e) => set(j, { text: e.currentTarget.value })}
-              style={{ width: '100%', boxSizing: 'border-box', font: '12px system-ui', resize: 'vertical' }}
             />
           </div>
         ))}
-        <Button disabled={!ed} title="Cliquer ensuite sur le scan, à l'endroit du point" onClick={() => pick('new')}>
-          {picking === 'new' ? 'Cliquez sur le scan…' : '+ Ajouter un point (pointer sur le scan)'}
+        <Button
+          variant={picking === 'new' ? 'primary' : 'dashed'}
+          icon={picking === 'new' ? <Icon.target size={15} /> : <Icon.plus size={15} />}
+          disabled={!ed}
+          title="Cliquer ensuite sur le scan, à l'endroit du point"
+          onClick={() => pick('new')}
+        >
+          {picking === 'new' ? 'Cliquez sur le scan… (Échap : annuler)' : 'Ajouter un point (pointer sur le scan)'}
         </Button>
       </div>
     </FieldLabel>
@@ -224,31 +224,30 @@ function BlocksUI({ value, onChange, name }: { value: ContentBlock[]; onChange: 
               if (drag !== null && drag !== j) onChange(moved(blocks, drag, j));
               setDrag(null);
             }}
-            style={{ ...card, background: drag === j ? '#e7f1fb' : card.background }}
+            className={`bo-item${drag === j ? ' is-drag' : ''}`}
           >
-            <div style={{ ...row, justifyContent: 'space-between' }}>
+            <div className="bo-item__head">
               <span
+                className="bo-item__handle"
                 draggable
                 onDragStart={(e) => {
                   setDrag(j);
                   e.dataTransfer.effectAllowed = 'move';
                 }}
                 onDragEnd={() => setDrag(null)}
-                style={{ cursor: 'grab', font: '600 12px system-ui' }}
                 title="Glisser pour réordonner"
               >
-                ⠿ {b.type === 'text' ? 'Texte' : 'Image'}
+                <span className="bo-num">{b.type === 'text' ? <Icon.text size={12} /> : <Icon.image size={12} />}</span>
+                {b.type === 'text' ? 'Texte' : 'Image'}
               </span>
-              <Button title="Supprimer ce bloc" onClick={() => onChange(blocks.filter((_, k) => k !== j))}>
-                ✕
-              </Button>
+              <Button variant="ghost" icon={<Icon.trash size={15} />} title="Supprimer ce bloc" onClick={() => onChange(blocks.filter((_, k) => k !== j))} />
             </div>
             {b.type === 'text' ? (
               <AutoField field={richtext} value={b.html} onChange={(html: string) => set(j, { type: 'text', html: html ?? '' })} />
             ) : (
               <>
                 {b.src ? (
-                  <img src={withBase(b.src)} alt={b.alt} style={{ width: '100%', borderRadius: 4 }} />
+                  <img src={withBase(b.src)} alt={b.alt} className="bo-thumb" style={{ aspectRatio: 'auto' }} />
                 ) : (
                   <span style={muted}>Aucune image.</span>
                 )}
@@ -270,7 +269,7 @@ function BlocksUI({ value, onChange, name }: { value: ContentBlock[]; onChange: 
                   value={b.alt}
                   placeholder="Description de l'image (accessibilité)"
                   onChange={(e) => set(j, { ...b, alt: e.currentTarget.value })}
-                  style={{ font: '12px system-ui' }}
+                  className="bo-input"
                 />
               </>
             )}
@@ -278,8 +277,12 @@ function BlocksUI({ value, onChange, name }: { value: ContentBlock[]; onChange: 
         ))}
         {error && <span style={{ ...muted, color: '#b42318' }}>{error}</span>}
         <div style={row}>
-          <Button onClick={() => onChange([...blocks, { type: 'text', html: '' }])}>+ Texte</Button>
-          <Button onClick={() => onChange([...blocks, { type: 'image', src: '', alt: '' }])}>+ Image</Button>
+          <Button variant="dashed" icon={<Icon.text size={15} />} onClick={() => onChange([...blocks, { type: 'text', html: '' }])}>
+            Ajouter un texte
+          </Button>
+          <Button variant="dashed" icon={<Icon.image size={15} />} onClick={() => onChange([...blocks, { type: 'image', src: '', alt: '' }])}>
+            Ajouter une image
+          </Button>
         </div>
       </div>
     </FieldLabel>
@@ -291,3 +294,58 @@ export const blocksField: CustomField<ContentBlock[]> = {
   label: 'Contenu',
   render: (p) => <BlocksUI value={p.value} onChange={p.onChange} name={p.name} />,
 };
+
+// ---- Sous-onglets d'une œuvre -------------------------------------------------------
+
+const WORK_TABS: { key: string; label: string }[] = [
+  { key: 'infos', label: 'Infos' },
+  { key: 'parcours', label: 'Parcours' },
+  { key: 'points', label: 'Points' },
+  { key: 'contenu', label: 'Contenu' },
+];
+
+/**
+ * Sélecteur Infos / Parcours / Points / Contenu en tête d'une œuvre. N'enregistre rien :
+ * il marque le bloc de champs de l'œuvre (data-bo-tab) et la feuille de style
+ * n'affiche que la section choisie (admin.css).
+ */
+function WorkTabsUI({ name }: { name: string }) {
+  const id = String(workIndex(name));
+  const tab = useWorkTab(id);
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const fieldset = ref.current?.closest<HTMLElement>('[class*="_ArrayFieldItem-fieldset_"]');
+    if (fieldset) fieldset.dataset.boTab = tab;
+  }, [tab]);
+  return (
+    <div ref={ref} className="bo-seg bo-worktabs" role="tablist" aria-label="Réglages de l'œuvre">
+      {WORK_TABS.map((t) => (
+        <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={tab === t.key ? 'is-on' : ''} onClick={() => bridge.setWorkTab(id, t.key)}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export const workTabsField: CustomField<null> = {
+  type: 'custom',
+  label: 'Section',
+  render: ({ name }) => <WorkTabsUI name={name} />,
+};
+
+/** Résumé d'une œuvre dans la liste : vignette, titre, auteur, nombre de points. */
+export function WorkSummary({ title, author, thumbnail, points, index }: { title: string; author: string; thumbnail: string; points: number; index: number }) {
+  return (
+    <span className="bo-worksum">
+      {thumbnail ? <img src={withBase(thumbnail)} alt="" /> : <span className="bo-worksum__empty"><Icon.image size={16} /></span>}
+      <span className="bo-worksum__text">
+        <b>{title || `Œuvre ${index + 1}`}</b>
+        <small>
+          {author || 'Auteur ?'} · {points} point{points > 1 ? 's' : ''}
+        </small>
+      </span>
+      <span className="bo-num">{index + 1}</span>
+    </span>
+  );
+}

@@ -277,8 +277,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     console.warn('[viewer] mini-carte indisponible', err);
   }
   // Carte interactive : rendu orthogonal en direct de la scène (plan, vues de face).
-  const mobileQuery = window.matchMedia('(max-width: 719px)');
-  const mapView = createMapView({ renderer, scene, box: reference.box, config: () => uiCfg.map, mobile: () => mobileQuery.matches });
+  // Version mobile selon la largeur du conteneur (même seuil que l'interface).
+  const mapView = createMapView({ renderer, scene, box: reference.box, config: () => uiCfg.map, mobile: () => container.clientWidth <= 719 });
   // Commandes créées à la fin de l'intro (pas de visite pendant l'ouverture).
   function onIntroDone() {
     orbit.start();

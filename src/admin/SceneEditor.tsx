@@ -7,8 +7,10 @@ import { newWorkId, uniqueSlugs } from '../viewer/tour/slug';
 import { bridge, useActiveWork, useViewer } from './bridge';
 import { checkbox, colorField, slider } from './fields';
 import { boundsField, cameraPointsField, focusOffsetField, pointField, previewField } from './tourFields';
-import { blocksField, hotspotsField, thumbnailField } from './workFields';
+import { blocksField, hotspotsField, thumbnailField, workTabsField, WorkSummary } from './workFields';
 import { mapViewsField } from './mapFields';
+import { AdminLayout, type SaveState } from './AdminLayout';
+import './admin.css';
 
 const usePuckState = createUsePuck();
 
@@ -286,7 +288,7 @@ function ViewerPreview(props: SceneProps) {
     live?.editor?.setView({ tab: String(tab ?? 'Scène'), activeWork, tourHelpers: props.showTourHelpers });
   }, [live, tab, activeWork, props.showTourHelpers]);
 
-  return <div ref={el} className="pantheon-viewer" style={{ height: 'calc(100vh - 140px)', minHeight: 360 }} />;
+  return <div ref={el} className="pantheon-viewer bo-viewer" />;
 }
 
 const config: Config<{}, Record<string, unknown>> = {
@@ -350,11 +352,11 @@ const config: Config<{}, Record<string, unknown>> = {
         label: 'Œuvres (glisser pour réordonner)',
         // Sous-volets repliables : chaque œuvre reste lisible même avec beaucoup de réglages.
         arrayFields: {
+          // Sous-onglets : n'affichent qu'une section à la fois (voir workTabsField).
+          section: workTabsField,
           infos: {
             type: 'object',
-            label: 'Infos (titre, auteur, vignette)',
-            collapsible: true,
-            defaultExpanded: true,
+            label: 'Infos',
             objectFields: {
               title: { type: 'text', label: 'Titre' },
               author: { type: 'text', label: 'Auteur' },
@@ -363,9 +365,7 @@ const config: Config<{}, Record<string, unknown>> = {
           },
           parcours: {
             type: 'object',
-            label: 'Parcours caméra (focus, points, zone)',
-            collapsible: true,
-            defaultExpanded: false,
+            label: 'Parcours caméra',
             objectFields: {
               focus: pointField('Point de focus', { key: (name) => `focus:${/(\d+)/.exec(name)?.[1]}`, pick: true, capture: true }),
               cameraPoints: cameraPointsField,
@@ -383,7 +383,15 @@ const config: Config<{}, Record<string, unknown>> = {
           hotspots: [],
           blocks: [],
         }),
-        getItemSummary: (item: TourWorkItem, index?: number) => item.infos?.title || `Œuvre ${(index ?? 0) + 1}`,
+        getItemSummary: (item: TourWorkItem, index?: number) => (
+          <WorkSummary
+            title={item.infos?.title ?? ''}
+            author={item.infos?.author ?? ''}
+            thumbnail={item.infos?.thumbnail ?? ''}
+            points={item.hotspots?.length ?? 0}
+            index={index ?? 0}
+          />
+        ),
       },
       flyEnabled: checkbox('Vol libre (ZQSD + clic droit, A/E : bas/haut, Maj : vite)'),
       flySpeed: slider('Vitesse du vol libre (molette)', 0.2, 30, 0.1, 'm/s'),
@@ -554,11 +562,11 @@ const initialData: Data<{}, Record<string, unknown>> = {
 };
 
 export default function SceneEditor() {
-  const [status, setStatus] = useState<string | null>(null);
+  const [save, setSave] = useState<SaveState>({ kind: 'idle' });
 
   async function publish(data: Data<{}, Record<string, unknown>>) {
     const p = pickSceneProps(data.root.props ?? {});
-    setStatus('Enregistrement…');
+    setSave({ kind: 'saving' });
     try {
       const res = await fetch('/__admin/scene-config', {
         method: 'POST',
@@ -582,26 +590,16 @@ export default function SceneEditor() {
         }),
       });
       const json = await res.json().catch(() => ({}));
-      setStatus(res.ok ? 'Enregistré dans scene.json' : `Erreur : ${json.error ?? res.status}`);
+      setSave(res.ok ? { kind: 'saved' } : { kind: 'error', message: `Erreur : ${json.error ?? res.status}` });
     } catch (err) {
-      setStatus(`Erreur : ${err instanceof Error ? err.message : String(err)} (serveur de dev lancé ?)`);
+      setSave({ kind: 'error', message: `Erreur : ${err instanceof Error ? err.message : String(err)} (serveur de dev lancé ?)` });
     }
   }
 
+  // Composition Puck : notre mise en page (en-tête, onglets à icônes, aperçu agrandi).
   return (
-    <>
-      <Puck
-        config={config}
-        data={initialData}
-        onPublish={publish}
-        headerTitle="Panthéon — réglages de scène"
-        iframe={{ enabled: false }}
-      />
-      {status && (
-        <div role="status" className="admin-status">
-          {status}
-        </div>
-      )}
-    </>
+    <Puck config={config} data={initialData} onPublish={publish} iframe={{ enabled: false }}>
+      <AdminLayout onPublish={(d) => publish(d as Data<{}, Record<string, unknown>>)} save={save} />
+    </Puck>
   );
 }

@@ -6,6 +6,8 @@
   --pv-radius: 14px;
   position: absolute;
   inset: 0;
+  /* Version mobile selon la largeur de ce conteneur (@container pv), pas de la fenêtre. */
+  container: pv / size;
   pointer-events: none;
   font-family: 'Mona Sans', system-ui, sans-serif;
   font-stretch: 112%;
@@ -54,8 +56,8 @@
 /* ---- Titre, auteur, « En savoir plus » ---- */
 .pv-head {
   position: absolute;
-  top: clamp(16px, 4vh, 40px);
-  left: clamp(16px, 2vw, 24px);
+  top: clamp(16px, 4cqh, 40px);
+  left: clamp(16px, 2cqw, 24px);
   right: 160px;
   pointer-events: none;
 }
@@ -66,7 +68,7 @@
 }
 .pv-title {
   margin: 0;
-  font-size: clamp(40px, 5.6vw, 76px);
+  font-size: clamp(40px, 5.6cqw, 76px);
   font-weight: 640;
   font-stretch: 125%;
   line-height: 0.95;
@@ -156,8 +158,8 @@
 /* ---- « À propos » (visible partout ; noir sur fond clair, blanc sur fond sombre) ---- */
 .pv-about-btn {
   position: absolute;
-  top: clamp(16px, 4vh, 44px);
-  right: clamp(16px, 5vw, 64px);
+  top: clamp(16px, 4cqh, 44px);
+  right: clamp(16px, 5cqw, 64px);
   padding: 4px 0;
   border: 0;
   background: none;
@@ -174,7 +176,7 @@
 /* ---- Fiche « En savoir plus » ---- */
 .pv-info {
   position: absolute;
-  left: clamp(16px, 2vw, 24px);
+  left: clamp(16px, 2cqw, 24px);
   top: 170px;
   bottom: 300px;
   width: min(430px, calc(100% - 32px));
@@ -268,7 +270,7 @@
   top: 0;
   display: none;
   width: max-content;
-  max-width: min(300px, 70vw);
+  max-width: min(300px, 70cqw);
   font-size: 14px;
   font-style: italic;
   font-weight: 640;
@@ -745,14 +747,14 @@
 }
 
 /* ---- Mobile (maquettes mobile) ---- */
-@media (max-width: 719px) {
+@container pv (max-width: 719px) {
   .pv-head {
     left: 28px;
     right: 28px;
     top: max(20px, env(safe-area-inset-top));
   }
   .pv-title {
-    font-size: clamp(38px, 12vw, 64px);
+    font-size: clamp(38px, 12cqw, 64px);
   }
   .pv-author {
     font-size: 15px;
@@ -933,7 +935,7 @@
   height: 20px;
   stroke-width: 2.2;
 }
-@media (max-width: 719px) {
+@container pv (max-width: 719px) {
   /* Le texte des points ne flotte pas sur mobile : il passe dans l'encart. */
   .pv-spot__text.is-active {
     display: none;
@@ -1013,14 +1015,14 @@
 }
 .pv-map__head {
   position: absolute;
-  top: clamp(16px, 3.5vh, 30px);
+  top: clamp(16px, 3.5cqh, 30px);
   left: 30px;
   max-width: min(440px, calc(100% - 60px));
   pointer-events: none;
 }
 .pv-map__title {
   margin: 0;
-  font-size: clamp(32px, 3.6vw, 46px);
+  font-size: clamp(32px, 3.6cqw, 46px);
   font-weight: 520;
   font-stretch: 112%;
   line-height: 1.05;
@@ -1228,13 +1230,13 @@
   padding-right: 0;
 }
 
-@media (max-width: 719px) {
+@container pv (max-width: 719px) {
   .pv-map__head {
     top: max(24px, env(safe-area-inset-top));
     left: 24px;
   }
   .pv-map__title {
-    font-size: clamp(30px, 9.2vw, 46px);
+    font-size: clamp(30px, 9.2cqw, 46px);
   }
   .pv-map__sub {
     font-size: 15px;
@@ -1349,7 +1351,12 @@
   opacity: 1;
   translate: 0 0;
 }
-@media (max-width: 719px), (hover: none) {
+@container pv (max-width: 719px) {
+  .pv-ext-dot span {
+    display: none;
+  }
+}
+@media (hover: none) {
   .pv-ext-dot span {
     display: none;
   }

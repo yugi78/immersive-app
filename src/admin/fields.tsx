@@ -1,15 +1,45 @@
-import { FieldLabel, type CustomField } from '@puckeditor/core';
+import type { CustomField } from '@puckeditor/core';
 
-/** Champs Puck sur mesure, partagés par les onglets du back-office. */
+/** Champs Puck sur mesure, partagés par les onglets du back-office (style : admin.css, bo-*). */
 
-/** Champ Puck « tirette + saisie numérique ». */
+/** Nombre affiché avec la précision du pas (virgule française). */
+const fmt = (v: number, step: number) => {
+  const d = step >= 1 ? 0 : Math.min(3, Math.ceil(-Math.log10(step)));
+  return Number(v ?? 0).toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: d });
+};
+
+/** Champ Puck « curseur » : libellé, valeur en pastille (modifiable), piste remplie. */
 export function slider(label: string, min: number, max: number, step: number, unit: string | null = 'm'): CustomField<number> {
   return {
     type: 'custom',
     label,
-    render: ({ value, onChange, readOnly, id }) => (
-      <FieldLabel label={unit ? `${label} (${unit})` : label} readOnly={readOnly}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    render: ({ value, onChange, readOnly, id }) => {
+      const v = Number(value ?? min);
+      const pct = ((Math.min(Math.max(v, min), max) - min) / (max - min || 1)) * 100;
+      return (
+        <div className="bo-field bo-slider">
+          <div className="bo-field__row">
+            <label htmlFor={id} className="bo-field__label">
+              {label}
+            </label>
+            <span className="bo-valuepill">
+              <input
+                type="number"
+                aria-label={`${label} (valeur)`}
+                min={min}
+                max={max}
+                step={step}
+                value={value}
+                disabled={readOnly}
+                onChange={(e) => {
+                  const n = Number(e.currentTarget.value);
+                  if (Number.isFinite(n)) onChange(n);
+                }}
+                style={{ width: `${Math.max(fmt(v, step).length, 2) + 1}ch` }}
+              />
+              {unit && <span>{unit}</span>}
+            </span>
+          </div>
           <input
             id={id}
             type="range"
@@ -19,50 +49,47 @@ export function slider(label: string, min: number, max: number, step: number, un
             value={value}
             disabled={readOnly}
             onChange={(e) => onChange(Number(e.currentTarget.value))}
-            style={{ flex: 1 }}
-          />
-          <input
-            type="number"
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            disabled={readOnly}
-            onChange={(e) => {
-              const v = Number(e.currentTarget.value);
-              if (Number.isFinite(v)) onChange(v);
-            }}
-            style={{ width: 72 }}
+            style={{ ['--bo-fill' as string]: `${pct}%` }}
           />
         </div>
-      </FieldLabel>
-    ),
+      );
+    },
   };
 }
 
-/** Champ Puck « case à cocher ». */
-export function checkbox(label: string): CustomField<boolean> {
+/** Champ Puck « interrupteur » (case à cocher). */
+export function checkbox(label: string, hint?: string): CustomField<boolean> {
   return {
     type: 'custom',
     label,
     render: ({ value, onChange, readOnly, id }) => (
-      <label htmlFor={id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14, fontWeight: 600 }}>
-        <input id={id} type="checkbox" checked={!!value} disabled={readOnly} onChange={(e) => onChange(e.currentTarget.checked)} />
-        {label}
+      <label htmlFor={id} className="bo-field bo-switch">
+        <span className="bo-switch__text">
+          <span className="bo-field__label">{label}</span>
+          {hint && <span className="bo-field__hint">{hint}</span>}
+        </span>
+        <input id={id} type="checkbox" role="switch" checked={!!value} disabled={readOnly} onChange={(e) => onChange(e.currentTarget.checked)} />
+        <span className="bo-switch__track" aria-hidden="true" />
       </label>
     ),
   };
 }
 
-/** Champ Puck « sélecteur de couleur ». */
+/** Champ Puck « couleur » : pastille cliquable + code hexadécimal. */
 export function colorField(label: string): CustomField<string> {
   return {
     type: 'custom',
     label,
-    render: ({ value, onChange, readOnly }) => (
-      <FieldLabel label={label} readOnly={readOnly}>
-        <input type="color" value={value} disabled={readOnly} onChange={(e) => onChange(e.currentTarget.value)} />
-      </FieldLabel>
+    render: ({ value, onChange, readOnly, id }) => (
+      <label htmlFor={id} className="bo-field bo-color">
+        <span className="bo-color__swatch" style={{ background: value }}>
+          <input id={id} type="color" value={value} disabled={readOnly} onChange={(e) => onChange(e.currentTarget.value)} />
+        </span>
+        <span className="bo-switch__text">
+          <span className="bo-field__label">{label}</span>
+          <span className="bo-field__hint bo-mono">{String(value ?? '').toUpperCase()}</span>
+        </span>
+      </label>
     ),
   };
 }

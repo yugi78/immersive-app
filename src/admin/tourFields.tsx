@@ -2,6 +2,7 @@ import { FieldLabel, type CustomField } from '@puckeditor/core';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { TourBounds, Vec3 } from '../viewer/config/types';
 import { bridge, useBoundsWork, useGizmoKey, useViewer } from './bridge';
+import { Icon } from './icons';
 
 /**
  * Champs Puck de la visite guidée : point XYZ (pointage, capture, gizmo),
@@ -11,32 +12,39 @@ import { bridge, useBoundsWork, useGizmoKey, useViewer } from './bridge';
 /** Index de l'œuvre dans la liste, lu dans le nom du champ Puck (« tourWorks[2].focus »). */
 export const workIndex = (name: string) => Number(/(\d+)/.exec(name)?.[1] ?? -1);
 
-const btn: CSSProperties = {
-  padding: '4px 8px',
-  font: '12px system-ui, sans-serif',
-  border: '1px solid #c9ced6',
-  borderRadius: 4,
-  background: '#fff',
-  cursor: 'pointer',
-};
-const btnOn: CSSProperties = { ...btn, background: '#1c7ed6', borderColor: '#1c7ed6', color: '#fff' };
-const row: CSSProperties = { display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' };
+const row: CSSProperties = { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' };
 
-export function Button({ on, children, ...p }: { on?: boolean; children: ReactNode; onClick: () => void; disabled?: boolean; title?: string }) {
+type ButtonProps = {
+  on?: boolean;
+  /** primary : action principale (accent) ; danger : suppression ; ghost : discret ; dashed : ajout. */
+  variant?: 'primary' | 'danger' | 'ghost' | 'dashed';
+  icon?: ReactNode;
+  block?: boolean;
+  children?: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+  'aria-label'?: string;
+};
+
+/** Bouton du back-office (style bo-btn) ; icône seule si pas de texte (aria-label requis). */
+export function Button({ on, variant, icon, block, children, 'aria-label': ariaLabel, ...p }: ButtonProps) {
+  const cls = ['bo-btn', variant && `bo-btn--${variant}`, !children && 'bo-btn--icon', block && 'bo-btn--block', on && 'is-on'].filter(Boolean).join(' ');
   return (
-    <button type="button" style={{ ...(on ? btnOn : btn), opacity: p.disabled ? 0.5 : 1 }} {...p}>
+    <button type="button" className={cls} aria-label={ariaLabel ?? (!children ? p.title : undefined)} {...p}>
+      {icon}
       {children}
     </button>
   );
 }
 
-/** Trois saisies x / y / z. */
+/** Trois saisies x / y / z, axes en couleur (rouge, vert, bleu comme le gizmo). */
 export function XYZ({ value, onChange, readOnly }: { value: Vec3; onChange: (v: Vec3) => void; readOnly?: boolean }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
+    <div className="bo-xyz">
       {(['x', 'y', 'z'] as const).map((axis, k) => (
-        <label key={axis} style={{ display: 'flex', alignItems: 'center', gap: 2, font: '11px system-ui' }}>
-          {axis}
+        <label key={axis} className={`bo-xyz__${axis}`}>
+          <span>{axis.toUpperCase()}</span>
           <input
             type="number"
             step={0.1}
@@ -49,7 +57,6 @@ export function XYZ({ value, onChange, readOnly }: { value: Vec3; onChange: (v: 
               next[k] = n;
               onChange(next);
             }}
-            style={{ width: '100%', minWidth: 0 }}
           />
         </label>
       ))}
@@ -92,6 +99,7 @@ export function GizmoButton({
   return (
     <Button
       on={active}
+      icon={onRotate ? <Icon.rotate size={15} /> : <Icon.move size={15} />}
       disabled={!viewer?.editor}
       title={onRotate ? 'Tourner dans la vue 3D (autour de la verticale)' : 'Déplacer dans la vue 3D'}
       onClick={() => {
@@ -129,7 +137,9 @@ function PointUI(props: {
         <div style={row}>
           {props.pick && (
             <Button
+              variant="primary"
               on={picking}
+              icon={<Icon.target size={15} />}
               disabled={!viewer?.editor}
               title="Cliquer ensuite sur le scan dans la vue 3D (Échap : annuler)"
               onClick={async () => {
@@ -143,7 +153,7 @@ function PointUI(props: {
             </Button>
           )}
           {props.capture && (
-            <Button disabled={!viewer?.editor} onClick={() => props.onChange(viewer!.editor!.capture())}>
+            <Button icon={<Icon.camera size={15} />} disabled={!viewer?.editor} onClick={() => props.onChange(viewer!.editor!.capture())}>
               Capturer la caméra
             </Button>
           )}
@@ -186,7 +196,7 @@ function CameraPointsUI({ value, onChange, name, readOnly }: { value: Vec3[]; on
 
   return (
     <FieldLabel label="Points caméra (parcours aller-retour)" readOnly={readOnly}>
-      <div style={{ display: 'grid', gap: 6 }}>
+      <div style={{ display: 'grid', gap: 8 }}>
         {points.map((p, j) => (
           <div
             key={j}
@@ -202,38 +212,29 @@ function CameraPointsUI({ value, onChange, name, readOnly }: { value: Vec3[]; on
               setDrag(null);
             }}
             onDragEnd={() => setDrag(null)}
-            style={{
-              display: 'grid',
-              gap: 4,
-              padding: 6,
-              border: '1px solid #e1e4e8',
-              borderRadius: 4,
-              background: drag === j ? '#e7f1fb' : '#fafbfc',
-            }}
+            className={`bo-item${drag === j ? ' is-drag' : ''}`}
           >
-            <div style={{ ...row, justifyContent: 'space-between' }}>
-              <span style={{ cursor: 'grab', font: '600 12px system-ui' }} title="Glisser pour réordonner">
-                ⠿ Point {j + 1}
+            <div className="bo-item__head">
+              <span className="bo-item__handle" title="Glisser pour réordonner">
+                <span className="bo-num">{j + 1}</span>
+                Point caméra
               </span>
               <span style={row}>
                 <GizmoButton markerKey={`cam:${work}:${j}`} onMove={(v) => set(j, v)} />
                 <Button
+                  icon={<Icon.camera size={15} />}
                   disabled={!viewer?.editor}
                   title="Remplacer par la position actuelle de la caméra"
                   onClick={() => set(j, viewer!.editor!.capture())}
-                >
-                  ⟳
-                </Button>
-                <Button title="Supprimer ce point" onClick={() => onChange(points.filter((_, k) => k !== j))}>
-                  ✕
-                </Button>
+                />
+                <Button variant="ghost" icon={<Icon.trash size={15} />} title="Supprimer ce point" onClick={() => onChange(points.filter((_, k) => k !== j))} />
               </span>
             </div>
             <XYZ value={p} onChange={(v) => set(j, v)} readOnly={readOnly} />
           </div>
         ))}
-        <Button disabled={!viewer?.editor} onClick={() => onChange([...points, viewer!.editor!.capture()])}>
-          + Capturer la position actuelle
+        <Button variant="dashed" icon={<Icon.plus size={15} />} disabled={!viewer?.editor} onClick={() => onChange([...points, viewer!.editor!.capture()])}>
+          Capturer la position actuelle
         </Button>
       </div>
     </FieldLabel>
@@ -277,9 +278,11 @@ function BoundsUI({ value, onChange, name, readOnly }: { value: Bounds | null; o
   if (!value) {
     return (
       <FieldLabel label={label} readOnly={readOnly}>
-        <div style={{ display: 'grid', gap: 6, font: '12px system-ui', color: '#59606b' }}>
-          Aucune limite : l'orbite autour du focus peut traverser les murs.
+        <div style={{ display: 'grid', gap: 8 }}>
+          <span className="bo-field__hint">Aucune limite : l'orbite autour du focus peut traverser les murs.</span>
           <Button
+            variant="primary"
+            icon={<Icon.box size={15} />}
             disabled={!ed}
             onClick={() => {
               const b = ed!.suggestBounds(work);
@@ -295,7 +298,7 @@ function BoundsUI({ value, onChange, name, readOnly }: { value: Bounds | null; o
       </FieldLabel>
     );
   }
-  const small: CSSProperties = { font: '11px system-ui', color: '#59606b' };
+  const small: CSSProperties = { fontSize: 12, color: 'var(--bo-muted)' };
   return (
     <FieldLabel label={label} readOnly={readOnly}>
       <div style={{ display: 'grid', gap: 6 }}>
@@ -328,23 +331,23 @@ function BoundsUI({ value, onChange, name, readOnly }: { value: Bounds | null; o
           />
         </label>
         <div style={row}>
-          <Button on={editing} disabled={!ed} title="Poignées sur les faces : glisser pour déplacer chaque face" onClick={() => setEditing(!editing)}>
+          <Button on={editing} icon={<Icon.box size={15} />} disabled={!ed} title="Poignées sur les faces : glisser pour déplacer chaque face" onClick={() => setEditing(!editing)}>
             Poignées
           </Button>
           <GizmoButton markerKey={boxKey} label="Déplacer" onMove={(center) => onChange({ ...value, center })} />
           <GizmoButton markerKey={boxKey} label="Tourner" onRotate={(rotationY) => onChange({ ...value, rotationY })} />
-          <Button disabled={!ed} title="Recalculer autour du focus et des points caméra" onClick={() => onChange(ed!.suggestBounds(work))}>
-            Ajuster aux points
+          <Button icon={<Icon.frame size={15} />} disabled={!ed} title="Recalculer autour du focus et des points caméra" onClick={() => onChange(ed!.suggestBounds(work))}>
+            Ajuster
           </Button>
           <Button
+            variant="ghost"
+            icon={<Icon.trash size={15} />}
             title="Supprimer la limite"
             onClick={() => {
               setEditing(false);
               onChange(null);
             }}
-          >
-            ✕
-          </Button>
+          />
         </div>
       </div>
     </FieldLabel>
@@ -367,15 +370,13 @@ function PreviewUI({ name }: { name: string }) {
   return (
     <FieldLabel label="Aperçu">
       <div style={row}>
-        <Button disabled={!ed} onClick={() => ed!.previewWork(i)}>
-          ▶ Parcours
+        <Button variant="primary" icon={<Icon.play size={14} />} disabled={!ed} onClick={() => ed!.previewWork(i)}>
+          Parcours
         </Button>
-        <Button disabled={!ed || i < 1} title="Depuis l'œuvre précédente, via le point central" onClick={() => ed!.previewTransition(i - 1, i)}>
-          ▶ Transition depuis la précédente
+        <Button icon={<Icon.arrowRight size={15} />} disabled={!ed || i < 1} title="Depuis l'œuvre précédente, via le point central" onClick={() => ed!.previewTransition(i - 1, i)}>
+          Transition
         </Button>
-        <Button disabled={!ed} onClick={() => ed!.stopPreview()}>
-          ■ Arrêter
-        </Button>
+        <Button variant="ghost" icon={<Icon.stop size={14} />} disabled={!ed} title="Arrêter l'aperçu" onClick={() => ed!.stopPreview()} />
       </div>
     </FieldLabel>
   );
@@ -400,7 +401,7 @@ function FocusOffsetUI({ value, onChange, readOnly }: { value: Vec3; onChange: (
             markerKey="orbitFocus"
             onMove={(p) => c && onChange(p.map((v, k) => Math.round((v - c.getComponent(k)) * 100) / 100) as Vec3)}
           />
-          <Button onClick={() => onChange([0, value?.[1] ?? 0, 0])} title="Recentrer horizontalement sur la bbox">
+          <Button icon={<Icon.frame size={15} />} onClick={() => onChange([0, value?.[1] ?? 0, 0])} title="Recentrer horizontalement sur la bbox">
             Recentrer X/Z
           </Button>
         </div>
