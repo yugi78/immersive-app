@@ -245,8 +245,9 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: var(--pv-white);
-  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.25), 0 0 18px rgb(255 255 255 / 0.6);
+  background: #111;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.25);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
 }
 .pv-spot::after {
   /* Zone de clic agrandie (tactile). */
@@ -1056,9 +1057,8 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: #111;
-  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.25);
-  transition: background 0.3s ease, box-shadow 0.3s ease;
+  background: var(--pv-white);
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.25), 0 0 18px rgb(255 255 255 / 0.6);
 }
 .pv-map__dot::after {
   /* Zone de clic agrandie. */
