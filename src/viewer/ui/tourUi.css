@@ -245,9 +245,8 @@
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: #111;
-  box-shadow: 0 0 0 2px rgb(255 255 255 / 0.25);
-  transition: background 0.3s ease, box-shadow 0.3s ease;
+  background: var(--pv-white);
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.25), 0 0 18px rgb(255 255 255 / 0.6);
 }
 .pv-spot::after {
   /* Zone de clic agrandie (tactile). */
@@ -1045,8 +1044,8 @@
   inset: 0;
   pointer-events: none;
 }
-/* Points des œuvres (carte, vue extérieure) : même aspect que les points d'intérêt
-   de la visite. Rond sombre cerclé ; sélectionné / survolé : blanc lumineux, avec l'onde. */
+/* Points des œuvres (carte, vue extérieure) : blancs, halo blanc transparent (comme le
+   point d'intérêt actif de la visite), sans survol. Sélectionné sur la carte : onde blanche. */
 .pv-map__dot {
   position: absolute;
   left: 0;
@@ -1066,12 +1065,6 @@
   content: '';
   position: absolute;
   inset: -12px;
-}
-.pv-map__dot.is-current,
-.pv-ext-dot:hover .pv-map__dot,
-.pv-ext-dot:focus-visible .pv-map__dot {
-  background: var(--pv-white);
-  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.25), 0 0 18px rgb(255 255 255 / 0.6);
 }
 /* Onde blanche autour du point sélectionné sur la carte. */
 .pv-map__dot.is-current::before {
@@ -1353,20 +1346,10 @@
   margin: 0;
   flex: none;
 }
-.pv-ext-dot span {
-  opacity: 0;
-  translate: -4px 0;
-  transition: opacity 0.25s ease, translate 0.25s ease;
-}
-.pv-ext-dot:hover span,
-.pv-ext-dot:focus-visible span {
-  opacity: 1;
-  translate: 0 0;
-}
-@media (hover: none) {
+/* Titre à côté du point : desktop seulement. */
+@media (max-width: 719px) {
   .pv-ext-dot span {
-    opacity: 1;
-    translate: 0 0;
+    display: none;
   }
 }
 @media (max-width: 719px) {
