@@ -95,10 +95,10 @@
     "gamma": 1.67
   },
   "scanGrade": {
-    "saturation": 1,
-    "contrast": 1,
-    "shadows": 0,
-    "highlights": 0
+    "saturation": 1.42,
+    "contrast": 0.96,
+    "shadows": -0.13,
+    "highlights": -0.22
   },
   "dof": {
     "enabled": true,
