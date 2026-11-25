@@ -431,6 +431,18 @@
           "height": 100
         },
         {
+          "name": "Plafonds",
+          "kind": "ceiling",
+          "center": [
+            7.11,
+            62.3,
+            116.51
+          ],
+          "yaw": 0,
+          "width": 130,
+          "height": 100
+        },
+        {
           "name": "Vue 1",
           "kind": "wall",
           "center": [
@@ -477,18 +489,6 @@
           "yaw": -107,
           "width": 130,
           "height": 90
-        },
-        {
-          "name": "Plafonds",
-          "kind": "ceiling",
-          "center": [
-            7.11,
-            62.3,
-            116.51
-          ],
-          "yaw": 0,
-          "width": 130,
-          "height": 100
         }
       ]
     }
