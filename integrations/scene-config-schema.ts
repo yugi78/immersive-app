@@ -111,7 +111,6 @@ const OBJECT_KEYS: Record<string, Record<string, Check>> = {
 
 // Interface publique : crédits (HTML du texte riche) et orientation de la mini-carte.
 OBJECT_KEYS.ui = {
-  title: (v, n) => str(v, n),
   aboutHtml: (v, n) => str(v, n),
   minimap: (v, n) => {
     const m = (v ?? {}) as Record<string, unknown>;

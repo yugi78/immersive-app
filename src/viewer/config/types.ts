@@ -115,8 +115,6 @@ export interface MapConfig {
 }
 
 export interface UiConfig {
-  /** Titre de la vue extérieure (même style que le titre d'une œuvre). */
-  title: string;
   /** Crédits (HTML, texte riche). */
   aboutHtml: string;
   minimap: {

@@ -68,7 +68,6 @@ export function createTourUi(o: TourUiOptions) {
   root.innerHTML = `
     <div class="pv-veil"></div>
     <div class="pv-ext-dots"></div>
-    <h1 class="pv-title pv-ext-title"></h1>
     <div class="pv-veil pv-veil--info"></div>
     <div class="pv-hotspots"></div>
     <header class="pv-head" data-tour>
@@ -176,7 +175,6 @@ export function createTourUi(o: TourUiOptions) {
     collectionThumb: $('.pv-collection .pv-info__thumb'),
     about: $('.pv-about'),
     aboutBtn: $('.pv-about-btn'),
-    extTitle: $('.pv-ext-title'),
     extDots: $('.pv-ext-dots'),
     aboutText: $('.pv-about__text'),
     toast: $('.pv-toast'),
@@ -268,11 +266,10 @@ export function createTourUi(o: TourUiOptions) {
     fade(el.arrows, show && screen === 'auto');
     // « À propos » : vue extérieure seulement.
     fade(el.aboutBtn, status.state === 'idle' && !collectionOpen && !mapOpen);
-    // Vue extérieure : titre du site (animé à chaque apparition) et points d'œuvre.
+    // Vue extérieure : points d'œuvre.
     const ext = status.state === 'idle' && !collectionOpen && !mapOpen;
-    if (ext && !extShown) animateExtTitle();
     extShown = ext;
-    fade([el.extTitle, el.extDots], ext);
+    fade(el.extDots, ext);
     fade(el.hotspots, show && screen === 'auto' && status.state === 'loop');
     if (screen === 'info') {
       revealInfo();
@@ -298,17 +295,8 @@ export function createTourUi(o: TourUiOptions) {
     markMinimap();
   }
 
-  // ---- Vue extérieure : titre du site, points d'œuvre ------------------------------
+  // ---- Vue extérieure : points d'œuvre ------------------------------------------------
   let extShown = false;
-  let extSplit: SplitText | null = null;
-  function animateExtTitle() {
-    el.extTitle.textContent = o.ui().title ?? '';
-    extSplit?.revert();
-    extSplit = null;
-    if (REDUCED || !el.extTitle.textContent) return;
-    extSplit = new SplitText(el.extTitle, { type: 'chars', charsClass: 'pv-char' });
-    gsap.from(extSplit.chars, { yPercent: 60, autoAlpha: 0, duration: 0.6, ease: 'power3.out', stagger: 0.025, delay: 0.15 });
-  }
   interface ExtDot {
     btn: HTMLButtonElement;
     pos: Vector3;
@@ -939,7 +927,6 @@ export function createTourUi(o: TourUiOptions) {
   function refresh() {
     mapUi?.refresh();
     buildExtDots();
-    if (extShown) el.extTitle.textContent = o.ui().title ?? '';
     buildStrip();
     buildCollection();
     layoutMinimap();

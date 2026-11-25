@@ -1308,15 +1308,7 @@
   }
 }
 
-/* ---- Vue extérieure : titre du site, points d'œuvre visibles par la découpe ---- */
-.pv-ext-title {
-  position: absolute;
-  top: clamp(16px, 4vh, 40px);
-  left: clamp(16px, 2vw, 24px);
-  right: 200px;
-  font-size: clamp(32px, 4.2vw, 56px);
-  pointer-events: none;
-}
+/* ---- Vue extérieure : points d'œuvre visibles par la découpe ---- */
 .pv-ext-dots {
   position: absolute;
   inset: 0;
@@ -1346,17 +1338,19 @@
   margin: 0;
   flex: none;
 }
-/* Titre à côté du point : desktop seulement. */
-@media (max-width: 719px) {
+/* Titre à côté du point : au survol, desktop seulement (le point, lui, ne change pas). */
+.pv-ext-dot span {
+  opacity: 0;
+  translate: -4px 0;
+  transition: opacity 0.25s ease, translate 0.25s ease;
+}
+.pv-ext-dot:hover span,
+.pv-ext-dot:focus-visible span {
+  opacity: 1;
+  translate: 0 0;
+}
+@media (max-width: 719px), (hover: none) {
   .pv-ext-dot span {
     display: none;
-  }
-}
-@media (max-width: 719px) {
-  .pv-ext-title {
-    left: 28px;
-    right: 110px;
-    font-size: clamp(30px, 9vw, 46px);
-    top: max(20px, env(safe-area-inset-top));
   }
 }
