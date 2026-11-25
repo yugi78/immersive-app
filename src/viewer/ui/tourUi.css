@@ -573,11 +573,6 @@
   width: 46px;
   height: 46px;
 }
-.pv-ui .pv-start__icon svg[viewBox^='-0.5'],
-.pv-ui .pv-round svg[viewBox^='-0.5'] {
-  width: 24px;
-  height: 20px;
-}
 
 /* ---- Overlays : collection, à propos ---- */
 .pv-overlay {
