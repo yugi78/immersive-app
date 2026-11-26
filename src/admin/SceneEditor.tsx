@@ -53,6 +53,8 @@ type SceneProps = {
   cutTransitRadius: number;
   cutTransitFeather: number;
   cutTransitFade: number;
+  cutWorkRadius: number;
+  cutWorkFeather: number;
   mistStart: number;
   mistEnd: number;
   mistColor: string;
@@ -127,6 +129,8 @@ const SCENE_KEYS = [
   'cutTransitRadius',
   'cutTransitFeather',
   'cutTransitFade',
+  'cutWorkRadius',
+  'cutWorkFeather',
   'mistStart',
   'mistEnd',
   'mistColor',
@@ -286,6 +290,8 @@ function ViewerPreview(props: SceneProps) {
       transitRadius: p.cutTransitRadius,
       transitFeather: p.cutTransitFeather,
       transitFade: p.cutTransitFade,
+      workRadius: p.cutWorkRadius,
+      workFeather: p.cutWorkFeather,
       cutColor: p.cutColor,
     });
     v.setMist({ startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor });
@@ -345,6 +351,8 @@ const config: Config<{}, Record<string, unknown>> = {
       cutCameraRadius: slider('Sphère autour de la caméra (rayon, éteinte avec la découpe)', 0, 30, 0.5),
       cutTransitRadius: slider('Rayon de la sphère', 0, 40, 0.5),
       cutTransitFeather: slider('Dégradé du bord', 0, 15, 0.5),
+      cutWorkRadius: slider('Rayon de la sphère (0 : désactivée)', 0, 15, 0.25),
+      cutWorkFeather: slider('Dégradé du bord', 0, 8, 0.25),
       cutTransitFade: slider('Fondu au départ et à l’arrivée (part du trajet)', 0.02, 0.5, 0.01, null),
       tourViaHub: checkbox('Passer par le point central', 'Sinon trajet direct d’une œuvre à l’autre, la sphère de découpe traverse les obstacles'),
       mistStart: slider('Brume — début (distance au Panthéon)', 0, 3000, 10),
@@ -478,6 +486,10 @@ const config: Config<{}, Record<string, unknown>> = {
         </FieldTab>
         <FieldTab label="Caméra orbitale">
           {fields.focusOffset}
+          <FieldGroup label="Sphère de découpe autour de la caméra, sur les œuvres" defaultExpanded>
+            {fields.cutWorkRadius}
+            {fields.cutWorkFeather}
+          </FieldGroup>
           <FieldGroup label="Vol libre" defaultExpanded>
             {fields.flyEnabled}
             {fields.flySpeed}
@@ -571,6 +583,8 @@ const initialData: Data<{}, Record<string, unknown>> = {
       cutTransitRadius: cutaway.transitRadius ?? 8,
       cutTransitFeather: cutaway.transitFeather ?? 3,
       cutTransitFade: cutaway.transitFade ?? 0.2,
+      cutWorkRadius: cutaway.workRadius ?? 2,
+      cutWorkFeather: cutaway.workFeather ?? 1,
       mistStart: mist.startDistance,
       mistEnd: mist.endDistance,
       mistColor: mist.color,
@@ -649,6 +663,8 @@ export default function SceneEditor() {
       transitRadius: p.cutTransitRadius,
       transitFeather: p.cutTransitFeather,
       transitFade: p.cutTransitFade,
+      workRadius: p.cutWorkRadius,
+      workFeather: p.cutWorkFeather,
             cutColor: p.cutColor,
           },
           mist: { startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor },

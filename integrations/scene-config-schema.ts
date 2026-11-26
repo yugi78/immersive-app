@@ -8,7 +8,7 @@
 
 const NUMBER_KEYS = {
   focus: ['heightOffset', 'offsetX', 'offsetZ'],
-  cutaway: ['radius', 'feather', 'fadeStartDistance', 'fadeEndDistance', 'cameraRadius', 'transitRadius', 'transitFeather', 'transitFade'],
+  cutaway: ['radius', 'feather', 'fadeStartDistance', 'fadeEndDistance', 'cameraRadius', 'transitRadius', 'transitFeather', 'transitFade', 'workRadius', 'workFeather'],
   mist: ['startDistance', 'endDistance'],
   clay: ['hue', 'saturation', 'contrast', 'brightness', 'gamma'],
   scanGrade: ['saturation', 'contrast', 'shadows', 'highlights'],

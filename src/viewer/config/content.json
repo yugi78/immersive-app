@@ -14,7 +14,9 @@
     "cameraRadius": 4,
     "transitRadius": 8,
     "transitFeather": 3,
-    "transitFade": 0.2
+    "transitFade": 0.2,
+    "workRadius": 2,
+    "workFeather": 1
   },
   "mist": {
     "startDistance": 160,
@@ -314,6 +316,201 @@
               "html": "<p>La Justice, drapée à l'antique, se tient au centre, glaive en main. Derrière elle, Gérard a représenté le Panthéon lui-même.</p><p>Dans le registre inférieur, les vices sont renversés. Une étude du Louvre en donne les noms, inscrits par l'artiste le long du cadre : la Violence, la Fourberie, la Vanité, la Calomnie et l'Envie. Une étude du Petit Palais, vers 1830, porte le titre « la Loi ».</p>"
             }
           ]
+        }
+      },
+      {
+        "id": "w-r7bhpgb20",
+        "title": "La Mort",
+        "author": "François Gérard",
+        "thumbnail": "/media/oeuvre-4-mwxqpwpc.webp",
+        "slug": "la-mort",
+        "focus": [
+          26.26,
+          83.91,
+          112.72
+        ],
+        "cameraPoints": [
+          [
+            12.66,
+            65.76,
+            114.97
+          ],
+          [
+            17.92,
+            73.32,
+            113.69
+          ],
+          [
+            18.78,
+            82,
+            126.26
+          ],
+          [
+            13.12,
+            71.55,
+            129.59
+          ]
+        ],
+        "bounds": {
+          "center": [
+            15.5,
+            73.23,
+            118.18
+          ],
+          "size": [
+            22.45,
+            24.42,
+            20.3
+          ],
+          "rotationY": 26.11
+        },
+        "hotspots": [
+          {
+            "id": "h-7ug4k1",
+            "position": [
+              26.86,
+              80.43,
+              112.27
+            ],
+            "text": ""
+          },
+          {
+            "id": "h-eijrvh",
+            "position": [
+              25.67,
+              85.44,
+              112.99
+            ],
+            "text": ""
+          },
+          {
+            "id": "h-krt5w1",
+            "position": [
+              25.48,
+              83.72,
+              111.26
+            ],
+            "text": ""
+          }
+        ],
+        "content": {
+          "blocks": []
+        }
+      },
+      {
+        "id": "w-9timywkx1",
+        "title": "Mosaïque de l'abside",
+        "author": "Ernest Hébert",
+        "thumbnail": "/media/oeuvre-4-mwxq61tc.webp",
+        "slug": "mosaique-de-l-abside",
+        "focus": [
+          61.51,
+          81.84,
+          132.61
+        ],
+        "cameraPoints": [
+          [
+            56.23,
+            75.83,
+            127.2
+          ],
+          [
+            51.07,
+            69.22,
+            123.74
+          ],
+          [
+            46.43,
+            69.22,
+            128.85
+          ],
+          [
+            46.86,
+            69.3,
+            134.31
+          ],
+          [
+            43.6,
+            76.9,
+            131.05
+          ],
+          [
+            51.47,
+            79.44,
+            131.31
+          ]
+        ],
+        "bounds": {
+          "center": [
+            43.24,
+            72.6,
+            127.37
+          ],
+          "size": [
+            41.08,
+            22.47,
+            11.91
+          ],
+          "rotationY": -17.34
+        },
+        "hotspots": [
+          {
+            "id": "h-tbfi3z",
+            "position": [
+              60.9,
+              83.78,
+              132.62
+            ],
+            "text": ""
+          },
+          {
+            "id": "h-ytf2cz",
+            "position": [
+              61.91,
+              81.87,
+              128.74
+            ],
+            "text": ""
+          },
+          {
+            "id": "h-nifawi",
+            "position": [
+              60.28,
+              83.57,
+              134.32
+            ],
+            "text": ""
+          },
+          {
+            "id": "h-7xm353",
+            "position": [
+              61.55,
+              83.2,
+              129.92
+            ],
+            "text": ""
+          },
+          {
+            "id": "h-ie4cge",
+            "position": [
+              59.1,
+              81.99,
+              136.63
+            ],
+            "text": ""
+          },
+          {
+            "id": "h-5fzvj3",
+            "position": [
+              62.15,
+              78.27,
+              132.43
+            ],
+            "text": ""
+          }
+        ],
+        "content": {
+          "blocks": []
         }
       }
     ]

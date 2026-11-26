@@ -264,6 +264,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   }
   /** Vol libre : sphère de découpe autour de la caméra (traverser murs et piliers). */
   let flySphere = { enabled: true, radius: 4, feather: 2 };
+  /** Sphère de découpe affichée (intensité, rayon, dégradé), lissée d'une image à l'autre. */
+  const sphere = { s: 0, r: 4, f: 2 };
   /** Racine 3D de chaque objet, par identifiant (outliner). */
   const objectRoots = new Map<string, Object3D>(assets.map((a) => [objOf(a).id, a.root]));
   if (scan && tiled) objectRoots.set(tiled.id, scan.root);
@@ -413,14 +415,27 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     if (tour.active) cutaway.update(camera.position, tour.cutTarget, tour.cutScale);
     else if (editorTools?.flying) cutaway.update(camera.position, orbit.controls.target, 0);
     else cutaway.update(camera.position, orbit.controls.target);
-    // Sphère des transitions : monte au départ, tient pendant le trajet, redescend à
-    // l'arrivée (fondus sur `transitFade` du trajet, de chaque côté).
+    // Sphère de découpe autour de la caméra, selon le moment :
+    // - transition entre œuvres : monte au départ, tient, redescend à l'arrivée ;
+    // - sur une œuvre (parcours et orbite libre) : petite sphère (« workRadius ») ;
+    // - vol libre du back-office : ses propres réglages.
+    // Les valeurs sont lissées : on passe de l'une à l'autre sans saut.
+    const cs = cutaway.settings;
+    let target = { s: 0, r: sphere.r, f: sphere.f };
     if (tour.state === 'transit') {
       const p = tour.phaseProgress;
-      const f = Math.max(cutaway.settings.transitFade ?? 0.2, 1e-3);
-      cutaway.setTransit(Math.min(MathUtils.smoothstep(p, 0, f), 1 - MathUtils.smoothstep(p, 1 - f, 1)));
-    } else if (editorTools?.flying && flySphere.enabled) cutaway.setTransit(1, flySphere.radius, flySphere.feather);
-    else cutaway.setTransit(0);
+      const fade = Math.max(cs.transitFade ?? 0.2, 1e-3);
+      target = { s: Math.min(MathUtils.smoothstep(p, 0, fade), 1 - MathUtils.smoothstep(p, 1 - fade, 1)), r: cs.transitRadius ?? 8, f: cs.transitFeather ?? 3 };
+    } else if (tour.state === 'loop' && (cs.workRadius ?? 0) > 0) {
+      target = { s: 1, r: cs.workRadius ?? 0, f: cs.workFeather ?? 1 };
+    } else if (editorTools?.flying && flySphere.enabled) {
+      target = { s: 1, r: flySphere.radius, f: flySphere.feather };
+    }
+    const ks = 1 - Math.exp(-8 * delta);
+    sphere.s += (target.s - sphere.s) * ks;
+    sphere.r += (target.r - sphere.r) * ks;
+    sphere.f += (target.f - sphere.f) * ks;
+    cutaway.setTransit(sphere.s < 0.002 ? 0 : sphere.s, sphere.r, sphere.f);
     camera.updateMatrixWorld();
     // En transition, la destination est préchargée en haute définition.
     scan?.update(camera, tour.active ? tour.lookahead() : null);
