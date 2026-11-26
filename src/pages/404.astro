@@ -1,0 +1,71 @@
+---
+/** Page introuvable (servie automatiquement par l'hébergeur pour toute adresse inconnue). */
+import { PROJECT } from '../config/brand';
+import { withBase } from '../viewer/url';
+---
+
+<html lang="fr">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="robots" content="noindex" />
+		<link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
+		<title>Page introuvable — {PROJECT.title}</title>
+		<style is:global>
+			@font-face {
+				font-family: 'Mona Sans';
+				src: url('/fonts/mona-sans/mona-sans-vf.woff2') format('woff2');
+				font-weight: 200 900;
+				font-stretch: 75% 125%;
+				font-display: swap;
+			}
+			html,
+			body {
+				margin: 0;
+				height: 100%;
+				background: #f3f2ef;
+				color: #141414;
+				font-family: 'Mona Sans', system-ui, sans-serif;
+			}
+			main {
+				min-height: 100%;
+				display: grid;
+				place-items: center;
+				align-content: center;
+				gap: 14px;
+				padding: 24px;
+				box-sizing: border-box;
+				text-align: center;
+			}
+			.code {
+				font-size: 72px;
+				font-weight: 650;
+				font-stretch: 125%;
+				line-height: 1;
+			}
+			p {
+				margin: 0;
+				color: #6b6862;
+			}
+			a {
+				margin-top: 10px;
+				display: inline-flex;
+				align-items: center;
+				height: 44px;
+				padding: 0 20px;
+				border-radius: 999px;
+				background: #141414;
+				color: #fff;
+				font-weight: 600;
+				text-decoration: none;
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<span class="code">404</span>
+			<p>Cette page n’existe pas.</p>
+			<a href={withBase('/')}>Revenir à la visite</a>
+		</main>
+	</body>
+</html>

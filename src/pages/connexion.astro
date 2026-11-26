@@ -3,6 +3,7 @@
  * Connexion à l'espace client (en ligne). Le formulaire appelle /api/login (fonction
  * Cloudflare) qui pose un cookie de session, puis ramène vers /admin.
  */
+import { BRAND, PROJECT } from '../config/brand';
 ---
 
 <html lang="fr">
@@ -10,7 +11,7 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="robots" content="noindex" />
-		<title>Connexion — Espace client</title>
+		<title>Connexion — {BRAND}</title>
 		<style is:global>
 			@font-face {
 				font-family: 'Mona Sans';
@@ -113,8 +114,8 @@
 				<span class="mark" aria-hidden="true">
 					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20v-7M10 20v-7M14 20v-7M18 20v-7M4 13h16M6 13a6 6 0 0 1 12 0M12 4v3"></path></svg>
 				</span>
-				<h1>Espace client</h1>
-				<p>Connectez-vous pour modifier la visite.</p>
+				<h1>{BRAND}</h1>
+				<p>Espace client · {PROJECT.name}</p>
 				<label>Identifiant <input name="user" autocomplete="username" required /></label>
 				<label>Mot de passe <input name="password" type="password" autocomplete="current-password" required /></label>
 				<p class="error" role="alert" id="error"></p>

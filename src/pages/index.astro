@@ -1,6 +1,7 @@
 ---
 import PantheonViewer from '../components/PantheonViewer.astro';
 import { withBase } from '../viewer/url';
+import { PROJECT } from '../config/brand';
 ---
 
 <html lang="fr">
@@ -10,7 +11,7 @@ import { withBase } from '../viewer/url';
 		<link rel="icon" href={withBase('/favicon.ico')} />
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Panthéon interactif</title>
+		<title>{PROJECT.title}</title>
 		<style is:global>
 			html,
 			body {
