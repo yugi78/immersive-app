@@ -512,9 +512,11 @@ export function createTourUi(o: TourUiOptions) {
   let cardMs = -1;
   let cardSplit: SplitText | null = null;
   function openSpotCard(text: string) {
-    el.spotcardText.textContent = text;
+    // Annuler l'animation précédente AVANT d'écrire : revert() restaure le contenu
+    // d'origine du découpage, sinon le texte du point précédent reviendrait.
     cardSplit?.revert();
     cardSplit = null;
+    el.spotcardText.textContent = text;
     cardMs = 0;
     fade(el.spotcard, true);
     if (!REDUCED && text) {

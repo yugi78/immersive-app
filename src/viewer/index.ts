@@ -452,11 +452,15 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     setScanGrade(patch) {
       scanGrade.set(patch);
     },
+    // Réglages identiques (le back-office renvoie tout à chaque interaction) : rien à
+    // faire. Sinon l'interface serait reconstruite et l'encart ou la carte ouverts fermés.
     setTour(next) {
+      if (JSON.stringify(next) === JSON.stringify(tourCfg)) return;
       tourCfg = structuredClone(next);
       tourUi?.refresh();
     },
     setUi(next) {
+      if (JSON.stringify(next) === JSON.stringify(uiCfg)) return;
       uiCfg = structuredClone(next);
       mapView.refresh();
       tourUi?.refresh();
