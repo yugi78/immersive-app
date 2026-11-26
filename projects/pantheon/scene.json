@@ -119,25 +119,6 @@
   "camera": {
     "fov": 40,
     "near": 0.5,
-    "far": 6000,
-    "start": {
-      "distance": 190,
-      "azimuthDeg": 200,
-      "elevationDeg": 25
-    }
-  },
-  "intro": {
-    "durationMs": 4500,
-    "startHeightAboveGround": 200,
-    "startDistance": 350,
-    "sweepDeg": 70
-  },
-  "orbit": {
-    "minDistance": 15,
-    "maxDistance": 600,
-    "dampingFactor": 0.08,
-    "autoRotateSpeed": 0.4,
-    "autoRotateResumeDelayMs": 4000,
-    "groundMargin": 1.5
+    "far": 6000
   }
 }

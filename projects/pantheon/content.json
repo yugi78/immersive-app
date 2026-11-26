@@ -1,5 +1,39 @@
 {
   "version": 1,
+  "scenario": {
+    "intro": {
+      "enabled": true,
+      "kind": "sky",
+      "interruptible": false,
+      "durationMs": 4500,
+      "startHeightAboveGround": 200,
+      "startDistance": 350,
+      "sweepDeg": 70,
+      "points": []
+    },
+    "loop": {
+      "enabled": false,
+      "points": []
+    },
+    "control": {
+      "mode": "orbit",
+      "start": {
+        "distance": 190,
+        "azimuthDeg": 200,
+        "elevationDeg": 25
+      },
+      "minDistance": 15,
+      "maxDistance": 600,
+      "dampingFactor": 0.08,
+      "groundMargin": 1.5,
+      "autoRotateSpeed": 0.4
+    },
+    "idle": {
+      "action": "rotate",
+      "afterMs": 4000
+    },
+    "blendMs": 2500
+  },
   "focus": {
     "heightOffset": -26.3,
     "offsetX": 7.8,

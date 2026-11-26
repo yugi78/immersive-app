@@ -146,6 +146,72 @@ OBJECT_KEYS.ui = {
   },
 };
 
+// Scénario d'ouverture : intro, boucle d'attente, prise en main, inactivité.
+const scenarioPoints = (v: unknown, n: string) => {
+  if (!Array.isArray(v)) throw new Error(`${n} doit être une liste`);
+  if (v.length > 64) throw new Error(`${n} : 64 points au plus`);
+  return v.map((x, i) => {
+    const q = (x ?? {}) as Record<string, unknown>;
+    const p = `${n}[${i}]`;
+    const durationMs = num(q.durationMs, `${p}.durationMs`);
+    if (durationMs < 0) throw new Error(`${p}.durationMs doit être positif`);
+    return { position: vec3(q.position, `${p}.position`), target: vec3(q.target, `${p}.target`), durationMs };
+  });
+};
+const bool = (v: unknown, n: string) => {
+  if (typeof v !== 'boolean') throw new Error(`${n} doit être vrai/faux`);
+  return v;
+};
+const positive = (v: unknown, n: string) => {
+  const x = num(v, n);
+  if (x < 0) throw new Error(`${n} doit être positif`);
+  return x;
+};
+OBJECT_KEYS.scenario = {
+  intro: (v, n) => {
+    const m = (v ?? {}) as Record<string, unknown>;
+    return {
+      enabled: bool(m.enabled, `${n}.enabled`),
+      kind: str(m.kind, `${n}.kind`, /^(sky|points)$/),
+      interruptible: bool(m.interruptible, `${n}.interruptible`),
+      durationMs: positive(m.durationMs, `${n}.durationMs`),
+      startHeightAboveGround: num(m.startHeightAboveGround, `${n}.startHeightAboveGround`),
+      startDistance: positive(m.startDistance, `${n}.startDistance`),
+      sweepDeg: num(m.sweepDeg, `${n}.sweepDeg`),
+      points: scenarioPoints(m.points ?? [], `${n}.points`),
+    };
+  },
+  loop: (v, n) => {
+    const m = (v ?? {}) as Record<string, unknown>;
+    return { enabled: bool(m.enabled, `${n}.enabled`), points: scenarioPoints(m.points ?? [], `${n}.points`) };
+  },
+  control: (v, n) => {
+    const m = (v ?? {}) as Record<string, unknown>;
+    const st = (m.start ?? {}) as Record<string, unknown>;
+    const minDistance = positive(m.minDistance, `${n}.minDistance`);
+    const maxDistance = positive(m.maxDistance, `${n}.maxDistance`);
+    if (maxDistance < minDistance) throw new Error(`${n} : distance max inférieure à la distance min`);
+    return {
+      mode: str(m.mode ?? 'orbit', `${n}.mode`, /^orbit$/),
+      start: {
+        distance: positive(st.distance, `${n}.start.distance`),
+        azimuthDeg: num(st.azimuthDeg, `${n}.start.azimuthDeg`),
+        elevationDeg: num(st.elevationDeg, `${n}.start.elevationDeg`),
+      },
+      minDistance,
+      maxDistance,
+      dampingFactor: positive(m.dampingFactor, `${n}.dampingFactor`),
+      groundMargin: num(m.groundMargin, `${n}.groundMargin`),
+      autoRotateSpeed: num(m.autoRotateSpeed, `${n}.autoRotateSpeed`),
+    };
+  },
+  idle: (v, n) => {
+    const m = (v ?? {}) as Record<string, unknown>;
+    return { action: str(m.action, `${n}.action`, /^(none|rotate|loop)$/), afterMs: positive(m.afterMs, `${n}.afterMs`) };
+  },
+  blendMs: positive,
+};
+
 export type Patch = Record<string, Record<string, unknown>>;
 
 type Check = (v: unknown, name: string) => unknown;

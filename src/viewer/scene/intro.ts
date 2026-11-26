@@ -1,5 +1,5 @@
 import { MathUtils, type PerspectiveCamera, type Vector3 } from 'three';
-import type { SceneConfig } from '../config/types';
+import type { ScenarioConfig } from '../config/types';
 import type { SceneReference } from './reference';
 
 const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
@@ -11,14 +11,14 @@ const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2
 const introEase = (t: number) => easeInOutCubic(Math.pow(t, 0.65));
 
 /**
- * Intro : la caméra part du ciel (startHeightAboveGround au-dessus du sol,
+ * Intro « arrivée du ciel » (scénario, intro.kind = sky) : la caméra part du ciel (startHeightAboveGround au-dessus du sol,
  * startDistance horizontale du Panthéon) et rejoint la position orbitale de
  * départ en décrivant un arc de sweepDeg autour du monument, dans le sens de
  * l'autoRotate qui prend le relais. Elle vise le centre en continu.
  */
 export function createIntro(
   camera: PerspectiveCamera,
-  cfg: SceneConfig['intro'],
+  cfg: Pick<ScenarioConfig['intro'], 'durationMs' | 'startHeightAboveGround' | 'startDistance' | 'sweepDeg'>,
   ref: SceneReference,
   end: Vector3,
 ) {

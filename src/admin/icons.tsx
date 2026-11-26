@@ -201,6 +201,28 @@ export const Icon = {
       <circle cx="15" cy="18" r="1.5" />
     </Svg>
   ),
+  link: (p: P) => (
+    <Svg {...p}>
+      <path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1" />
+      <path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" />
+    </Svg>
+  ),
+  copy: (p: P) => (
+    <Svg {...p}>
+      <rect x="8.5" y="8.5" width="12" height="12" rx="2.5" />
+      <path d="M15.5 8.5V6a2.5 2.5 0 0 0-2.5-2.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5" />
+    </Svg>
+  ),
+  external: (p: P) => (
+    <Svg {...p}>
+      <path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
+    </Svg>
+  ),
+  check: (p: P) => (
+    <Svg {...p} strokeWidth={2}>
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </Svg>
+  ),
   close: (p: P) => (
     <Svg {...p} strokeWidth={2}>
       <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />

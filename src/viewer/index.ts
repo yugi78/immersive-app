@@ -1,5 +1,5 @@
 import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer, Vector3, type Object3D } from 'three';
-import type { SceneConfig, TourConfig, UiConfig, Vec3 } from './config/types';
+import type { SceneConfig, TourConfig, UiConfig, Vec3, ScenarioConfig } from './config/types';
 import { isTiled, normalizeScene, type GlbObject, type MaterialDef, type ObjectTransform, type SceneObject } from './config/scene-model';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
@@ -10,7 +10,7 @@ import { createDof } from './scene/dof';
 import { withBase } from './url';
 import { createScanLod } from './loaders/scanLod';
 import { isMobile } from './scene/renderer';
-import { createIntro } from './scene/intro';
+import { createScenario, homePose } from './scene/scenario';
 import { createCamera, createOrbit } from './scene/orbit';
 import { computeReference, type SceneReference } from './scene/reference';
 import { prepareAsset } from './scene/prepare';
@@ -30,7 +30,7 @@ export interface ViewerOptions {
   config?: SceneConfig;
   /** Affiche la bounding box de référence (aussi activable via ?debug dans l'URL). */
   debug?: boolean;
-  /** Démarre directement en vue orbitale, sans l'animation d'ouverture (back-office). */
+  /** Démarre directement en prise en main, sans intro ni boucle d'attente (back-office). */
   skipIntro?: boolean;
   /** Hash d'URL par œuvre (#slug) : lu au chargement et mis à jour en visite. Faux dans le back-office. */
   urlHash?: boolean;
@@ -58,6 +58,10 @@ export interface Viewer {
   setScanGrade(patch: Partial<ScanGradeSettings>): void;
   /** Modifie le flou de profondeur de champ à chaud (dont l'activation). */
   setDof(patch: Partial<DofSettings>): void;
+  /** Remplace le scénario d'ouverture à chaud (back-office). */
+  setScenario(scenario: ScenarioConfig): void;
+  /** Scénario : rejouer l'ouverture (aperçu) ou revenir à la vue de départ. */
+  scenario: { replay(): void; goHome(): void; readonly state: string };
   /** Remplace les données de la visite guidée à chaud (back-office). */
   setTour(tour: TourConfig): void;
   /** Remplace les réglages de l'interface publique à chaud (back-office). */
@@ -239,11 +243,15 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   };
   if (debug && new URLSearchParams(location.search).has('leaks')) setLeakBackground(true);
 
-  // Position orbitale de départ = fin de l'intro.
-  const camera = createCamera(cfg.camera, reference, container.clientWidth / container.clientHeight);
-  const orbitStart = camera.position.clone();
-  const orbit = createOrbit(camera, renderer.domElement, cfg.orbit, reference);
-  const intro = createIntro(camera, opts.skipIntro ? { ...cfg.intro, durationMs: 0 } : cfg.intro, reference, orbitStart);
+  // Caméra posée à la vue de départ (le scénario la déplace ensuite : intro, boucle…).
+  let scenarioCfg: ScenarioConfig = structuredClone(cfg.scenario);
+  const camera = createCamera(cfg.camera, container.clientWidth / container.clientHeight);
+  {
+    const h = homePose(scenarioCfg.control, reference.focus);
+    camera.position.copy(h.position);
+    camera.lookAt(h.target);
+  }
+  const orbit = createOrbit(camera, renderer.domElement, scenarioCfg.control, reference);
 
   let scan: Awaited<typeof scanPromise>;
   try {
@@ -288,15 +296,11 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     }, 500);
   }
 
-  // Visite guidée. La vue orbitale par défaut (retour en fin de visite) suit la
-  // hauteur du focus réglée dans le back-office.
+  // Visite guidée. Retour en fin de visite : la vue de départ du scénario (suit le
+  // point de focus réglé dans le back-office).
   const focusOffset = new Vector3(focusCfg.x, focusCfg.y, focusCfg.z);
-  const focusOffset0 = focusOffset.clone();
   let tourCfg: TourConfig = structuredClone(cfg.tour);
-  const home = () => ({
-    position: orbitStart.clone().add(focusOffset).sub(focusOffset0),
-    target: reference.focus.clone(),
-  });
+  const home = () => homePose(scenarioCfg.control, reference.focus);
   const tour = createTour({
     camera,
     dom: renderer.domElement,
@@ -304,9 +308,10 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     home,
     orbitTarget: () => orbit.controls.target,
   });
-  // En visite, l'orbite est coupée (la visite pilote la caméra).
+  // En visite, le scénario s'efface et l'orbite est coupée (la visite pilote la caméra).
   tour.onChange((s) => {
     if (s.state !== 'idle') {
+      scenario.pause();
       orbit.controls.enabled = false;
       orbit.controls.autoRotate = false;
     }
@@ -336,9 +341,19 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   // Carte interactive : rendu orthogonal en direct de la scène (plan, vues de face).
   // Version mobile selon la largeur du conteneur (même seuil que l'interface).
   const mapView = createMapView({ renderer, scene, box: reference.box, config: () => uiCfg.map, mobile: () => container.clientWidth <= 719 });
-  // Commandes créées à la fin de l'intro (pas de visite pendant l'ouverture).
-  function onIntroDone() {
-    orbit.start();
+  // Scénario d'ouverture : intro → boucle d'attente → prise en main (voir scene/scenario.ts).
+  const scenario = createScenario({
+    camera,
+    dom: renderer.domElement,
+    controls: orbit.controls,
+    reference,
+    config: () => scenarioCfg,
+    busy: () => tour.active || !!editorTools?.flying || mapView.active,
+    skip: opts.skipIntro,
+    onReady,
+  });
+  // Interface créée à la fin de l'intro (pas de visite pendant l'ouverture).
+  function onReady() {
     tourUi = createTourUi({
       container,
       tour,
@@ -351,7 +366,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       cut: cutaway.uniforms,
       hash: opts.urlHash ?? true,
     });
-    const i = tourUi.initialIndex();
+    const i = tourUi!.initialIndex();
     if (i >= 0) tour.start(i);
   }
 
@@ -378,6 +393,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   const ro = new ResizeObserver(resize);
   ro.observe(container);
 
+  scenario.begin();
   const timer = new Timer();
   timer.connect(document);
   renderer.setAnimationLoop((t) => {
@@ -396,17 +412,16 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       mapView.render();
       return;
     }
-    if (!intro.done) {
-      if (intro.update(delta)) onIntroDone();
+    if (scenario.driving) {
+      // Intro, boucle d'attente ou raccord : le scénario pilote la caméra.
+      scenario.update(delta);
     } else if (tour.active) {
-      // Fin de la sortie : la caméra est à la position orbitale par défaut.
-      if (tour.update(delta)) {
-        orbit.controls.target.copy(home().target);
-        orbit.start();
-      }
+      // Fin de la sortie : la caméra est à la vue de départ, prise en main.
+      if (tour.update(delta)) scenario.resume();
     } else if (editorTools?.flying) {
       // Vol libre : caméra pilotée par editorTools.update (ci-dessous).
     } else {
+      scenario.update(delta);
       orbit.update(delta);
     }
     editorTools?.update(delta);
@@ -415,6 +430,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     // Découpe : extrémité et intensité pilotées par la visite (entrée / sortie) ;
     // éteinte en vol libre (on circule à l'intérieur).
     if (tour.active) cutaway.update(camera.position, tour.cutTarget, tour.cutScale);
+    else if (scenario.driving) cutaway.update(camera.position, scenario.lookTarget);
     else if (editorTools?.flying) cutaway.update(camera.position, orbit.controls.target, 0);
     else cutaway.update(camera.position, orbit.controls.target);
     // Sphère de découpe autour de la caméra, selon le moment :
@@ -424,8 +440,10 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     // Les valeurs sont lissées : on passe de l'une à l'autre sans saut.
     const cs = cutaway.settings;
     let target = { s: 0, r: sphere.r, f: sphere.f };
-    if (tour.state === 'transit') {
-      const p = tour.phaseProgress;
+    const blendP = scenario.blendProgress;
+    if (tour.state === 'transit' || blendP >= 0) {
+      // Transition entre œuvres, ou raccord du scénario (intro → boucle → vue de départ).
+      const p = blendP >= 0 ? blendP : tour.phaseProgress;
       const fade = Math.max(cs.transitFade ?? 0.2, 1e-3);
       target = { s: Math.min(MathUtils.smoothstep(p, 0, fade), 1 - MathUtils.smoothstep(p, 1 - fade, 1)), r: cs.transitRadius ?? 8, f: cs.transitFeather ?? 3 };
     } else if (tour.state === 'loop' && (cs.workRadius ?? 0) > 0) {
@@ -442,14 +460,14 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     // En transition, la destination est préchargée en haute définition.
     scan?.update(camera, tour.active ? tour.lookahead() : null);
     // Mise au point automatique : sur la cible d'orbite (ou l'œuvre visée), suit le zoom.
-    const focusPoint = tour.active ? tour.lookTarget : orbit.controls.target;
+    const focusPoint = tour.active ? tour.lookTarget : scenario.driving ? scenario.lookTarget : orbit.controls.target;
     dof.render(scene, camera, camera.position.distanceTo(focusPoint));
   }
 
   renderer.domElement.style.visibility = '';
   progress.hide();
 
-  const debugHandle = { scene, camera, renderer, controls: orbit.controls, reference, cutaway, setLeakBackground, intro, frame, scan, dof, tour, editor: editorTools, mapView };
+  const debugHandle = { scene, camera, renderer, controls: orbit.controls, reference, cutaway, setLeakBackground, scenario, frame, scan, dof, tour, editor: editorTools, mapView };
   if (debug) Object.assign(window, { __viewer: debugHandle });
 
   return {
@@ -480,6 +498,24 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     },
     setScanGrade(patch) {
       scanGrade.set(patch);
+    },
+    setScenario(next) {
+      if (JSON.stringify(next) === JSON.stringify(scenarioCfg)) return;
+      scenarioCfg = structuredClone(next);
+      orbit.set(scenarioCfg.control);
+    },
+    scenario: {
+      replay: () => {
+        tour.cancel();
+        scenario.replay();
+      },
+      goHome: () => {
+        tour.cancel();
+        scenario.goHome();
+      },
+      get state() {
+        return scenario.state;
+      },
     },
     // Réglages identiques (le back-office renvoie tout à chaque interaction) : rien à
     // faire. Sinon l'interface serait reconstruite et l'encart ou la carte ouverts fermés.
@@ -518,12 +554,15 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     editor: editorTools,
     debug: debug ? debugHandle : undefined,
     dispose() {
+      const w = window as unknown as { __viewer?: unknown };
+      if (w.__viewer === debugHandle) delete w.__viewer;
       editorTools?.dispose();
       tour.dispose();
       tourUi?.dispose();
       renderer.setAnimationLoop(null);
       ro.disconnect();
       timer.dispose();
+      scenario.dispose();
       orbit.dispose();
       scan?.dispose();
       dof.dispose();

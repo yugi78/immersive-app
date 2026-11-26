@@ -6,6 +6,7 @@ import { isFull, LOCAL } from './backend';
 import { bridge, useDevice, useViewer } from './bridge';
 import { Icon } from './icons';
 import { StructurePanel } from './StructurePanel';
+import { AddressesDialog } from './Addresses';
 
 const usePuck = createUsePuck();
 
@@ -58,6 +59,14 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [save]);
   const dirty = json !== savedJson.current;
+
+  // Adresses du projet : bouton de l'en-tête, et rappel après chaque publication réussie.
+  const [addresses, setAddresses] = useState<null | 'manual' | 'published'>(null);
+  const prevSave = useRef(save.kind);
+  useEffect(() => {
+    if (prevSave.current === 'saving' && save.kind === 'saved') setAddresses('published');
+    prevSave.current = save.kind;
+  }, [save]);
 
   const pill =
     save.kind === 'saving'
@@ -119,6 +128,10 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
             Mobile
           </button>
         </div>
+        <button type="button" className="bo-btn" onClick={() => setAddresses('manual')} title="Adresses du site à transmettre">
+          <Icon.link size={16} />
+          Adresses
+        </button>
         {!LOCAL && (
           <button
             type="button"
@@ -138,6 +151,8 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
           Publier
         </button>
       </header>
+
+      {addresses && <AddressesDialog published={addresses === 'published'} onClose={() => setAddresses(null)} />}
 
       <div className="bo-body">
         <nav className="bo-rail" aria-label="Sections">

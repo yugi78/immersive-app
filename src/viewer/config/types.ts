@@ -3,9 +3,9 @@ import type { MaterialDef, SceneObject } from './scene-model';
 /**
  * PROJETS : chaque dossier `projects/<slug>/` contient un projet (un bâtiment, un
  * site), décrit par deux fichiers, par propriétaire :
- * - scene.json   : la STRUCTURE (objets 3D, matériaux, rendu, caméra, intro, orbite),
+ * - scene.json   : la STRUCTURE (objets 3D, matériaux, rendu, objectif de la caméra),
  *   gérée par le développeur en local ;
- * - content.json : le CONTENU (visite, œuvres, carte, interface, découpe, brume,
+ * - content.json : le CONTENU (scénario, visite, œuvres, carte, interface, découpe, brume,
  *   couleurs, flou), modifié par le client dans le back-office en ligne.
  * Chacun n'écrit que son fichier : pas de conflit, rien de perdu à la mise à jour.
  * Les deux sont fusionnés ici ; le reste du code voit une seule configuration.
@@ -139,9 +139,66 @@ export interface UiConfig {
   map: MapConfig;
 }
 
-export type SceneConfig = Omit<Raw, 'tour' | 'ui' | 'objects' | 'materials'> & {
+/** Point d'un trajet de caméra (intro, boucle d'attente) : position, point regardé. */
+export interface ScenarioPoint {
+  position: Vec3;
+  target: Vec3;
+  /** Durée pour rejoindre ce point depuis le précédent (ms). Boucle : celle du 1er point ferme la boucle. */
+  durationMs: number;
+}
+
+/**
+ * Scénario d'ouverture de l'expérience : étapes optionnelles enchaînées par des
+ * raccords doux, puis prise en main par le visiteur.
+ *   intro (une fois) → boucle d'attente (en boucle) → prise en main (orbite)
+ * Toute interaction pendant la boucle (ou l'intro si elle est interruptible) donne la
+ * main sur place. Après une inactivité en prise en main : rien, rotation automatique
+ * ou retour à la boucle.
+ */
+export interface ScenarioConfig {
+  intro: {
+    enabled: boolean;
+    /** sky : arrivée du ciel en arc vers la vue de départ (paramétrique) ; points : trajet point par point. */
+    kind: 'sky' | 'points';
+    /** L'utilisateur peut l'interrompre (sinon commandes inactives jusqu'à la fin). */
+    interruptible: boolean;
+    /** « sky » : durée, hauteur de départ au-dessus du sol, distance horizontale, arc parcouru (degrés). */
+    durationMs: number;
+    startHeightAboveGround: number;
+    startDistance: number;
+    sweepDeg: number;
+    /** « points » : trajet (le premier point est la position de départ). */
+    points: ScenarioPoint[];
+  };
+  loop: {
+    enabled: boolean;
+    points: ScenarioPoint[];
+  };
+  /** Prise en main. */
+  control: {
+    mode: 'orbit';
+    /** Vue de départ (et de retour en fin de visite) autour du point de focus. */
+    start: { distance: number; azimuthDeg: number; elevationDeg: number };
+    minDistance: number;
+    maxDistance: number;
+    dampingFactor: number;
+    groundMargin: number;
+    /** Vitesse de la rotation automatique (inactivité « rotate »). */
+    autoRotateSpeed: number;
+  };
+  idle: {
+    /** none : rien ; rotate : rotation automatique autour du focus ; loop : retour à la boucle d'attente. */
+    action: 'none' | 'rotate' | 'loop';
+    afterMs: number;
+  };
+  /** Durée des raccords entre étapes (ms). */
+  blendMs: number;
+}
+
+export type SceneConfig = Omit<Raw, 'tour' | 'ui' | 'objects' | 'materials' | 'scenario'> & {
   objects: SceneObject[];
   materials: Record<string, MaterialDef>;
   tour: TourConfig;
   ui: UiConfig;
+  scenario: ScenarioConfig;
 };

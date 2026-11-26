@@ -19,3 +19,13 @@ export const SITE = {
   url: 'https://immersive.nlab.fr/',
   label: 'immersive.nlab.fr',
 };
+
+/**
+ * Adresses en ligne, données au client (bouton « Adresses » du back-office) :
+ * - le site public (apps de chaque projet : /<projet>/) ;
+ * - l'espace client (connexion, publication), servi par Cloudflare Pages.
+ */
+export const ONLINE = {
+  site: 'https://immersive-app.stylz.fr',
+  admin: 'https://immersive-app.pages.dev',
+};

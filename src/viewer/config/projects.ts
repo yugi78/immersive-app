@@ -1,3 +1,4 @@
+import { normalizeScenario } from './scenario';
 import type { SceneConfig } from './types';
 
 /**
@@ -13,7 +14,8 @@ const slugOf = (path: string) => /\/projects\/([^/]+)\//.exec(path)?.[1] ?? '';
 /** Fusionne structure + contenu d'un projet (sans le numéro de version du contenu). */
 function merge(scene: Json, content: Json | undefined) {
   const { version: _version, ...rest } = content ?? {};
-  return { ...scene, ...rest } as unknown as SceneConfig;
+  const all = { ...scene, ...rest };
+  return { ...all, scenario: normalizeScenario(all) } as unknown as SceneConfig;
 }
 
 /** Configuration complète de chaque projet (structure + contenu), par identifiant (slug). */

@@ -1136,3 +1136,96 @@ select.bo-input {
   height: 34px;
   padding: 0 8px;
 }
+
+/* ---- Fenêtre « Adresses » ---- */
+.bo-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(20 20 20 / 0.35);
+}
+.bo-modal__card {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border-radius: 18px;
+  background: var(--bo-surface);
+  box-shadow: 0 24px 60px rgb(20 20 20 / 0.2);
+}
+.bo-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 4px 24px;
+}
+.bo-modal__head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+}
+.bo-modal__head p {
+  margin: 4px 0 0;
+  color: var(--bo-muted);
+  font-size: 13px;
+}
+.bo-modal__body {
+  display: grid;
+  gap: 14px;
+  padding: 12px 24px 24px;
+}
+.bo-addr {
+  display: grid;
+  gap: 6px;
+}
+.bo-addr__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  font-size: 13px;
+}
+.bo-addr__head span {
+  color: var(--bo-muted);
+  font-size: 12px;
+}
+.bo-addr__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bo-addr__row input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--bo-line);
+  border-radius: 10px;
+  background: var(--bo-soft);
+  color: var(--bo-ink);
+  font: inherit;
+  font-size: 13px;
+}
+.bo-addr__row a.bo-iconbtn {
+  color: inherit;
+}
+.bo-addr__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--bo-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bo-addr .bo-addr {
+  padding-left: 22px;
+}

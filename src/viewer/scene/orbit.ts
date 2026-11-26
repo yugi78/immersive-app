@@ -1,30 +1,22 @@
-import { MathUtils, PerspectiveCamera } from 'three';
+import { PerspectiveCamera } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { SceneConfig } from '../config/types';
+import type { ScenarioConfig, SceneConfig } from '../config/types';
 import type { SceneReference } from './reference';
 
-export function createCamera(cfg: SceneConfig['camera'], ref: SceneReference, aspect: number) {
-  const camera = new PerspectiveCamera(cfg.fov, aspect, cfg.near, cfg.far);
-  const { distance, azimuthDeg, elevationDeg } = cfg.start;
-  const az = MathUtils.degToRad(azimuthDeg);
-  const el = MathUtils.degToRad(elevationDeg);
-  camera.position
-    .set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az))
-    .multiplyScalar(distance)
-    .add(ref.focus);
-  camera.lookAt(ref.focus);
-  return camera;
+/** Caméra (objectif) ; sa position de départ est posée par le scénario. */
+export function createCamera(cfg: SceneConfig['camera'], aspect: number) {
+  return new PerspectiveCamera(cfg.fov, aspect, cfg.near, cfg.far);
 }
 
 /**
- * Vue orbitale autour du centre du Panthéon : autoRotate lent, coupé dès que
- * l'utilisateur prend la main, repris après un délai d'inactivité. La caméra
- * ne descend jamais sous le sol (min.y de la bbox + marge).
+ * Vue orbitale autour du point de focus (prise en main du scénario). La rotation
+ * automatique et l'inactivité sont gérées par le scénario (scene/scenario.ts). La
+ * caméra ne descend jamais sous le sol (min.y de la bbox + marge).
  */
 export function createOrbit(
   camera: PerspectiveCamera,
   dom: HTMLElement,
-  cfg: SceneConfig['orbit'],
+  cfg: ScenarioConfig['control'],
   ref: SceneReference,
 ) {
   const controls = new OrbitControls(camera, dom);
@@ -33,23 +25,22 @@ export function createOrbit(
   controls.dampingFactor = cfg.dampingFactor;
   controls.minDistance = cfg.minDistance;
   controls.maxDistance = cfg.maxDistance;
-  // Désactivés jusqu'à la fin de l'intro (voir start()).
+  // Désactivés tant que le scénario pilote la caméra.
   controls.enabled = false;
   controls.autoRotate = false;
   controls.autoRotateSpeed = cfg.autoRotateSpeed;
   controls.screenSpacePanning = false;
 
-  let resumeTimer: number | undefined;
-  controls.addEventListener('start', () => {
-    controls.autoRotate = false;
-    window.clearTimeout(resumeTimer);
-  });
-  controls.addEventListener('end', () => {
-    window.clearTimeout(resumeTimer);
-    resumeTimer = window.setTimeout(() => (controls.autoRotate = true), cfg.autoRotateResumeDelayMs);
-  });
+  let minY = ref.groundY + cfg.groundMargin;
 
-  const minY = ref.groundY + cfg.groundMargin;
+  /** Réglages modifiés à chaud (back-office). */
+  function set(next: ScenarioConfig['control']) {
+    controls.dampingFactor = next.dampingFactor;
+    controls.minDistance = next.minDistance;
+    controls.maxDistance = next.maxDistance;
+    controls.autoRotateSpeed = next.autoRotateSpeed;
+    minY = ref.groundY + next.groundMargin;
+  }
 
   function update(delta: number) {
     controls.update(delta);
@@ -63,16 +54,8 @@ export function createOrbit(
   }
 
   function dispose() {
-    window.clearTimeout(resumeTimer);
     controls.dispose();
   }
 
-  /** Donne la main à l'utilisateur, avec autoRotate lent. */
-  function start() {
-    controls.enabled = true;
-    controls.autoRotate = true;
-    controls.update();
-  }
-
-  return { controls, update, start, dispose };
+  return { controls, update, set, dispose };
 }
