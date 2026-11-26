@@ -621,7 +621,9 @@ export function createEditorTools(ctx: EditorContext) {
      * en WebP (largeur `width`).
      */
     async captureThumbnail(width = 960): Promise<Blob> {
-      const hidden = [tourGroup, orbitGroup, handles, gizmo.getHelper()].map((o) => [o, o.visible] as const);
+      // Tous les repères d'édition masqués le temps du rendu : visite, focus, scénario,
+      // poignées, gizmo, cadre de sélection.
+      const hidden = [tourGroup, orbitGroup, scnGroup, handles, selBox, gizmo.getHelper()].map((o) => [o, o.visible] as const);
       hidden.forEach(([o]) => (o.visible = false));
       try {
         renderer.render(scene, camera);
