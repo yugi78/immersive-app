@@ -6,8 +6,9 @@
  *   local ; le site ne charge que models/opt/ et models/scan_lod_opt/.
  * - Avec `--sans-admin` : l'espace client et la page de connexion, pour un hébergeur
  *   sans fonctions serveur (GitHub Pages) où ils ne pourraient pas être protégés.
+ * - Avec `--racine <projet>` : la racine redirige vers /<projet>/ (domaine d'un seul projet).
  */
-import { readdirSync, rmSync, statSync } from 'node:fs';
+import { readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -49,5 +50,20 @@ if (process.argv.includes('--sans-admin')) {
   rm('connexion');
   // Espace client de chaque projet : dist/<slug>/admin/.
   for (const d of readdirSync(dist)) rm(`${d}/admin`);
+}
+// Domaine dédié à un seul projet (pantheon.stylz.fr) : la racine redirige vers ce projet
+// (en gardant le #œuvre) au lieu d'afficher l'accueil de l'espace client.
+const ri = process.argv.indexOf('--racine');
+if (ri > 0) {
+  const slug = process.argv[ri + 1] ?? '';
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug)) throw new Error(`--racine : projet invalide (${slug})`);
+  const target = `/${slug}/`;
+  writeFileSync(
+    join(dist, 'index.html'),
+    `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Redirection</title>` +
+      `<script>location.replace(${JSON.stringify(target)} + location.hash)</script>` +
+      `<meta http-equiv="refresh" content="0; url=${target}"></head><body></body></html>\n`,
+  );
+  removed.push(`index.html (remplacé par une redirection vers ${target})`);
 }
 console.log(`dist/ : retiré ${removed.length ? removed.join(', ') : 'rien'}`);

@@ -1,15 +1,15 @@
 ---
 /**
- * Accueil du back-office : /admin/.
- * - En local (développeur) : la liste des projets, chacun ouvrant son back-office.
- * - En ligne : redirection vers l'espace client du projet (protégé par la connexion).
+ * Accueil du back-office : /admin/, la liste des projets, chacun ouvrant son back-office.
+ * - En local (développeur) : accès direct.
+ * - En ligne : réservé aux comptes « tous projets » (fonction functions/admin/_middleware.ts) ;
+ *   un compte client est renvoyé vers l'espace de son projet avant d'arriver ici.
  */
 import { BRAND } from '../config/brand';
 import { PROJECT_SLUGS, PROJECTS } from '../viewer/config/projects';
 import { withBase } from '../viewer/url';
 
 const local = import.meta.env.DEV;
-const first = withBase(`/${PROJECT_SLUGS[0]}/admin/`);
 const projects = PROJECT_SLUGS.map((slug) => {
 	const cfg = PROJECTS[slug];
 	return {
@@ -28,7 +28,6 @@ const projects = PROJECT_SLUGS.map((slug) => {
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="robots" content="noindex" />
 		<title>Projets — {BRAND}</title>
-		{!local && <meta http-equiv="refresh" content={`0; url=${first}`} />}
 		<style is:global>
 			@font-face {
 				font-family: 'Mona Sans';
@@ -69,6 +68,20 @@ const projects = PROJECT_SLUGS.map((slug) => {
 			}
 			header span {
 				color: #6b6862;
+			}
+			header button {
+				margin-left: auto;
+				height: 34px;
+				padding: 0 14px;
+				border: 1px solid #d6d3cd;
+				border-radius: 10px;
+				background: #fff;
+				font: inherit;
+				font-weight: 600;
+				cursor: pointer;
+			}
+			header button:hover {
+				border-color: #141414;
 			}
 			main {
 				max-width: 1080px;
@@ -151,9 +164,6 @@ const projects = PROJECT_SLUGS.map((slug) => {
 		</style>
 	</head>
 	<body>
-		{
-			local ? (
-				<>
 					<header>
 						<span class="mark" aria-hidden="true">
 							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -162,10 +172,15 @@ const projects = PROJECT_SLUGS.map((slug) => {
 						</span>
 						<b>{BRAND}</b>
 						<span>· projets</span>
+						{!local && <button type="button" id="logout">Se déconnecter</button>}
 					</header>
 					<main>
 						<h1>Projets</h1>
-						<p class="lead">Un dossier par projet dans projects/. Ouvre un projet pour régler sa scène et son contenu.</p>
+						<p class="lead">
+							{local
+								? 'Un dossier par projet dans projects/. Ouvre un projet pour régler sa scène et son contenu.'
+								: 'Ouvre un projet pour modifier son contenu. La structure (fichiers 3D, scan) se règle en local.'}
+						</p>
 						<ul>
 							{projects.map((p) => (
 								<li>
@@ -186,15 +201,14 @@ const projects = PROJECT_SLUGS.map((slug) => {
 									</div>
 								</li>
 							))}
-							<li class="new">Nouveau projet : bientôt (création depuis cet accueil).</li>
+							{local && <li class="new">Nouveau projet : bientôt (création depuis cet accueil).</li>}
 						</ul>
 					</main>
-				</>
-			) : (
-				<script is:inline define:vars={{ first }}>
-					location.replace(first);
-				</script>
-			)
-		}
+		<script>
+			document.querySelector('#logout')?.addEventListener('click', async () => {
+				await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+				location.assign('/');
+			});
+		</script>
 	</body>
 </html>

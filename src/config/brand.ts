@@ -13,3 +13,9 @@ export const PROJECT = {
   /** Titre de la page publique (onglet du navigateur). */
   title: defaultConfig.project?.title ?? defaultConfig.project?.name ?? BRAND,
 };
+
+/** Site vitrine (présentation, réalisations) : lien depuis l'accueil de l'espace client. */
+export const SITE = {
+  url: 'https://immersive.nlab.fr/',
+  label: 'immersive.nlab.fr',
+};

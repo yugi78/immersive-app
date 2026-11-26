@@ -105,6 +105,15 @@ const names = Object.fromEntries(Object.entries(PROJECTS).map(([slug, cfg]) => [
 				opacity: 0.6;
 				cursor: default;
 			}
+			.back {
+				justify-self: center;
+				color: #6b6862;
+				font-size: 13px;
+				text-decoration: none;
+			}
+			.back:hover {
+				color: #141414;
+			}
 			.error {
 				min-height: 18px;
 				margin: 0;
@@ -125,6 +134,7 @@ const names = Object.fromEntries(Object.entries(PROJECTS).map(([slug, cfg]) => [
 				<label>Mot de passe <input name="password" type="password" autocomplete="current-password" required /></label>
 				<p class="error" role="alert" id="error"></p>
 				<button type="submit">Se connecter</button>
+				<a class="back" href="/">← Accueil</a>
 			</form>
 		</main>
 		<script type="application/json" id="names" set:html={JSON.stringify(names)} />
