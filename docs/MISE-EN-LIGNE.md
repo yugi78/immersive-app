@@ -23,7 +23,7 @@ pas de comptes et je ne saisis pas de mots de passe ni de jetons à ta place.
 GitHub → photo de profil → **Settings** → **Developer settings** → **Personal access
 tokens** → **Fine-grained tokens** → **Generate new token** :
 
-- *Repository access* : **Only select repositories** → `yugi78/pantheon`.
+- *Repository access* : **Only select repositories** → `yugi78/immersive-app`.
 - *Permissions* → *Repository permissions* → **Contents : Read and write** (rien d'autre).
 - *Expiration* : 1 an (à renouveler ; Cloudflare le remplace sans rien casser).
 
@@ -49,7 +49,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ## 3. ✋ Créer le projet Cloudflare Pages
 
 Cloudflare → **Workers & Pages** → **Create** → **Pages** → **Connect to Git** →
-choisis `yugi78/pantheon`.
+choisis `yugi78/immersive-app`.
 
 - *Production branch* : `master`
 - *Build command* : `npm run build:cloudflare`
@@ -63,7 +63,7 @@ choisis `yugi78/pantheon`.
 | `SESSION_SECRET` | le secret de l'étape 2 |
 | `GITHUB_TOKEN` | le jeton de l'étape 1 |
 | `ADMIN_USER` | l'identifiant du client (ex. `pantheon`) |
-| `GITHUB_REPO` | `yugi78/pantheon` |
+| `GITHUB_REPO` | `yugi78/immersive-app` |
 | `GITHUB_BRANCH` | `master` |
 | `NODE_VERSION` | `24` |
 
@@ -78,9 +78,14 @@ sur `https://<projet>.pages.dev/admin` (redirige vers la page de connexion).
    « Publié · en ligne d'ici 1 à 2 min » ; un commit « Contenu publié depuis l'espace
    client » apparaît dans GitHub ; le site se met à jour après la reconstruction.
 
-## 5. ✋ Brancher le domaine (pantheon.stylz.fr)
+## 5. ✋ Brancher le domaine (plus tard, optionnel)
 
-Le domaine pointe aujourd'hui vers GitHub Pages (CNAME `pantheon` → `yugi78.github.io`).
+Aujourd'hui (option retenue) : le site public reste sur **pantheon.stylz.fr**, servi par
+GitHub Pages (enregistrement **A** chez FreeDNS → 185.199.108.153), et l'espace client est
+sur l'adresse Cloudflare (`…pages.dev/admin`). Chaque publication met à jour les deux.
+
+Pour tout regrouper sur Cloudflare, il faudra un **CNAME** vers l'adresse `…pages.dev`
+(ou confier le DNS du domaine à Cloudflare) :
 
 1. Cloudflare Pages → ton projet → **Custom domains** → **Set up a custom domain** →
    `pantheon.stylz.fr`.

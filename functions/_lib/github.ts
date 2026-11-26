@@ -12,7 +12,7 @@ function headers(env: Env) {
     authorization: `Bearer ${env.GITHUB_TOKEN}`,
     accept: 'application/vnd.github+json',
     'x-github-api-version': '2022-11-28',
-    'user-agent': 'pantheon-admin',
+    'user-agent': 'immersive-app-admin',
   };
 }
 

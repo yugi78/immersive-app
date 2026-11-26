@@ -3,7 +3,7 @@
 # Prérequis (une fois), dans Settings → Pages :
 #   - Build and deployment → Source : « GitHub Actions »
 #   - Custom domain : pantheon.stylz.fr (+ Enforce HTTPS)
-# DNS chez le registrar de stylz.fr : CNAME  pantheon  →  yugi78.github.io.
+# DNS (FreeDNS) : enregistrement A  pantheon.stylz.fr  →  185.199.108.153 (GitHub Pages).
 name: Déploiement GitHub Pages
 
 on:
