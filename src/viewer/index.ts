@@ -409,6 +409,13 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     if (tour.active) cutaway.update(camera.position, tour.cutTarget, tour.cutScale);
     else if (editorTools?.flying) cutaway.update(camera.position, orbit.controls.target, 0);
     else cutaway.update(camera.position, orbit.controls.target);
+    // Sphère des transitions : monte au départ, tient pendant le trajet, redescend à
+    // l'arrivée (fondus sur `transitFade` du trajet, de chaque côté).
+    if (tour.state === 'transit') {
+      const p = tour.phaseProgress;
+      const f = Math.max(cutaway.settings.transitFade ?? 0.2, 1e-3);
+      cutaway.setTransit(Math.min(MathUtils.smoothstep(p, 0, f), 1 - MathUtils.smoothstep(p, 1 - f, 1)));
+    } else cutaway.setTransit(0);
     camera.updateMatrixWorld();
     // En transition, la destination est préchargée en haute définition.
     scan?.update(camera, tour.active ? tour.lookahead() : null);

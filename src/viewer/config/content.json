@@ -11,7 +11,10 @@
     "fadeStartDistance": 400,
     "fadeEndDistance": 210,
     "cutColor": "#000000",
-    "cameraRadius": 4
+    "cameraRadius": 4,
+    "transitRadius": 8,
+    "transitFeather": 3,
+    "transitFade": 0.2
   },
   "mist": {
     "startDistance": 160,
@@ -49,6 +52,7 @@
     "hotspotIntervalMs": 6000,
     "cutFadeStart": 0.96,
     "resumeDelayMs": 2000,
+    "viaHub": false,
     "cubeResumeMs": 5000,
     "hub": {
       "position": [

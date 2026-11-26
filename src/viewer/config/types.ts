@@ -91,7 +91,9 @@ export interface TourConfig {
   resumeDelayMs: number;
   /** Reprise après le bouton cube (orbite libre) sans interaction : plus long qu'après un glisser. */
   cubeResumeMs: number;
-  /** Point de passage central entre deux œuvres (évite les piliers). */
+  /** Entre deux œuvres : passer par le point central (sinon trajet direct, avec la sphère de découpe). */
+  viaHub?: boolean;
+  /** Point de passage central entre deux œuvres (option `viaHub`). */
   hub: { position: Vec3 };
   works: TourWork[];
 }

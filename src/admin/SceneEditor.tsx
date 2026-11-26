@@ -30,6 +30,9 @@ type SceneProps = {
   cutFadeEnd: number;
   cutColor: string;
   cutCameraRadius: number;
+  cutTransitRadius: number;
+  cutTransitFeather: number;
+  cutTransitFade: number;
   mistStart: number;
   mistEnd: number;
   mistColor: string;
@@ -58,6 +61,7 @@ type SceneProps = {
   tourCubeResumeS: number;
   tourHotspotS: number;
   tourHub: Vec3;
+  tourViaHub: boolean;
   tourWorks: TourWorkItem[];
   // Interface publique.
   aboutHtml: string;
@@ -97,6 +101,9 @@ const SCENE_KEYS = [
   'cutFadeEnd',
   'cutColor',
   'cutCameraRadius',
+  'cutTransitRadius',
+  'cutTransitFeather',
+  'cutTransitFade',
   'mistStart',
   'mistEnd',
   'mistColor',
@@ -134,6 +141,7 @@ const SCENE_KEYS = [
   'mapPlanRotMobile',
   'mapViews',
   'tourHub',
+  'tourViaHub',
   'tourWorks',
   'flyEnabled',
   'flySpeed',
@@ -193,6 +201,7 @@ function tourFromProps(p: SceneProps): TourConfig {
     resumeDelayMs: Math.round(p.tourResumeS * 1000),
     cubeResumeMs: Math.round((p.tourCubeResumeS ?? 5) * 1000),
     hotspotIntervalMs: Math.round(p.tourHotspotS * 1000),
+    viaHub: !!p.tourViaHub,
     hub: { position: p.tourHub },
     works: works.map((w, i) => ({
       id: w.id || `w-sans-id-${i}`,
@@ -248,6 +257,9 @@ function ViewerPreview(props: SceneProps) {
       fadeStartDistance: p.cutFadeStart,
       fadeEndDistance: p.cutFadeEnd,
       cameraRadius: p.cutCameraRadius,
+      transitRadius: p.cutTransitRadius,
+      transitFeather: p.cutTransitFeather,
+      transitFade: p.cutTransitFade,
       cutColor: p.cutColor,
     });
     v.setMist({ startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor });
@@ -303,6 +315,10 @@ const config: Config<{}, Record<string, unknown>> = {
       cutFadeEnd: slider('Fin du fondu (distance)', 10, 800, 5),
       cutColor: colorField('Couleur de coupe (épaisseur des murs)'),
       cutCameraRadius: slider('Sphère autour de la caméra (rayon, éteinte avec la découpe)', 0, 30, 0.5),
+      cutTransitRadius: slider('Rayon de la sphère', 0, 40, 0.5),
+      cutTransitFeather: slider('Dégradé du bord', 0, 15, 0.5),
+      cutTransitFade: slider('Fondu au départ et à l’arrivée (part du trajet)', 0.02, 0.5, 0.01, null),
+      tourViaHub: checkbox('Passer par le point central', 'Sinon trajet direct d’une œuvre à l’autre, la sphère de découpe traverse les obstacles'),
       mistStart: slider('Brume — début (distance au Panthéon)', 0, 3000, 10),
       mistEnd: slider('Brume — fin (distance au Panthéon)', 0, 3000, 10),
       mistColor: colorField('Brume — couleur'),
@@ -437,6 +453,11 @@ const config: Config<{}, Record<string, unknown>> = {
           {fields.cutFadeEnd}
           {fields.cutCameraRadius}
           {fields.cutColor}
+          <FieldGroup label="Sphère pendant les transitions entre œuvres" defaultExpanded>
+            {fields.cutTransitRadius}
+            {fields.cutTransitFeather}
+            {fields.cutTransitFade}
+          </FieldGroup>
         </FieldTab>
         <FieldTab label="Visite guidée">
           <FieldGroup label="Œuvres" defaultExpanded>
@@ -449,6 +470,7 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.tourHotspotS}
           </FieldGroup>
           <FieldGroup label="Point central" defaultExpanded>
+            {fields.tourViaHub}
             {fields.tourHub}
           </FieldGroup>
           <FieldGroup label="Transitions" defaultExpanded>
@@ -508,6 +530,9 @@ const initialData: Data<{}, Record<string, unknown>> = {
       cutFadeEnd: cutaway.fadeEndDistance,
       cutColor: cutaway.cutColor,
       cutCameraRadius: cutaway.cameraRadius,
+      cutTransitRadius: cutaway.transitRadius ?? 8,
+      cutTransitFeather: cutaway.transitFeather ?? 3,
+      cutTransitFade: cutaway.transitFade ?? 0.2,
       mistStart: mist.startDistance,
       mistEnd: mist.endDistance,
       mistColor: mist.color,
@@ -535,6 +560,7 @@ const initialData: Data<{}, Record<string, unknown>> = {
       tourCubeResumeS: (tour.cubeResumeMs ?? 5000) / 1000,
       tourHotspotS: (tour.hotspotIntervalMs ?? 6000) / 1000,
       tourHub: tour.hub.position,
+      tourViaHub: !!tour.viaHub,
       tourWorks: tour.works.map((w): TourWorkItem => {
         const { blocks = [], ...contentRest } = w.content ?? { blocks: [] };
         return {
@@ -579,6 +605,9 @@ export default function SceneEditor() {
             fadeStartDistance: p.cutFadeStart,
             fadeEndDistance: p.cutFadeEnd,
             cameraRadius: p.cutCameraRadius,
+      transitRadius: p.cutTransitRadius,
+      transitFeather: p.cutTransitFeather,
+      transitFade: p.cutTransitFade,
             cutColor: p.cutColor,
           },
           mist: { startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor },

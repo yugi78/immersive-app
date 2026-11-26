@@ -19,6 +19,10 @@ export function createCutaway(initial: CutawayConfig) {
     uCutRadius: { value: cfg.radius },
     uCutFeather: { value: cfg.feather },
     uCutSphere: { value: cfg.cameraRadius },
+    // Sphère des transitions entre œuvres : rayon, dégradé, intensité (0–1, pilotée par la visite).
+    uTransitRadius: { value: cfg.transitRadius ?? 8 },
+    uTransitFeather: { value: cfg.transitFeather ?? 3 },
+    uTransitStrength: { value: 0 },
     uCutStrength: { value: 0 },
     uCutColor: { value: new Color(cfg.cutColor) },
   };
@@ -36,6 +40,9 @@ export function createCutaway(initial: CutawayConfig) {
     uniform float uCutRadius;
     uniform float uCutFeather;
     uniform float uCutSphere;
+    uniform float uTransitRadius;
+    uniform float uTransitFeather;
+    uniform float uTransitStrength;
     uniform float uCutStrength;
     uniform vec3 uCutColor;
 
@@ -63,6 +70,13 @@ export function createCutaway(initial: CutawayConfig) {
     // Sphère autour de la caméra : rien ne s'interpose de près, quel que soit l'angle
     // (passage des murs à l'entrée et à la sortie de la visite). Même intensité que
     // le cylindre, donc éteinte avec lui.
+    // Sphère des transitions : tout ce qui entoure la caméra en mouvement s'efface
+    // (piliers, murs), avec un dégradé sur uTransitFeather mètres.
+    if (uTransitStrength > 0.0 && uTransitRadius > 0.0) {
+      float trFeather = min(uTransitFeather, uTransitRadius);
+      float tr = 1.0 - smoothstep(uTransitRadius - trFeather, uTransitRadius, distance(vCutWorld, uCutCam));
+      if (tr * uTransitStrength > cutBayer4(gl_FragCoord.xy)) discard;
+    }
     if (uCutStrength > 0.0 && uCutSphere > 0.0) {
       float sphFeather = min(uCutFeather, uCutSphere * 0.5);
       float sph = 1.0 - smoothstep(uCutSphere - sphFeather, uCutSphere, distance(vCutWorld, uCutCam));
@@ -129,8 +143,15 @@ ${fragmentPars}`)
     uniforms.uCutRadius.value = cfg.radius;
     uniforms.uCutFeather.value = cfg.feather;
     uniforms.uCutSphere.value = cfg.cameraRadius;
+    uniforms.uTransitRadius.value = cfg.transitRadius ?? 8;
+    uniforms.uTransitFeather.value = cfg.transitFeather ?? 3;
     uniforms.uCutColor.value.set(cfg.cutColor);
   }
 
-  return { uniforms, settings: cfg as Readonly<CutawayConfig>, apply, update, set };
+  /** Intensité de la sphère des transitions (0 : éteinte, 1 : pleine). */
+  function setTransit(strength: number) {
+    uniforms.uTransitStrength.value = MathUtils.clamp(strength, 0, 1);
+  }
+
+  return { uniforms, settings: cfg as Readonly<CutawayConfig>, apply, update, set, setTransit };
 }

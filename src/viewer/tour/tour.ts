@@ -32,6 +32,12 @@ interface Phase {
   /** Boucle : distance parcourue sur la courbe (m) et montée en vitesse (0–1). */
   s: number;
   ramp: number;
+  /**
+   * Transition entre œuvres : orientations de départ et d'arrivée. Le regard pivote
+   * de l'une à l'autre (au lieu de viser un point qui glisse d'une œuvre à l'autre et
+   * passerait au-dessus de la caméra, au centre du bâtiment).
+   */
+  turn?: { from: Quaternion; to: Quaternion };
 }
 
 export interface TourOptions {
@@ -210,9 +216,13 @@ export function createTour(opts: TourOptions) {
     } else if (phase.kind === 'exit') {
       return;
     } else {
-      // Entre deux œuvres : par le point central, découpe éteinte.
-      const path = new Path([pos, v3(cfg.hub.position), workStart(w)]);
+      // Entre deux œuvres : trajet direct (la sphère de découpe autour de la caméra
+      // traverse piliers et murs), ou par le point central si l'option est active.
+      const end = workStart(w);
+      const path = new Path(cfg.viaHub ? [pos, v3(cfg.hub.position), end] : [pos, end]);
       phase = makePhase('transit', path, ms(cfg.durations.betweenMs), [from, focus], [focus, focus]);
+      mLook.lookAt(end, focus, UP);
+      phase.turn = { from: camera.quaternion.clone(), to: new Quaternion().setFromRotationMatrix(mLook) };
     }
     setUserOrbit(false);
     index = target;
@@ -337,8 +347,12 @@ export function createTour(opts: TourOptions) {
     }
 
     // Orientation : vise lookTarget, rattrapée en douceur (pas de saut aux points).
-    mLook.lookAt(camera.position, lookTarget, UP);
-    qDesired.setFromRotationMatrix(mLook);
+    // Transition entre œuvres : pivot direct de l'orientation de départ à celle d'arrivée.
+    if (phase?.turn) qDesired.slerpQuaternions(phase.turn.from, phase.turn.to, easeInOut(Math.min(phase.elapsed / phase.duration, 1)));
+    else {
+      mLook.lookAt(camera.position, lookTarget, UP);
+      qDesired.setFromRotationMatrix(mLook);
+    }
     if (finished) camera.quaternion.copy(qDesired);
     else camera.quaternion.slerp(qDesired, 1 - Math.exp(-TURN_RATE * dt));
     camera.updateMatrixWorld();
@@ -417,6 +431,11 @@ export function createTour(opts: TourOptions) {
       return hasDragged;
     },
     /** Temps restant (s) de l'entrée, de la transition ou de la sortie en cours ; Infinity en boucle. */
+    /** Avancement (0–1) de l'entrée, de la transition ou de la sortie en cours ; 0 en boucle. */
+    get phaseProgress() {
+      if (!phase || phase.kind === 'loop') return 0;
+      return Math.min(phase.elapsed / phase.duration, 1);
+    },
     get phaseRemaining() {
       if (!phase || phase.kind === 'loop') return Infinity;
       return phase.duration - phase.elapsed;
