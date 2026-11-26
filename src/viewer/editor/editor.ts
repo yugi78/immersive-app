@@ -55,9 +55,10 @@ export interface EditorView {
   tourHelpers: boolean;
 }
 
-export const TAB_ORBIT = 'Caméra orbitale';
-export const TAB_TOUR = 'Visite guidée';
-export const TAB_SCENARIO = 'Scénario';
+/** Onglets du back-office où s'affichent les repères (point de focus, visite, scénario). */
+export const TAB_ORBIT = 'Expérience';
+export const TAB_TOUR = 'Œuvres';
+export const TAB_SCENARIO = 'Expérience';
 
 /** Repères du scénario : intro point par point, point regardé, vue de départ, boucle d'attente. */
 export interface ScenarioHelpers {

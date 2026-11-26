@@ -10,30 +10,27 @@ import { AddressesDialog } from './Addresses';
 
 const usePuck = createUsePuck();
 
-/** Onglets de réglages (libellés identiques aux FieldTab de SceneEditor). */
-const STRUCTURE_TAB = 'Objets 3D';
-const TABS: { tab: string; label: string; icon: ReactNode; bottom?: boolean; fullOnly?: boolean }[] = [
-  { tab: 'Scène', label: 'Scène', icon: <Icon.scene size={20} /> },
-  { tab: 'Scénario', label: 'Scénario', icon: <Icon.play size={20} /> },
-  { tab: 'Caméra orbitale', label: 'Caméra', icon: <Icon.camera size={20} /> },
-  { tab: 'Découpe', label: 'Découpe', icon: <Icon.cut size={20} /> },
-  { tab: 'Visite guidée', label: 'Visite', icon: <Icon.route size={20} /> },
-  { tab: 'Plans', label: 'Plans', icon: <Icon.map size={20} /> },
-  { tab: 'Interface', label: 'Interface', icon: <Icon.layout size={20} /> },
-  // Administration complète seulement : structure de la scène (scene.json) et debug.
-  { tab: STRUCTURE_TAB, label: 'Objets', icon: <Icon.box size={20} />, bottom: true, fullOnly: true },
-  { tab: 'Debug', label: 'Debug', icon: <Icon.bug size={20} />, fullOnly: true },
-].filter((t) => isFull || !t.fullOnly);
+/**
+ * Onglets (libellés identiques aux FieldTab de SceneEditor) : un onglet par partie de
+ * l'expérience, dans l'ordre où le visiteur la découvre, puis l'apparence, puis les
+ * outils d'édition (en bas).
+ */
+export const TOOLS_TAB = 'Outils';
+const TABS: { tab: string; label: string; icon: ReactNode; bottom?: boolean }[] = [
+  { tab: 'Expérience', label: 'Expérience', icon: <Icon.play size={20} /> },
+  { tab: 'Œuvres', label: 'Œuvres', icon: <Icon.route size={20} /> },
+  { tab: 'Carte', label: 'Carte', icon: <Icon.map size={20} /> },
+  { tab: 'Rendu', label: 'Rendu', icon: <Icon.scene size={20} /> },
+  { tab: 'Infos', label: 'Infos', icon: <Icon.layout size={20} /> },
+  { tab: TOOLS_TAB, label: 'Outils', icon: <Icon.box size={20} />, bottom: true },
+];
 const SUBTITLES: Record<string, string> = {
-  Scène: 'Brume, couleurs des maquettes et du scan, flou',
-  Scénario: 'Intro, boucle d’attente, prise en main, inactivité',
-  'Caméra orbitale': "Point de focus de la vue extérieure",
-  Découpe: 'Ouverture dans les murs, vue de l’extérieur',
-  'Visite guidée': 'Œuvres, parcours caméra, points d’intérêt',
-  Plans: 'Carte interactive : plan et vues de face',
-  Interface: 'À propos, mini-carte',
-  Debug: 'Vol libre et repères',
-  [STRUCTURE_TAB]: 'Fichiers de la scène, placement et matériaux (en local)',
+  Expérience: 'Écran de démarrage, intro, boucle d’attente, prise en main',
+  Œuvres: 'Œuvres, parcours caméra, points d’intérêt, transitions',
+  Carte: 'Carte interactive, points de vue, mini-carte',
+  Rendu: 'Découpes, brume, couleurs, flou',
+  Infos: 'Textes du site : à propos',
+  [TOOLS_TAB]: isFull ? 'Objets 3D et matériaux (en local), vol libre, repères' : 'Vol libre et repères (outils d’édition)',
 };
 
 export type SaveState = { kind: 'idle' | 'saving' | 'saved' | 'error'; message?: string };
@@ -177,7 +174,16 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
             <h1>{tab}</h1>
             <p>{SUBTITLES[tab] ?? ''}</p>
           </div>
-          <div className="bo-panel__fields">{tab === STRUCTURE_TAB ? <StructurePanel /> : <Puck.Fields />}</div>
+          <div className="bo-panel__fields">
+            <Puck.Fields />
+            {/* Outils, en local : structure de la scène (scene.json) sous les réglages d'édition. */}
+            {tab === TOOLS_TAB && isFull && (
+              <section className="bo-tools__structure">
+                <h2>Objets 3D et matériaux</h2>
+                <StructurePanel />
+              </section>
+            )}
+          </div>
         </aside>
 
         <main className="bo-stage">

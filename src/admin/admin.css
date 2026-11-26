@@ -1401,3 +1401,15 @@ select.bo-input {
   height: 10px;
   border-radius: 5px;
 }
+
+/* ---- Onglet Outils : structure de la scène (en local) ---- */
+.bo-tools__structure {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--bo-line);
+}
+.bo-tools__structure > h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 650;
+}

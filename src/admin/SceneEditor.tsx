@@ -332,7 +332,7 @@ function ViewerPreview(props: SceneProps) {
   const activeWork = useActiveWork();
   const live = useViewer();
   useEffect(() => {
-    live?.editor?.setView({ tab: String(tab ?? 'Scène'), activeWork, tourHelpers: props.showTourHelpers });
+    live?.editor?.setView({ tab: String(tab ?? 'Expérience'), activeWork, tourHelpers: props.showTourHelpers });
   }, [live, tab, activeWork, props.showTourHelpers]);
 
   return <div ref={el} className="pantheon-viewer bo-viewer" />;
@@ -468,35 +468,9 @@ const config: Config<{}, Record<string, unknown>> = {
     // Réglages rangés par onglets (Puck FieldTab) ; les clés et le JSON sont inchangés.
     renderFields: ({ fields }) => (
       <>
-        <FieldTab label="Scène">
-          <FieldGroup label="Brume" defaultExpanded>
-            {fields.mistStart}
-            {fields.mistEnd}
-            {fields.mistColor}
-          </FieldGroup>
-          <FieldGroup label="Couleur des maquettes (clay)" defaultExpanded>
-            {fields.clayHue}
-            {fields.claySaturation}
-            {fields.clayContrast}
-            {fields.clayBrightness}
-            {fields.clayGamma}
-          </FieldGroup>
-          <FieldGroup label="Couleur du scan" defaultExpanded>
-            {fields.scanSaturation}
-            {fields.scanContrast}
-            {fields.scanShadows}
-            {fields.scanHighlights}
-          </FieldGroup>
-          <FieldGroup label="Flou de profondeur de champ" defaultExpanded>
-            {fields.dofEnabled}
-            {fields.dofAutoFocus}
-            {fields.dofFocusDistance}
-            {fields.dofFocusRange}
-            {fields.dofAperture}
-            {fields.dofMaxBlur}
-          </FieldGroup>
-        </FieldTab>
-        <FieldTab label="Scénario">
+        {/* Un onglet = une partie de ce que voit le visiteur, dans l'ordre où il la
+            découvre, puis l'apparence, puis les outils d'édition. */}
+        <FieldTab label="Expérience">
           <FieldGroup label="Écran de démarrage" defaultExpanded>
             {fields.startEnabled}
             {fields.startTitle}
@@ -508,9 +482,87 @@ const config: Config<{}, Record<string, unknown>> = {
           <FieldGroup label="Ouverture" defaultExpanded>
             {fields.scenario}
           </FieldGroup>
+          <FieldGroup label="Point de focus (centre de l’orbite)">
+            {fields.focusOffset}
+          </FieldGroup>
         </FieldTab>
-        <FieldTab label="Caméra orbitale">
-          {fields.focusOffset}
+        <FieldTab label="Œuvres">
+          <FieldGroup label="Œuvres" defaultExpanded>
+            {fields.tourWorks}
+          </FieldGroup>
+          <FieldGroup label="Mouvement sur l’œuvre">
+            {fields.tourLoopSpeed}
+            {fields.tourResumeS}
+            {fields.tourCubeResumeS}
+            {fields.tourHotspotS}
+          </FieldGroup>
+          <FieldGroup label="Transitions entre œuvres">
+            {fields.tourEnterS}
+            {fields.tourBetweenS}
+            {fields.tourExitS}
+            {fields.tourCutFadeStart}
+          </FieldGroup>
+          <FieldGroup label="Point central">
+            {fields.tourViaHub}
+            {fields.tourHub}
+          </FieldGroup>
+        </FieldTab>
+        <FieldTab label="Carte">
+          <FieldGroup label="Textes et fond" defaultExpanded>
+            {fields.mapTitle}
+            {fields.mapSubtitle}
+            {fields.mapHint}
+            {fields.mapBackground}
+          </FieldGroup>
+          <FieldGroup label="Points de vue" defaultExpanded>
+            {fields.mapViews}
+          </FieldGroup>
+          <FieldGroup label="Plan (vue de dessus)">
+            {fields.mapPlanRotDesktop}
+            {fields.mapPlanRotMobile}
+          </FieldGroup>
+          <FieldGroup label="Mini-carte">
+            {fields.minimapRotDesktop}
+            {fields.minimapRotMobile}
+          </FieldGroup>
+        </FieldTab>
+        <FieldTab label="Rendu">
+          <FieldGroup label="Découpes" defaultExpanded>
+            {fields.cutaway}
+          </FieldGroup>
+          <FieldGroup label="Brume">
+            {fields.mistStart}
+            {fields.mistEnd}
+            {fields.mistColor}
+          </FieldGroup>
+          <FieldGroup label="Couleur des maquettes (clay)">
+            {fields.clayHue}
+            {fields.claySaturation}
+            {fields.clayContrast}
+            {fields.clayBrightness}
+            {fields.clayGamma}
+          </FieldGroup>
+          <FieldGroup label="Couleur du scan">
+            {fields.scanSaturation}
+            {fields.scanContrast}
+            {fields.scanShadows}
+            {fields.scanHighlights}
+          </FieldGroup>
+          <FieldGroup label="Flou de profondeur de champ">
+            {fields.dofEnabled}
+            {fields.dofAutoFocus}
+            {fields.dofFocusDistance}
+            {fields.dofFocusRange}
+            {fields.dofAperture}
+            {fields.dofMaxBlur}
+          </FieldGroup>
+        </FieldTab>
+        <FieldTab label="Infos">
+          <FieldGroup label="À propos" defaultExpanded>
+            {fields.aboutHtml}
+          </FieldGroup>
+        </FieldTab>
+        <FieldTab label="Outils">
           <FieldGroup label="Vol libre" defaultExpanded>
             {fields.flyEnabled}
             {fields.flySpeed}
@@ -518,58 +570,10 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.flySphereRadius}
             {fields.flySphereFeather}
           </FieldGroup>
-        </FieldTab>
-        <FieldTab label="Découpe">{fields.cutaway}</FieldTab>
-        <FieldTab label="Visite guidée">
-          <FieldGroup label="Œuvres" defaultExpanded>
-            {fields.tourWorks}
-          </FieldGroup>
-          <FieldGroup label="Mouvement sur l’œuvre" defaultExpanded>
-            {fields.tourLoopSpeed}
-            {fields.tourResumeS}
-            {fields.tourCubeResumeS}
-            {fields.tourHotspotS}
-          </FieldGroup>
-          <FieldGroup label="Point central" defaultExpanded>
-            {fields.tourViaHub}
-            {fields.tourHub}
-          </FieldGroup>
-          <FieldGroup label="Transitions" defaultExpanded>
-            {fields.tourEnterS}
-            {fields.tourBetweenS}
-            {fields.tourExitS}
-            {fields.tourCutFadeStart}
+          <FieldGroup label="Repères" defaultExpanded>
+            {fields.showTourHelpers}
           </FieldGroup>
         </FieldTab>
-        <FieldTab label="Interface">
-          <FieldGroup label="À propos" defaultExpanded>
-            {fields.aboutHtml}
-          </FieldGroup>
-          <FieldGroup label="Mini-carte" defaultExpanded>
-            {fields.minimapRotDesktop}
-            {fields.minimapRotMobile}
-          </FieldGroup>
-        </FieldTab>
-        <FieldTab label="Plans">
-          <FieldGroup label="Textes et fond" defaultExpanded>
-            {fields.mapTitle}
-            {fields.mapSubtitle}
-            {fields.mapHint}
-            {fields.mapBackground}
-          </FieldGroup>
-          <FieldGroup label="Plan (vue de dessus)" defaultExpanded>
-            {fields.mapPlanRotDesktop}
-            {fields.mapPlanRotMobile}
-          </FieldGroup>
-          <FieldGroup label="Points de vue" defaultExpanded>
-            {fields.mapViews}
-          </FieldGroup>
-        </FieldTab>
-{isFull && (
-        <FieldTab label="Debug">
-          {fields.showTourHelpers}
-        </FieldTab>
-        )}
       </>
     ),
     // Props brutes lues dans l'état Puck : les champs texte riche y sont du HTML,
