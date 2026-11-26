@@ -1,12 +1,19 @@
 import { Euler, Vector3, type PerspectiveCamera } from 'three';
 
 /**
- * Vol libre (back-office) : déplacement au clavier, regard au clic droit maintenu.
+ * Vol libre (back-office) : déplacement au clavier, regard en glissant au clic gauche
+ * (ou droit) maintenu.
  * Touches lues par position physique (e.code) : ZQSD sur AZERTY = WASD sur QWERTY ;
  * A / E (AZERTY) pour descendre / monter ; Maj pour aller 4× plus vite.
  * La molette règle la vitesse. Actif seulement quand la souris survole la vue.
  */
-export function createFly(camera: PerspectiveCamera, dom: HTMLElement, onSpeed?: (speed: number) => void) {
+export function createFly(
+  camera: PerspectiveCamera,
+  dom: HTMLElement,
+  onSpeed?: (speed: number) => void,
+  /** Clic gauche réservé à un autre outil (gizmo survolé, pointage en cours…) : pas de regard. */
+  busy?: () => boolean,
+) {
   let enabled = false;
   let speed = 3; // m/s
   let hover = false;
@@ -36,7 +43,8 @@ export function createFly(camera: PerspectiveCamera, dom: HTMLElement, onSpeed?:
     keys.clear();
   };
   const down = (e: PointerEvent) => {
-    if (!enabled || e.button !== 2) return;
+    if (!enabled || (e.button !== 0 && e.button !== 2)) return;
+    if (e.button === 0 && busy?.()) return;
     looking = e.pointerId;
     lastX = e.clientX;
     lastY = e.clientY;

@@ -15,6 +15,26 @@ import './admin.css';
 
 const usePuckState = createUsePuck();
 
+/** Réglages du vol libre : préférences d'édition de ce navigateur (jamais publiées). */
+const FLY_KEY = 'immersive-app:fly';
+type FlyPrefs = Partial<Pick<SceneProps, 'flySpeed' | 'flySphereOn' | 'flySphereRadius' | 'flySphereFeather'>>;
+function loadFlyPrefs(): FlyPrefs {
+  try {
+    return JSON.parse(localStorage.getItem(FLY_KEY) ?? '{}') as FlyPrefs;
+  } catch {
+    return {};
+  }
+}
+function saveFlyPrefs(p: SceneProps) {
+  try {
+    const prefs: FlyPrefs = { flySpeed: p.flySpeed, flySphereOn: p.flySphereOn, flySphereRadius: p.flySphereRadius, flySphereFeather: p.flySphereFeather };
+    localStorage.setItem(FLY_KEY, JSON.stringify(prefs));
+  } catch {
+    // Stockage indisponible (navigation privée) : réglages non mémorisés, sans gravité.
+  }
+}
+const flyPrefs = loadFlyPrefs();
+
 /**
  * Back-office Puck : réglages de scène (hauteur du focus, découpe) avec aperçu
  * 3D en direct. « Publier » écrit les valeurs dans src/viewer/config/content.json
@@ -77,6 +97,9 @@ type SceneProps = {
   // Debug (non enregistré).
   flyEnabled: boolean;
   flySpeed: number;
+  flySphereOn: boolean;
+  flySphereRadius: number;
+  flySphereFeather: number;
   showTourHelpers: boolean;
 };
 
@@ -145,6 +168,9 @@ const SCENE_KEYS = [
   'tourWorks',
   'flyEnabled',
   'flySpeed',
+  'flySphereOn',
+  'flySphereRadius',
+  'flySphereFeather',
   'showTourHelpers',
 ] as const satisfies readonly (keyof SceneProps)[];
 
@@ -271,6 +297,8 @@ function ViewerPreview(props: SceneProps) {
     v.setUi(uiFromProps(p));
     v.editor?.setHelpers(tour);
     v.editor?.setFly(p.flyEnabled, p.flySpeed);
+    v.setFlySphere({ enabled: p.flySphereOn !== false, radius: p.flySphereRadius ?? 4, feather: p.flySphereFeather ?? 2 });
+    saveFlyPrefs(p);
   };
 
   useEffect(() => {
@@ -410,8 +438,11 @@ const config: Config<{}, Record<string, unknown>> = {
           />
         ),
       },
-      flyEnabled: checkbox('Vol libre (ZQSD + clic droit, A/E : bas/haut, Maj : vite)'),
-      flySpeed: slider('Vitesse du vol libre (molette)', 0.2, 30, 0.1, 'm/s'),
+      flyEnabled: checkbox('Vol libre', 'ZQSD pour avancer, glisser au clic gauche pour regarder, A / E : bas / haut, Maj : vite'),
+      flySpeed: slider('Vitesse (aussi à la molette)', 0.2, 30, 0.1, 'm/s'),
+      flySphereOn: checkbox('Sphère de découpe', 'Efface murs et piliers autour de la caméra pour passer au travers'),
+      flySphereRadius: slider('Rayon de la sphère', 0.5, 30, 0.5),
+      flySphereFeather: slider('Dégradé du bord', 0, 10, 0.5),
       showTourHelpers: checkbox('Afficher les repères de la visite'),
     },
     // Réglages rangés par onglets (Puck FieldTab) ; les clés et le JSON sont inchangés.
@@ -445,7 +476,16 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.dofMaxBlur}
           </FieldGroup>
         </FieldTab>
-        <FieldTab label="Caméra orbitale">{fields.focusOffset}</FieldTab>
+        <FieldTab label="Caméra orbitale">
+          {fields.focusOffset}
+          <FieldGroup label="Vol libre" defaultExpanded>
+            {fields.flyEnabled}
+            {fields.flySpeed}
+            {fields.flySphereOn}
+            {fields.flySphereRadius}
+            {fields.flySphereFeather}
+          </FieldGroup>
+        </FieldTab>
         <FieldTab label="Découpe">
           {fields.cutRadius}
           {fields.cutFeather}
@@ -506,8 +546,6 @@ const config: Config<{}, Record<string, unknown>> = {
         </FieldTab>
 {isFull && (
         <FieldTab label="Debug">
-          {fields.flyEnabled}
-          {fields.flySpeed}
           {fields.showTourHelpers}
         </FieldTab>
         )}
@@ -583,7 +621,10 @@ const initialData: Data<{}, Record<string, unknown>> = {
       mapPlanRotMobile: ui.map.planRotationMobile,
       mapViews: ui.map.views,
       flyEnabled: false,
-      flySpeed: 3,
+      flySpeed: flyPrefs.flySpeed ?? 3,
+      flySphereOn: flyPrefs.flySphereOn ?? true,
+      flySphereRadius: flyPrefs.flySphereRadius ?? 4,
+      flySphereFeather: flyPrefs.flySphereFeather ?? 2,
       showTourHelpers: true,
     },
   },

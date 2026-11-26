@@ -148,9 +148,14 @@ ${fragmentPars}`)
     uniforms.uCutColor.value.set(cfg.cutColor);
   }
 
-  /** Intensité de la sphère des transitions (0 : éteinte, 1 : pleine). */
-  function setTransit(strength: number) {
+  /**
+   * Intensité de la sphère autour de la caméra (0 : éteinte, 1 : pleine). Rayon et
+   * dégradé : ceux des transitions, ou ceux donnés (vol libre du back-office).
+   */
+  function setTransit(strength: number, radius?: number, feather?: number) {
     uniforms.uTransitStrength.value = MathUtils.clamp(strength, 0, 1);
+    uniforms.uTransitRadius.value = radius ?? cfg.transitRadius ?? 8;
+    uniforms.uTransitFeather.value = feather ?? cfg.transitFeather ?? 3;
   }
 
   return { uniforms, settings: cfg as Readonly<CutawayConfig>, apply, update, set, setTransit };

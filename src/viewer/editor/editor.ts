@@ -441,7 +441,8 @@ export function createEditorTools(ctx: EditorContext) {
   dom.addEventListener('pointerup', onHandleUp);
 
   // ---- Vol libre --------------------------------------------------------------
-  const fly = createFly(camera, dom);
+  // Clic gauche : regard, sauf sur le gizmo ou pendant un pointage sur le scan.
+  const fly = createFly(camera, dom, undefined, () => !!pickResolve || !!gizmo.axis || gizmo.dragging);
   const ahead = new Vector3();
   function setFly(on: boolean, speed: number) {
     fly.setSpeed(speed);

@@ -198,7 +198,7 @@ function PreviewToolbar() {
         type="button"
         className={fly ? 'is-on' : ''}
         aria-pressed={fly}
-        title="ZQSD + clic droit pour regarder, A / E : bas / haut, Maj : vite"
+        title="ZQSD pour avancer, glisser au clic gauche pour regarder, A / E : bas / haut, Maj : vite"
         onClick={() => setProp('flyEnabled', true)}
       >
         <Icon.fly size={16} />

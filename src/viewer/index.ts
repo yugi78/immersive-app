@@ -66,6 +66,8 @@ export interface Viewer {
   tour: Pick<Tour, 'start' | 'goTo' | 'next' | 'prev' | 'stop' | 'togglePause' | 'status' | 'onChange' | 'cancel'>;
   /** Carte interactive : ouvrir une vue (0 : plan, 1–4 : murs), fermer, cadrer une vue depuis la caméra. */
   map: { open(view?: number): void; close(): void; frameFromCamera(): { center: Vec3; yaw: number } };
+  /** Sphère de découpe autour de la caméra en vol libre (back-office). */
+  setFlySphere(opts: { enabled: boolean; radius: number; feather: number }): void;
   /** Objets de la scène (outliner) : racines 3D, visibilité, placement. */
   objects: {
     root(id: string): Object3D | null;
@@ -260,6 +262,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     if (tiled.visible === false) scan.root.visible = false;
     scene.add(scan.root);
   }
+  /** Vol libre : sphère de découpe autour de la caméra (traverser murs et piliers). */
+  let flySphere = { enabled: true, radius: 4, feather: 2 };
   /** Racine 3D de chaque objet, par identifiant (outliner). */
   const objectRoots = new Map<string, Object3D>(assets.map((a) => [objOf(a).id, a.root]));
   if (scan && tiled) objectRoots.set(tiled.id, scan.root);
@@ -415,7 +419,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       const p = tour.phaseProgress;
       const f = Math.max(cutaway.settings.transitFade ?? 0.2, 1e-3);
       cutaway.setTransit(Math.min(MathUtils.smoothstep(p, 0, f), 1 - MathUtils.smoothstep(p, 1 - f, 1)));
-    } else cutaway.setTransit(0);
+    } else if (editorTools?.flying && flySphere.enabled) cutaway.setTransit(1, flySphere.radius, flySphere.feather);
+    else cutaway.setTransit(0);
     camera.updateMatrixWorld();
     // En transition, la destination est préchargée en haute définition.
     scan?.update(camera, tour.active ? tour.lookahead() : null);
@@ -477,6 +482,9 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       open: (view = 0) => tourUi?.openMap(view),
       close: () => tourUi?.closeMap(),
       frameFromCamera: () => mapView.frameFromCamera(camera),
+    },
+    setFlySphere(opts) {
+      flySphere = { ...opts };
     },
     objects: {
       root: (id) => objectRoots.get(id) ?? null,
