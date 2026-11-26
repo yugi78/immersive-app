@@ -1,13 +1,14 @@
-import { createUsePuck, FieldGroup, FieldTab, Puck, type Config, type Data } from '@puckeditor/core';
+import { createUsePuck, FieldGroup, FieldTab, Puck, type Config, type CustomField, type Data } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createViewer, type Viewer } from '../viewer';
-import { type ContentBlock, type ScenarioConfig, type SceneConfig, type MapView, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
+import { type ContentBlock, type ScenarioConfig, type SceneConfig, type StartConfig, type MapView, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
 import { newWorkId, uniqueSlugs } from '../viewer/tour/slug';
 import { bridge, useActiveWork, useViewer } from './bridge';
 import { checkbox, colorField, slider } from './fields';
-import { boundsField, cameraPointsField, focusOffsetField, pointField, previewField } from './tourFields';
-import { blocksField, hotspotsField, thumbnailField, workTabsField, WorkSummary } from './workFields';
+import { boundsField, Button, cameraPointsField, focusOffsetField, pointField, previewField } from './tourFields';
+import { Icon } from './icons';
+import { blocksField, hotspotsField, imageField, thumbnailField, workTabsField, WorkSummary } from './workFields';
 import { mapViewsField } from './mapFields';
 import { scenarioField } from './scenarioFields';
 import { AdminLayout, type SaveState } from './AdminLayout';
@@ -44,6 +45,12 @@ const flyPrefs = loadFlyPrefs();
  */
 
 type SceneProps = {
+  // Écran de démarrage.
+  startEnabled: boolean;
+  startTitle: string;
+  startDescription: string;
+  startImage: string;
+  startButton: string;
   /** Scénario d'ouverture (intro, boucle d'attente, prise en main, inactivité), tel quel. */
   scenario: ScenarioConfig;
   /** [x, hauteur, z] : décalage du focus depuis le centre de la bbox. */
@@ -123,6 +130,11 @@ type TourWorkItem = {
 };
 
 const SCENE_KEYS = [
+  'startEnabled',
+  'startTitle',
+  'startDescription',
+  'startImage',
+  'startButton',
   'scenario',
   'focusOffset',
   'cutRadius',
@@ -253,6 +265,17 @@ function tourFromProps(p: SceneProps): TourConfig {
   };
 }
 
+/** Écran de démarrage au format de content.json. */
+function startFromProps(p: SceneProps): StartConfig {
+  return {
+    enabled: !!p.startEnabled,
+    title: p.startTitle ?? '',
+    description: p.startDescription ?? '',
+    image: p.startImage ?? '',
+    button: p.startButton ?? 'Entrer',
+  };
+}
+
 /** Réglages de l'interface publique au format de content.json. */
 function uiFromProps(p: SceneProps): UiConfig {
   return {
@@ -287,6 +310,7 @@ function ViewerPreview(props: SceneProps) {
   const apply = (v: Viewer, p: SceneProps) => {
     v.setFocusOffset(p.focusOffset);
     if (p.scenario) v.setScenario(p.scenario);
+    v.setStart(startFromProps(p));
     v.setCutaway({
       radius: p.cutRadius,
       feather: p.cutFeather,
@@ -344,10 +368,31 @@ function ViewerPreview(props: SceneProps) {
   return <div ref={el} className="pantheon-viewer bo-viewer" />;
 }
 
+/** Bouton d'aperçu de l'écran de démarrage (aucune valeur enregistrée). */
+const startPreviewField: CustomField<null> = {
+  type: 'custom',
+  label: 'Aperçu',
+  render: () => <StartPreviewButton />,
+};
+function StartPreviewButton() {
+  const viewer = useViewer();
+  return (
+    <Button icon={<Icon.eye size={15} />} disabled={!viewer} onClick={() => viewer?.previewStart()}>
+      Aperçu de l’écran de démarrage
+    </Button>
+  );
+}
+
 const config: Config<{}, Record<string, unknown>> = {
   components: {},
   root: {
     fields: {
+      startEnabled: checkbox('Afficher un écran de démarrage', 'Titre, description et bouton « Entrer » ; la scène se charge derrière'),
+      startTitle: { type: 'text', label: 'Titre' },
+      startDescription: { type: 'richtext', label: 'Description' },
+      startImage: imageField('Image de fond (sinon : la scène, voilée)', 'demarrage'),
+      startButton: { type: 'text', label: 'Texte du bouton' },
+      startPreview: startPreviewField,
       scenario: scenarioField,
       focusOffset: focusOffsetField,
       cutRadius: slider('Rayon de découpe', 5, 200, 1),
@@ -491,7 +536,19 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.dofMaxBlur}
           </FieldGroup>
         </FieldTab>
-        <FieldTab label="Scénario">{fields.scenario}</FieldTab>
+        <FieldTab label="Scénario">
+          <FieldGroup label="Écran de démarrage" defaultExpanded>
+            {fields.startEnabled}
+            {fields.startTitle}
+            {fields.startDescription}
+            {fields.startImage}
+            {fields.startButton}
+            {fields.startPreview}
+          </FieldGroup>
+          <FieldGroup label="Ouverture" defaultExpanded>
+            {fields.scenario}
+          </FieldGroup>
+        </FieldTab>
         <FieldTab label="Caméra orbitale">
           {fields.focusOffset}
           <FieldGroup label="Sphère de découpe autour de la caméra, sur les œuvres" defaultExpanded>
@@ -583,6 +640,11 @@ function initialDataFor(cfg: SceneConfig): Data<{}, Record<string, unknown>> {
   return {
   root: {
     props: {
+      startEnabled: cfg.start.enabled,
+      startTitle: cfg.start.title,
+      startDescription: cfg.start.description,
+      startImage: cfg.start.image,
+      startButton: cfg.start.button,
       scenario: structuredClone(scenario),
       focusOffset: [focus.offsetX ?? 0, focus.heightOffset, focus.offsetZ ?? 0] as Vec3,
       cutRadius: cutaway.radius,
@@ -689,6 +751,7 @@ export default function SceneEditor({ project }: { project: string }) {
           tour: tourFromProps(p),
           ui: uiFromProps(p),
           scenario: p.scenario,
+          start: startFromProps(p),
     });
     setSave(
       result.ok

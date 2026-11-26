@@ -1,15 +1,38 @@
 {
   "version": 1,
+  "start": {
+    "enabled": false,
+    "title": "Panthéon interactif",
+    "description": "",
+    "image": "",
+    "button": "Entrer"
+  },
   "scenario": {
     "intro": {
       "enabled": true,
-      "kind": "sky",
+      "kind": "points",
       "interruptible": false,
       "durationMs": 4500,
       "startHeightAboveGround": 200,
       "startDistance": 350,
       "sweepDeg": 70,
-      "waypoints": [],
+      "waypoints": [
+        [
+          -109.08,
+          2101.13,
+          453.45
+        ],
+        [
+          -753.64,
+          1113.19,
+          -145.61
+        ],
+        [
+          -229.34,
+          381.23,
+          -214.41
+        ]
+      ],
       "look": null,
       "endAtHome": true
     },

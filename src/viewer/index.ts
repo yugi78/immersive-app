@@ -1,5 +1,5 @@
 import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer, Vector3, type Object3D } from 'three';
-import type { SceneConfig, TourConfig, UiConfig, Vec3, ScenarioConfig } from './config/types';
+import type { SceneConfig, TourConfig, UiConfig, Vec3, ScenarioConfig, StartConfig } from './config/types';
 import { isTiled, normalizeScene, type GlbObject, type MaterialDef, type ObjectTransform, type SceneObject } from './config/scene-model';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
@@ -16,6 +16,7 @@ import { computeReference, type SceneReference } from './scene/reference';
 import { prepareAsset } from './scene/prepare';
 import { createRenderer } from './scene/renderer';
 import { createProgress } from './ui/progress';
+import { createStartScreen } from './ui/startScreen';
 import { createTour, type Tour } from './tour/tour';
 import { createTourUi, type TourUi } from './ui/tourUi';
 import { renderMinimap, type MinimapImage } from './ui/minimap';
@@ -58,6 +59,10 @@ export interface Viewer {
   setScanGrade(patch: Partial<ScanGradeSettings>): void;
   /** Modifie le flou de profondeur de champ à chaud (dont l'activation). */
   setDof(patch: Partial<DofSettings>): void;
+  /** Remplace les réglages de l'écran de démarrage à chaud (back-office). */
+  setStart(start: StartConfig): void;
+  /** Affiche l'écran de démarrage (aperçu du back-office) ; au clic, le scénario est rejoué. */
+  previewStart(): void;
   /** Remplace le scénario d'ouverture à chaud (back-office). */
   setScenario(scenario: ScenarioConfig): void;
   /** Scénario : rejouer l'ouverture (aperçu) ou revenir à la vue de départ. */
@@ -102,7 +107,15 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   renderer.domElement.style.visibility = 'hidden';
   // Fond affiché pendant le chargement = couleur du ciel (brume).
   container.style.background = cfg.mist.color;
-  const progress = createProgress(container);
+  // Écran de démarrage (sauf ?direct, lien vers une œuvre #slug, back-office) : il
+  // tient lieu de barre de chargement ; le scénario attend le clic sur « Entrer ».
+  let startCfg: StartConfig = structuredClone(cfg.start);
+  const direct = new URLSearchParams(location.search).has('direct') || location.hash.length > 1;
+  const start = startCfg?.enabled && !direct && !opts.skipIntro ? createStartScreen(container, startCfg) : null;
+  const progress = start ?? createProgress(container);
+  /** Vrai tant que l'écran de démarrage attend : le scénario est figé sur sa première image. */
+  let gated = !!start;
+  start?.entered.then(() => (gated = false));
 
   // Scène décrite par des OBJETS et des MATÉRIAUX (scene.json) ; l'ancien format à
   // rôles est converti à la volée. Le code ne connaît aucun nom d'objet.
@@ -438,8 +451,9 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       return;
     }
     if (scenario.driving) {
-      // Intro, boucle d'attente ou raccord : le scénario pilote la caméra.
-      scenario.update(delta);
+      // Intro, boucle d'attente ou raccord : le scénario pilote la caméra (figé derrière
+      // l'écran de démarrage tant qu'on n'est pas entré).
+      if (!gated) scenario.update(delta);
     } else if (tour.active) {
       // Fin de la sortie : la caméra est à la vue de départ, prise en main.
       if (tour.update(delta)) scenario.resume();
@@ -524,6 +538,18 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     },
     setScanGrade(patch) {
       scanGrade.set(patch);
+    },
+    setStart(next) {
+      startCfg = structuredClone(next);
+      start?.update(startCfg);
+    },
+    previewStart() {
+      tour.cancel();
+      const screen = createStartScreen(container, startCfg);
+      screen.hide();
+      gated = true;
+      scenario.replay();
+      screen.entered.then(() => (gated = false));
     },
     setScenario(next) {
       if (JSON.stringify(next) === JSON.stringify(scenarioCfg)) return;

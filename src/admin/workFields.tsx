@@ -52,10 +52,11 @@ function ImportButton({ label, onFile, icon }: { label: string; onFile: (f: File
 
 // ---- Vignette --------------------------------------------------------------------
 
-function ThumbnailUI({ value, onChange, name }: { value: string; onChange: (v: string) => void; name: string }) {
+function ThumbnailUI({ value, onChange, name, label = 'Vignette (bandeau, collection)', prefix, empty = 'Aucune vignette' }: { value: string; onChange: (v: string) => void; name: string; label?: string; prefix?: string; empty?: string }) {
   const viewer = useViewer();
   const [busy, setBusy] = useState<string | null>(null);
   const work = workIndex(name);
+  const base = prefix ?? `oeuvre-${work + 1}`;
   const run = async (what: string, fn: () => Promise<string>) => {
     setBusy(what);
     try {
@@ -66,14 +67,14 @@ function ThumbnailUI({ value, onChange, name }: { value: string; onChange: (v: s
     }
   };
   return (
-    <FieldLabel label="Vignette (bandeau, collection)">
+    <FieldLabel label={label}>
       <div style={{ display: 'grid', gap: 6 }}>
         {value ? (
           <img src={withBase(value)} alt="" className="bo-thumb" />
         ) : (
           <span className="bo-thumb bo-thumb--empty">
             <Icon.image size={22} />
-            Aucune vignette
+            {empty}
           </span>
         )}
         <div style={row}>
@@ -82,17 +83,26 @@ function ThumbnailUI({ value, onChange, name }: { value: string; onChange: (v: s
             icon={<Icon.camera size={15} />}
             disabled={!viewer?.editor || !!busy}
             title="Rendu de la vue 3D actuelle, sans repères (place d'abord la caméra : aperçu ou vol libre)"
-            onClick={() => run('capture', async () => uploadImage(await viewer!.editor!.captureThumbnail(), `oeuvre-${work + 1}-${stamp()}.webp`))}
+            onClick={() => run('capture', async () => uploadImage(await viewer!.editor!.captureThumbnail(), `${base}-${stamp()}.webp`))}
           >
             Capturer la vue 3D
           </Button>
-          <ImportButton label="Importer" onFile={(f) => run('import', () => uploadImage(f, `oeuvre-${work + 1}-${stamp()}.${extOf(f)}`))} />
+          <ImportButton label="Importer" onFile={(f) => run('import', () => uploadImage(f, `${base}-${stamp()}.${extOf(f)}`))} />
           {value && <Button variant="ghost" icon={<Icon.trash size={15} />} title="Retirer la vignette" onClick={() => onChange('')} />}
         </div>
         {busy && <span style={muted}>{busy === 'capture' || busy === 'import' ? 'Enregistrement…' : busy}</span>}
       </div>
     </FieldLabel>
   );
+}
+
+/** Champ image (capture de la vue 3D ou import), enregistrée dans les médias du projet. */
+export function imageField(label: string, prefix: string, empty = 'Aucune image'): CustomField<string> {
+  return {
+    type: 'custom',
+    label,
+    render: (p) => <ThumbnailUI value={p.value ?? ''} onChange={p.onChange} name={p.name} label={label} prefix={prefix} empty={empty} />,
+  };
 }
 
 export const thumbnailField: CustomField<string> = {

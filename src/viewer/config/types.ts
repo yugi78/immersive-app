@@ -200,7 +200,19 @@ export interface ScenarioConfig {
   blendMs: number;
 }
 
-export type SceneConfig = Omit<Raw, 'tour' | 'ui' | 'objects' | 'materials' | 'scenario'> & {
+/** Écran de démarrage : titre, description, image de fond, bouton (« Entrer »). */
+export interface StartConfig {
+  enabled: boolean;
+  title: string;
+  /** Texte riche (HTML). */
+  description: string;
+  /** Image de fond (chemin depuis la racine du site), ou vide : la scène en fond. */
+  image: string;
+  button: string;
+}
+
+export type SceneConfig = Omit<Raw, 'tour' | 'ui' | 'objects' | 'materials' | 'scenario' | 'start'> & {
+  start: StartConfig;
   objects: SceneObject[];
   materials: Record<string, MaterialDef>;
   tour: TourConfig;

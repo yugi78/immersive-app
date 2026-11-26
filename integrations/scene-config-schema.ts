@@ -219,6 +219,15 @@ OBJECT_KEYS.scenario = {
   blendMs: positive,
 };
 
+// Écran de démarrage.
+OBJECT_KEYS.start = {
+  enabled: bool,
+  title: (v, n) => str(v, n),
+  description: (v, n) => str(v, n),
+  image: (v, n) => str(v, n),
+  button: (v, n) => str(v, n),
+};
+
 export type Patch = Record<string, Record<string, unknown>>;
 
 type Check = (v: unknown, name: string) => unknown;

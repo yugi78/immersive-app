@@ -15,7 +15,10 @@ const slugOf = (path: string) => /\/projects\/([^/]+)\//.exec(path)?.[1] ?? '';
 function merge(scene: Json, content: Json | undefined) {
   const { version: _version, ...rest } = content ?? {};
   const all = { ...scene, ...rest };
-  return { ...all, scenario: normalizeScenario(all) } as unknown as SceneConfig;
+  const name = (scene.project as { title?: string; name?: string } | undefined) ?? {};
+  // Écran de démarrage : désactivé par défaut, titre du projet.
+  const start = { enabled: false, title: name.title ?? name.name ?? '', description: '', image: '', button: 'Entrer', ...(all.start as object | undefined) };
+  return { ...all, scenario: normalizeScenario(all), start } as unknown as SceneConfig;
 }
 
 /** Configuration complète de chaque projet (structure + contenu), par identifiant (slug). */
