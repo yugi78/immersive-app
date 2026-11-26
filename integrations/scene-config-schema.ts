@@ -178,7 +178,14 @@ OBJECT_KEYS.scenario = {
       startHeightAboveGround: num(m.startHeightAboveGround, `${n}.startHeightAboveGround`),
       startDistance: positive(m.startDistance, `${n}.startDistance`),
       sweepDeg: num(m.sweepDeg, `${n}.sweepDeg`),
-      points: scenarioPoints(m.points ?? [], `${n}.points`),
+      waypoints: (() => {
+        const w = m.waypoints ?? [];
+        if (!Array.isArray(w)) throw new Error(`${n}.waypoints doit être une liste`);
+        if (w.length > 64) throw new Error(`${n}.waypoints : 64 points au plus`);
+        return w.map((p, i) => vec3(p, `${n}.waypoints[${i}]`));
+      })(),
+      look: m.look == null ? null : vec3(m.look, `${n}.look`),
+      endAtHome: bool(m.endAtHome ?? true, `${n}.endAtHome`),
     };
   },
   loop: (v, n) => {

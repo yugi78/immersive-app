@@ -1359,3 +1359,8 @@ select.bo-input {
   flex: 1;
   justify-content: center;
 }
+
+.bo-num--intro {
+  background: #7048e8;
+  color: #fff;
+}

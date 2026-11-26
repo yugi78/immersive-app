@@ -1,7 +1,7 @@
 import { CatmullRomCurve3, MathUtils, Matrix4, Quaternion, Vector3, type PerspectiveCamera } from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { ScenarioConfig, ScenarioPoint } from '../config/types';
-import { easeInOut } from '../tour/path';
+import { easeInOut, Path } from '../tour/path';
 import { createIntro } from './intro';
 import type { SceneReference } from './reference';
 
@@ -106,6 +106,8 @@ export function createScenario(o: Options) {
   const lookTarget = reference.focus.clone();
 
   let sky: ReturnType<typeof createIntro> | null = null;
+  /** Intro point par point : tracé (points de passage), regard, fin sur la vue de départ. */
+  let wayIntro: { path: Path; look: Vector3; endAtHome: boolean; duration: number; time: number } | null = null;
   let path: ReturnType<typeof createPointsPath> | null = null;
   let pathTime = 0;
   let blend: { fromPos: Vector3; toPos: Vector3; fromQ: Quaternion; toQ: Quaternion; fromTgt: Vector3; toTgt: Vector3; time: number; duration: number; then: () => void } | null = null;
@@ -169,6 +171,7 @@ export function createScenario(o: Options) {
     blend = null;
     path = null;
     sky = null;
+    wayIntro = null;
     state = 'control';
     controls.target.copy(target);
     controls.enabled = !o.flying?.();
@@ -188,6 +191,7 @@ export function createScenario(o: Options) {
     blend = null;
     path = null;
     sky = null;
+    wayIntro = null;
     state = 'control';
     controls.target.copy(target);
     controls.enabled = true;
@@ -249,12 +253,41 @@ export function createScenario(o: Options) {
       sky = createIntro(camera, reduced ? { ...c.intro, durationMs: 0 } : c.intro, reference, home.position);
       lookTarget.copy(reference.focus);
     } else {
-      path = createPointsPath(c.intro.points, false);
-      pathTime = 0;
-      path.at(0, camera.position, lookTarget);
-      camera.lookAt(lookTarget);
+      const pts = c.intro.waypoints.map((p) => v3(p));
+      if (c.intro.endAtHome) pts.push(home.position.clone());
+      if (!pts.length) return afterIntroAt(home);
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      wayIntro = {
+        path: new Path(pts),
+        look: c.intro.look ? v3(c.intro.look) : reference.focus.clone(),
+        endAtHome: c.intro.endAtHome,
+        duration: reduced ? 0 : Math.max(c.intro.durationMs, 1) / 1000,
+        time: 0,
+      };
+      placeWay(0);
     }
     state = 'intro';
+  }
+
+  /** Intro sans point : on démarre directement à la vue de départ. */
+  function afterIntroAt(home: { position: Vector3; target: Vector3 }) {
+    camera.position.copy(home.position);
+    camera.lookAt(home.target);
+    state = 'intro';
+    afterIntro();
+  }
+
+  /**
+   * Pose de l'intro point par point à l'avancement e (0–1, déjà lissé) : position le
+   * long du tracé à vitesse constante ; regard sur le point visé, qui glisse vers le
+   * focus en fin de trajet quand l'intro se termine sur la vue de départ.
+   */
+  function placeWay(e: number) {
+    if (!wayIntro) return;
+    wayIntro.path.at(e, camera.position);
+    lookTarget.copy(wayIntro.look);
+    if (wayIntro.endAtHome) lookTarget.lerp(reference.focus, MathUtils.smoothstep(e, 0.6, 1));
+    camera.lookAt(lookTarget);
   }
 
   function afterIntro() {
@@ -267,11 +300,14 @@ export function createScenario(o: Options) {
     if (state === 'intro') {
       if (sky) {
         if (sky.update(delta)) afterIntro();
-      } else if (path) {
-        pathTime += delta;
-        const going = path.at(pathTime, camera.position, lookTarget);
-        camera.lookAt(lookTarget);
-        if (!going) afterIntro();
+      } else if (wayIntro) {
+        wayIntro.time += delta;
+        const t = wayIntro.duration > 0 ? Math.min(wayIntro.time / wayIntro.duration, 1) : 1;
+        placeWay(easeInOut(t));
+        if (t >= 1) {
+          wayIntro = null;
+          afterIntro();
+        }
       } else afterIntro();
     } else if (state === 'loop' && path) {
       pathTime += delta;
@@ -317,6 +353,7 @@ export function createScenario(o: Options) {
       blend = null;
       path = null;
       sky = null;
+      wayIntro = null;
       retarget = false;
       controls.autoRotate = false;
       if (state !== 'paused') state = 'paused';
@@ -350,6 +387,7 @@ export function createScenario(o: Options) {
       blend = null;
       path = null;
       sky = null;
+      wayIntro = null;
       retarget = false;
       state = 'control';
       clearIdle();

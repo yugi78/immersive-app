@@ -9,7 +9,9 @@
       "startHeightAboveGround": 200,
       "startDistance": 350,
       "sweepDeg": 70,
-      "points": []
+      "waypoints": [],
+      "look": null,
+      "endAtHome": true
     },
     "loop": {
       "enabled": false,

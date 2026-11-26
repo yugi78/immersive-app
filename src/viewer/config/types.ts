@@ -162,13 +162,18 @@ export interface ScenarioConfig {
     kind: 'sky' | 'points';
     /** L'utilisateur peut l'interrompre (sinon commandes inactives jusqu'à la fin). */
     interruptible: boolean;
-    /** « sky » : durée, hauteur de départ au-dessus du sol, distance horizontale, arc parcouru (degrés). */
+    /** Durée totale de l'intro (les deux types) : ajouter des points ne l'allonge pas. */
     durationMs: number;
+    /** « sky » : hauteur de départ au-dessus du sol, distance horizontale, arc parcouru (degrés). */
     startHeightAboveGround: number;
     startDistance: number;
     sweepDeg: number;
-    /** « points » : trajet (le premier point est la position de départ). */
-    points: ScenarioPoint[];
+    /** « points » : points de passage de la caméra (le premier = départ), comme le parcours d'une œuvre. */
+    waypoints: Vec3[];
+    /** « points » : point regardé pendant le trajet ; null : le point de focus. */
+    look: Vec3 | null;
+    /** « points » : le trajet se termine sur la vue de départ de la prise en main (pas de raccord). */
+    endAtHome: boolean;
   };
   loop: {
     enabled: boolean;

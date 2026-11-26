@@ -1,10 +1,10 @@
 import type { CustomField } from '@puckeditor/core';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import type { ScenarioConfig, ScenarioPoint, Vec3 } from '../viewer/config/types';
-import { useViewer } from './bridge';
+import { bridge, useViewer } from './bridge';
 import { Slider, Switch } from './fields';
 import { Icon } from './icons';
-import { Button, XYZ } from './tourFields';
+import { Button, GizmoButton, XYZ } from './tourFields';
 
 /**
  * Onglet « Scénario » : l'ouverture de l'expérience, en cartes dans l'ordre où elles
@@ -72,7 +72,7 @@ function Link({ text }: { text: string }) {
 }
 
 /** Liste de points de caméra (position + point regardé + durée), réordonnable. */
-function PointsList({ points, onChange, readOnly, closed }: { points: ScenarioPoint[]; onChange: (p: ScenarioPoint[]) => void; readOnly?: boolean; closed?: boolean }) {
+function PointsList({ points, onChange, readOnly, closed, markerPrefix }: { points: ScenarioPoint[]; onChange: (p: ScenarioPoint[]) => void; readOnly?: boolean; closed?: boolean; markerPrefix?: string }) {
   const viewer = useViewer();
   const [drag, setDrag] = useState<number | null>(null);
   const [open, setOpen] = useState<number | null>(null);
@@ -142,6 +142,7 @@ function PointsList({ points, onChange, readOnly, closed }: { points: ScenarioPo
               )}
             </span>
             <span className="bo-scn__actions">
+              {markerPrefix && <GizmoButton markerKey={`${markerPrefix}${i}`} label="" onMove={(position) => set(i, { position })} />}
               <Button variant="ghost" icon={<Icon.camera size={15} />} title="Remplacer par la vue actuelle de la caméra" disabled={readOnly || !viewer} onClick={() => {
                 const pose = fromCamera();
                 if (pose) set(i, pose);
@@ -168,6 +169,117 @@ function PointsList({ points, onChange, readOnly, closed }: { points: ScenarioPo
   );
 }
 
+/**
+ * Intro point par point : points de passage de la caméra (comme le parcours d'une
+ * œuvre), un point regardé, une durée totale (ajouter des points ne l'allonge pas) et
+ * l'arrivée, au choix sur le dernier point ou sur la vue de départ (repère D).
+ */
+function IntroWaypoints({ intro, onChange, readOnly }: { intro: S['intro']; onChange: (v: Partial<S['intro']>) => void; readOnly?: boolean }) {
+  const viewer = useViewer();
+  const ed = viewer?.editor;
+  const pts = intro.waypoints;
+  const latest = useRef(pts);
+  latest.current = pts;
+  const [drag, setDrag] = useState<number | null>(null);
+  const [picking, setPicking] = useState(false);
+  const focus = viewer ? (viewer.reference.focus.toArray().map((x) => Math.round(x * 100) / 100) as Vec3) : ([0, 0, 0] as Vec3);
+  const look = intro.look ?? focus;
+  const set = (j: number, v: Vec3) => onChange({ waypoints: latest.current.map((p, k) => (k === j ? v : p)) });
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= pts.length || from === to) return;
+    const next = [...pts];
+    const [p] = next.splice(from, 1);
+    next.splice(to, 0, p);
+    ed?.detachGizmo();
+    bridge.setGizmoKey(null);
+    onChange({ waypoints: next });
+  };
+  const roleOf = (j: number) => (j === 0 ? 'Départ' : j === pts.length - 1 && !intro.endAtHome ? 'Arrivée' : 'Passage');
+
+  return (
+    <div className="bo-scn__points">
+      {pts.map((p, j) => (
+        <div
+          key={j}
+          className={`bo-item${drag === j ? ' is-drag' : ''}`}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (drag !== null) move(drag, j);
+            setDrag(null);
+          }}
+        >
+          <div className="bo-item__head">
+            <span className="bo-item__handle">
+              <span
+                className="bo-grip"
+                draggable={!readOnly}
+                title="Glisser pour changer l'ordre"
+                onDragStart={(e) => {
+                  setDrag(j);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragEnd={() => setDrag(null)}
+              >
+                <Icon.grip size={16} />
+              </span>
+              <span className="bo-num bo-num--intro">{j + 1}</span>
+              {roleOf(j)}
+            </span>
+            <span className="bo-scn__actions">
+              <GizmoButton markerKey={`scn:intro:${j}`} label="" onMove={(v) => set(j, v)} />
+              <Button variant="ghost" icon={<Icon.camera size={15} />} title="Remplacer par la position actuelle de la caméra" disabled={readOnly || !ed} onClick={() => set(j, ed!.capture())} />
+              <Button variant="ghost" icon={<Icon.eye size={15} />} title="Placer la caméra sur ce point (regard sur le point visé)" disabled={!viewer} onClick={() => viewer?.view.setPose(p, look)} />
+              <Button variant="ghost" icon={<Icon.trash size={15} />} title="Supprimer ce point" disabled={readOnly} onClick={() => onChange({ waypoints: pts.filter((_, k) => k !== j) })} />
+            </span>
+          </div>
+          <XYZ value={p} onChange={(v) => set(j, v)} readOnly={readOnly} />
+        </div>
+      ))}
+      <Button variant="dashed" icon={<Icon.plus size={15} />} disabled={readOnly || !ed} onClick={() => onChange({ waypoints: [...pts, ed!.capture()] })}>
+        Capturer la position actuelle
+      </Button>
+      {pts.length === 0 && <p className="bo-scn__warn">Aucun point : l’intro démarre directement sur la vue de départ.</p>}
+
+      <Switch
+        label="Arriver sur la vue de départ"
+        hint="Le trajet se termine sur la vue de départ de la prise en main (repère D), sans raccord"
+        value={intro.endAtHome}
+        readOnly={readOnly}
+        onChange={(endAtHome) => onChange({ endAtHome })}
+      />
+
+      <div className="bo-scn__sub">
+        <b>Point regardé</b>
+        <small>{intro.look ? 'Repère R dans la vue 3D' : 'Le point de focus (centre de la vue extérieure)'}</small>
+      </div>
+      <XYZ value={look} onChange={(v) => onChange({ look: v })} readOnly={readOnly} />
+      <div className="bo-scn__bar">
+        <Button
+          icon={<Icon.target size={15} />}
+          on={picking}
+          disabled={readOnly || !ed}
+          title="Cliquer ensuite sur le scan dans la vue 3D (Échap : annuler)"
+          onClick={async () => {
+            setPicking(true);
+            const v = await ed!.pick();
+            setPicking(false);
+            if (v) onChange({ look: v });
+          }}
+        >
+          {picking ? 'Cliquez sur le scan…' : 'Pointer sur le scan'}
+        </Button>
+        <GizmoButton markerKey="scn:look" onMove={(v) => onChange({ look: v })} />
+        {intro.look && (
+          <Button variant="ghost" title="Revenir au point de focus" disabled={readOnly} onClick={() => onChange({ look: null })}>
+            Point de focus
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ScenarioUI({ value, onChange, readOnly }: { value: S; onChange: (v: S) => void; readOnly?: boolean }) {
   const viewer = useViewer();
   const s = value;
@@ -186,7 +298,7 @@ function ScenarioUI({ value, onChange, readOnly }: { value: S; onChange: (v: S) 
         </Button>
       </div>
       <p className="bo-scn__help">
-        Placez la caméra (orbite ou vol libre), puis « Ajouter la vue actuelle ». Chaque point indique la durée pour y venir depuis le précédent.
+        Placez la caméra (orbite ou vol libre), puis ajoutez la position actuelle. Les repères du scénario s’affichent dans la vue 3D : D (vue de départ), R (point regardé), points de l’intro en violet, de la boucle en bleu-vert.
       </p>
 
       <Card
@@ -205,16 +317,16 @@ function ScenarioUI({ value, onChange, readOnly }: { value: S; onChange: (v: S) 
             { value: 'points', label: 'Point par point' },
           ]}
         />
+        <Slider label="Durée totale" min={0.5} max={30} step={0.1} unit="s" value={sec(s.intro.durationMs)} readOnly={readOnly} onChange={(v) => patch('intro', { durationMs: ms(v) })} />
         {s.intro.kind === 'sky' ? (
           <>
-            <Slider label="Durée" min={0.5} max={20} step={0.1} unit="s" value={sec(s.intro.durationMs)} readOnly={readOnly} onChange={(v) => patch('intro', { durationMs: ms(v) })} />
             <Slider label="Hauteur de départ (au-dessus du sol)" min={10} max={1000} step={5} value={s.intro.startHeightAboveGround} readOnly={readOnly} onChange={(v) => patch('intro', { startHeightAboveGround: v })} />
             <Slider label="Distance de départ" min={10} max={2000} step={5} value={s.intro.startDistance} readOnly={readOnly} onChange={(v) => patch('intro', { startDistance: v })} />
             <Slider label="Arc parcouru autour du bâtiment" min={-360} max={360} step={1} unit="°" value={s.intro.sweepDeg} readOnly={readOnly} onChange={(v) => patch('intro', { sweepDeg: v })} />
             <p className="bo-scn__help">Descend du ciel en tournant autour du point de focus et finit sur la vue de départ.</p>
           </>
         ) : (
-          <PointsList points={s.intro.points} readOnly={readOnly} onChange={(points) => patch('intro', { points })} />
+          <IntroWaypoints intro={s.intro} readOnly={readOnly} onChange={(v) => patch('intro', v)} />
         )}
         <Switch label="Le visiteur peut l’interrompre" hint="Sinon la caméra reste pilotée jusqu’à la fin" value={s.intro.interruptible} readOnly={readOnly} onChange={(interruptible) => patch('intro', { interruptible })} />
       </Card>
@@ -228,7 +340,7 @@ function ScenarioUI({ value, onChange, readOnly }: { value: S; onChange: (v: S) 
         onToggle={(enabled) => patch('loop', { enabled })}
         readOnly={readOnly}
       >
-        <PointsList closed points={s.loop.points} readOnly={readOnly} onChange={(points) => patch('loop', { points })} />
+        <PointsList closed markerPrefix="scn:loop:" points={s.loop.points} readOnly={readOnly} onChange={(points) => patch('loop', { points })} />
         {s.loop.points.length < 3 && <p className="bo-scn__warn">Au moins 3 points pour former une boucle.</p>}
         <p className="bo-scn__help">Au moindre geste du visiteur, il prend la main sur place.</p>
       </Card>

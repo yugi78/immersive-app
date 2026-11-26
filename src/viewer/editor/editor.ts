@@ -57,8 +57,21 @@ export interface EditorView {
 
 export const TAB_ORBIT = 'Caméra orbitale';
 export const TAB_TOUR = 'Visite guidée';
+export const TAB_SCENARIO = 'Scénario';
 
-const COLORS = { hotspot: '#ffffff', hub: '#f59f00', focus: '#e03131', point: '#1c7ed6', bounds: '#2f9e44', orbit: '#e8590c', path: '#1c7ed6' };
+/** Repères du scénario : intro point par point, point regardé, vue de départ, boucle d'attente. */
+export interface ScenarioHelpers {
+  /** Intro point par point affichée (sinon masquée). */
+  intro: boolean;
+  waypoints: Vec3[];
+  look: Vec3;
+  endAtHome: boolean;
+  home: Vec3;
+  loop: boolean;
+  loopPoints: Vec3[];
+}
+
+const COLORS = { hotspot: '#ffffff', hub: '#f59f00', focus: '#e03131', point: '#1c7ed6', bounds: '#2f9e44', orbit: '#e8590c', path: '#1c7ed6', intro: '#7048e8', loop: '#0c8599' };
 const AXIS_COLORS = ['#e03131', '#2f9e44', '#1c7ed6'];
 /** Taille à l'écran des repères (fraction de la hauteur de vue), constante quelle que soit la distance. */
 const SIZE = { hotspot: 0.028, focus: 0.045, point: 0.032, hub: 0.04, orbit: 0.04, handle: 0.026, boxCenter: 0.03 };
@@ -188,7 +201,7 @@ export function createEditorTools(ctx: EditorContext) {
       tourGroup.remove(o);
       o.traverse((c) => c instanceof Line && c.geometry.dispose());
     }
-    for (const k of [...markers.keys()]) if (k !== 'orbitFocus') markers.delete(k);
+    for (const k of [...markers.keys()]) if (k !== 'orbitFocus' && !k.startsWith('scn:')) markers.delete(k);
     workGroups.length = 0;
     sprite('hub', COLORS.hub, 'C', SIZE.hub, tourGroup, cfg.hub.position);
     cfg.works.forEach((w, i) => {
@@ -238,12 +251,83 @@ export function createEditorTools(ctx: EditorContext) {
     if (!(gizmo.dragging && gizmoKey === 'orbitFocus')) orbitFocus.position.copy(reference.focus);
   };
 
+  // ---- Repères du scénario (onglet Scénario) ---------------------------------------
+  const scnGroup = new Group();
+  scnGroup.name = 'scenario-helpers';
+  scene.add(scnGroup);
+  const introLineMat = new LineBasicMaterial({ color: COLORS.intro, depthTest: false, transparent: true, opacity: 0.9 });
+  const loopLineMat = new LineBasicMaterial({ color: COLORS.loop, depthTest: false, transparent: true, opacity: 0.9 });
+  let scnKeys = '';
+  const introPts = (h: ScenarioHelpers) => [...h.waypoints, ...(h.endAtHome ? [h.home] : [])];
+  const lineGeo = (pts: Vec3[], closed: boolean) =>
+    new BufferGeometry().setFromPoints(new Path(pts.map((p) => new Vector3(...p)), closed).sample(160));
+
+  /** Met à jour les repères du scénario (en place si la structure n'a pas changé). */
+  function setScenarioHelpers(h: ScenarioHelpers) {
+    const keys = `${h.intro}|${h.waypoints.length}|${h.endAtHome}|${h.loop}|${h.loopPoints.length}`;
+    if (keys !== scnKeys) {
+      scnKeys = keys;
+      for (const o of [...scnGroup.children]) {
+        scnGroup.remove(o);
+        if (o instanceof Line) o.geometry.dispose();
+      }
+      for (const k of [...markers.keys()]) if (k.startsWith('scn:')) markers.delete(k);
+      sprite('scn:home', COLORS.orbit, 'D', SIZE.orbit, scnGroup, h.home);
+      if (h.intro) {
+        sprite('scn:look', COLORS.focus, 'R', SIZE.focus, scnGroup, h.look);
+        h.waypoints.forEach((p, j) => sprite(`scn:intro:${j}`, COLORS.intro, String(j + 1), SIZE.point, scnGroup, p));
+        const line = new Line(new BufferGeometry(), introLineMat);
+        line.name = 'scn:intro-path';
+        line.renderOrder = 999;
+        scnGroup.add(line);
+      }
+      if (h.loop) {
+        h.loopPoints.forEach((p, j) => sprite(`scn:loop:${j}`, COLORS.loop, String(j + 1), SIZE.point, scnGroup, p));
+        const line = new Line(new BufferGeometry(), loopLineMat);
+        line.name = 'scn:loop-path';
+        line.renderOrder = 999;
+        scnGroup.add(line);
+      }
+      if (gizmoKey?.startsWith('scn:')) {
+        if (markers.has(gizmoKey)) {
+          setActiveLook(gizmoKey, true);
+          gizmo.attach(markers.get(gizmoKey)!);
+        } else detachGizmo();
+      }
+    }
+    // Positions (pas pendant un glisser du repère au gizmo : c'est lui qui la fixe).
+    const put = (key: string, p: Vec3) => {
+      const m = markers.get(key);
+      if (m && !(gizmo.dragging && gizmoKey === key)) m.position.set(...p);
+    };
+    put('scn:home', h.home);
+    if (h.intro) {
+      put('scn:look', h.look);
+      h.waypoints.forEach((p, j) => put(`scn:intro:${j}`, p));
+      const line = scnGroup.getObjectByName('scn:intro-path') as Line | undefined;
+      const pts = introPts(h);
+      if (line) {
+        line.geometry.dispose();
+        line.geometry = pts.length >= 2 ? lineGeo(pts, false) : new BufferGeometry();
+      }
+    }
+    if (h.loop) {
+      h.loopPoints.forEach((p, j) => put(`scn:loop:${j}`, p));
+      const line = scnGroup.getObjectByName('scn:loop-path') as Line | undefined;
+      if (line) {
+        line.geometry.dispose();
+        line.geometry = h.loopPoints.length >= 3 ? lineGeo(h.loopPoints, true) : new BufferGeometry();
+      }
+    }
+  }
+
   // ---- Visibilité selon l'onglet -------------------------------------------------
   function applyView() {
     const inTour = view.tab === TAB_TOUR && view.tourHelpers;
     tourGroup.visible = inTour;
     workGroups.forEach((g, i) => (g.visible = i === view.activeWork));
     orbitGroup.visible = view.tab === TAB_ORBIT;
+    scnGroup.visible = view.tab === TAB_SCENARIO;
     placeHandles();
   }
   const visibleInScene = (o: Object3D | null) => {
@@ -500,6 +584,7 @@ export function createEditorTools(ctx: EditorContext) {
       gizmo.enabled = gizmo.getHelper().visible;
     },
     setHelpers,
+    setScenarioHelpers,
     /** Onglet courant, œuvre ouverte, interrupteur des repères. */
     setView(next: Partial<EditorView>) {
       view = { ...view, ...next };
@@ -584,7 +669,7 @@ export function createEditorTools(ctx: EditorContext) {
       gizmo.detach();
       gizmo.dispose();
       fly.dispose();
-      scene.remove(tourGroup, orbitGroup, handles, gizmo.getHelper());
+      scene.remove(tourGroup, orbitGroup, scnGroup, handles, gizmo.getHelper());
       for (const m of badgeCache.values()) {
         m.map?.dispose();
         m.dispose();

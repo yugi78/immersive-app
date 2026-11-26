@@ -401,6 +401,23 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   const ro = new ResizeObserver(resize);
   ro.observe(container);
 
+  /** Repères 3D du scénario dans le back-office (onglet Scénario). */
+  function scenarioHelpers() {
+    if (!editorTools) return;
+    const s = scenarioCfg;
+    const r = (v: Vector3) => v.toArray() as Vec3;
+    editorTools.setScenarioHelpers({
+      intro: s.intro.enabled && s.intro.kind === 'points',
+      waypoints: s.intro.waypoints,
+      look: s.intro.look ?? r(reference.focus),
+      endAtHome: s.intro.endAtHome,
+      home: r(homePose(s.control, reference.focus).position),
+      loop: s.loop.enabled,
+      loopPoints: s.loop.points.map((p) => p.position),
+    });
+  }
+  scenarioHelpers();
+
   scenario.begin();
   const timer = new Timer();
   timer.connect(document);
@@ -490,6 +507,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
         orbit.controls.target.add(d);
         camera.position.add(d);
       }
+      scenarioHelpers();
     },
     setCutaway(patch) {
       cutaway.set(patch);
@@ -511,6 +529,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       if (JSON.stringify(next) === JSON.stringify(scenarioCfg)) return;
       scenarioCfg = structuredClone(next);
       orbit.set(scenarioCfg.control);
+      scenarioHelpers();
     },
     view: {
       pose() {
