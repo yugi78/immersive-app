@@ -8,7 +8,7 @@
 
 const NUMBER_KEYS = {
   focus: ['heightOffset', 'offsetX', 'offsetZ'],
-  cutaway: ['radius', 'feather', 'fadeStartDistance', 'fadeEndDistance', 'cameraRadius', 'transitRadius', 'transitFeather', 'transitFade', 'workRadius', 'workFeather'],
+  cutaway: ['transitFade'],
   mist: ['startDistance', 'endDistance'],
   clay: ['hue', 'saturation', 'contrast', 'brightness', 'gamma'],
   scanGrade: ['saturation', 'contrast', 'shadows', 'highlights'],
@@ -217,6 +217,37 @@ OBJECT_KEYS.scenario = {
     return { action: str(m.action, `${n}.action`, /^(none|rotate|loop)$/), afterMs: positive(m.afterMs, `${n}.afterMs`) };
   },
   blendMs: positive,
+};
+
+// Découpes : formes nommées et découpe de chaque moment.
+const CUT_MOMENTS = ['intro', 'loop', 'orbit', 'work', 'transit'] as const;
+OBJECT_KEYS.cutaway = {
+  presets: (v, n) => {
+    if (!Array.isArray(v)) throw new Error(`${n} doit être une liste`);
+    if (v.length > 32) throw new Error(`${n} : 32 découpes au plus`);
+    const ids = new Set<string>();
+    return v.map((x, i) => {
+      const q = (x ?? {}) as Record<string, unknown>;
+      const p = `${n}[${i}]`;
+      const id = str(q.id, `${p}.id`, /^[\w-]{1,40}$/);
+      if (ids.has(id)) throw new Error(`${p}.id en double : ${id}`);
+      ids.add(id);
+      return {
+        id,
+        name: str(q.name ?? '', `${p}.name`),
+        kind: str(q.kind, `${p}.kind`, /^(cylinder|sphere)$/),
+        radius: positive(q.radius, `${p}.radius`),
+        feather: positive(q.feather, `${p}.feather`),
+        fadeStartDistance: positive(q.fadeStartDistance, `${p}.fadeStartDistance`),
+        fadeEndDistance: positive(q.fadeEndDistance, `${p}.fadeEndDistance`),
+        cameraRadius: positive(q.cameraRadius, `${p}.cameraRadius`),
+      };
+    });
+  },
+  use: (v, n) => {
+    const m = (v ?? {}) as Record<string, unknown>;
+    return Object.fromEntries(CUT_MOMENTS.map((k) => [k, str(m[k] ?? '', `${n}.${k}`, /^[\w-]{0,40}$/)]));
+  },
 };
 
 // Écran de démarrage.

@@ -211,7 +211,41 @@ export interface StartConfig {
   button: string;
 }
 
-export type SceneConfig = Omit<Raw, 'tour' | 'ui' | 'objects' | 'materials' | 'scenario' | 'start'> & {
+/**
+ * Découpe (voir à travers les murs) : une forme réglable, nommée, attribuée à un ou
+ * plusieurs moments de l'expérience.
+ * - cylinder : de la caméra vers le point regardé, rayon et dégradé ; s'estompe quand
+ *   la caméra s'éloigne (fadeStart → fadeEnd) ; petite sphère autour de la caméra.
+ * - sphere : autour de la caméra, rayon et dégradé.
+ */
+export interface CutPreset {
+  id: string;
+  name: string;
+  kind: 'cylinder' | 'sphere';
+  radius: number;
+  feather: number;
+  /** Cylindre : distance caméra–cible où la découpe commence à apparaître, et où elle est pleine. */
+  fadeStartDistance: number;
+  fadeEndDistance: number;
+  /** Cylindre : sphère autour de la caméra (0 : aucune). */
+  cameraRadius: number;
+}
+
+/** Moments de l'expérience auxquels on attribue une découpe. */
+export type CutMoment = 'intro' | 'loop' | 'orbit' | 'work' | 'transit';
+
+export interface CutawayConfig {
+  /** Couleur de l'épaisseur des murs coupés. */
+  cutColor: string;
+  presets: CutPreset[];
+  /** Découpe de chaque moment (id d'une découpe, ou '' : aucune). */
+  use: Record<CutMoment, string>;
+  /** Transitions : part du trajet (début et fin) sur laquelle la découpe apparaît / disparaît. */
+  transitFade: number;
+}
+
+export type SceneConfig = Omit<Raw, 'tour' | 'ui' | 'objects' | 'materials' | 'scenario' | 'start' | 'cutaway'> & {
+  cutaway: CutawayConfig;
   start: StartConfig;
   objects: SceneObject[];
   materials: Record<string, MaterialDef>;

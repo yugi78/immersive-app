@@ -1,27 +1,29 @@
 import { Color, DoubleSide, MathUtils, Mesh, Vector3, type Material, type Object3D } from 'three';
-import type { SceneConfig } from '../config/types';
-
-type CutawayConfig = SceneConfig['cutaway'];
+import type { CutawayConfig, CutPreset } from '../config/types';
 
 /**
- * Découpe « voir à travers les murs », entièrement dans le fragment shader :
+ * Découpe « voir à travers les murs », entièrement dans le fragment shader. Deux
+ * formes, réglées à chaque image par la découpe du moment (config/cutaway.ts) :
+ * - le cylindre (+ sa petite sphère autour de la caméra), décrit ci-dessous ;
+ * - la sphère autour de la caméra (uniforms uTransit*).
+ *
+ * Cylindre :
  * un fragment situé entre la caméra et la cible, dans un cylindre de rayon
  * `radius` autour de l'axe caméra–cible, est effacé (discard). Le bord est un
  * dégradé obtenu par dithering de Bayer : le matériau reste opaque, sans tri.
  * Coût constant, aucun raycast.
  */
 export function createCutaway(initial: CutawayConfig) {
-  // Copie modifiable (tirettes de réglage) ; la config d'origine reste intacte.
-  const cfg = { ...initial };
+  let cfg = structuredClone(initial);
   const uniforms = {
     uCutCam: { value: new Vector3() },
     uCutTarget: { value: new Vector3() },
-    uCutRadius: { value: cfg.radius },
-    uCutFeather: { value: cfg.feather },
-    uCutSphere: { value: cfg.cameraRadius },
-    // Sphère des transitions entre œuvres : rayon, dégradé, intensité (0–1, pilotée par la visite).
-    uTransitRadius: { value: cfg.transitRadius ?? 8 },
-    uTransitFeather: { value: cfg.transitFeather ?? 3 },
+    uCutRadius: { value: 0 },
+    uCutFeather: { value: 1 },
+    uCutSphere: { value: 0 },
+    // Sphère autour de la caméra : rayon, dégradé, intensité (0–1).
+    uTransitRadius: { value: 4 },
+    uTransitFeather: { value: 2 },
     uTransitStrength: { value: 0 },
     uCutStrength: { value: 0 },
     uCutColor: { value: new Color(cfg.cutColor) },
@@ -123,40 +125,48 @@ ${fragmentPars}`)
   }
 
   /**
-   * À appeler chaque image : met à jour l'axe et l'intensité selon la distance caméra–cible.
-   * `target` est l'extrémité du cylindre (cible d'orbite, ou focus d'une œuvre pendant
-   * l'entrée de la visite) ; `scale` (0–1) éteint progressivement la découpe (visite).
+   * Cylindre, à chaque image : de la caméra vers `target`, réglé par `preset` (null ou
+   * une sphère : cylindre éteint). Intensité selon la distance caméra–cible (fondu de
+   * la découpe), multipliée par `scale` (0–1 : entrée / sortie de la visite).
    */
-  function update(camera: Vector3, target: Vector3, scale = 1) {
+  function update(camera: Vector3, target: Vector3, preset: CutPreset | null, scale = 1) {
     uniforms.uCutCam.value.copy(camera);
     uniforms.uCutTarget.value.copy(target);
+    if (!preset || preset.kind !== 'cylinder') {
+      uniforms.uCutStrength.value = 0;
+      return;
+    }
+    uniforms.uCutRadius.value = preset.radius;
+    uniforms.uCutFeather.value = Math.max(preset.feather, 1e-3);
+    uniforms.uCutSphere.value = preset.cameraRadius;
     const d = camera.distanceTo(target);
     // Transition progressive : 0 au-delà de fadeStartDistance, 1 en dessous de fadeEndDistance.
     uniforms.uCutStrength.value =
-      MathUtils.clamp((cfg.fadeStartDistance - d) / Math.max(cfg.fadeStartDistance - cfg.fadeEndDistance, 1e-3), 0, 1) *
+      MathUtils.clamp((preset.fadeStartDistance - d) / Math.max(preset.fadeStartDistance - preset.fadeEndDistance, 1e-3), 0, 1) *
       MathUtils.clamp(scale, 0, 1);
   }
 
-  /** Modifie des réglages à chaud (tirettes, back-office) et répercute sur les uniforms. */
-  function set(patch: Partial<CutawayConfig>) {
-    Object.assign(cfg, patch);
-    uniforms.uCutRadius.value = cfg.radius;
-    uniforms.uCutFeather.value = cfg.feather;
-    uniforms.uCutSphere.value = cfg.cameraRadius;
-    uniforms.uTransitRadius.value = cfg.transitRadius ?? 8;
-    uniforms.uTransitFeather.value = cfg.transitFeather ?? 3;
+  /** Réglages modifiés à chaud (back-office). */
+  function set(next: CutawayConfig) {
+    cfg = structuredClone(next);
     uniforms.uCutColor.value.set(cfg.cutColor);
   }
 
-  /**
-   * Intensité de la sphère autour de la caméra (0 : éteinte, 1 : pleine). Rayon et
-   * dégradé : ceux des transitions, ou ceux donnés (vol libre du back-office).
-   */
-  function setTransit(strength: number, radius?: number, feather?: number) {
+  /** Sphère autour de la caméra : intensité (0 : éteinte, 1 : pleine), rayon, dégradé. */
+  function setTransit(strength: number, radius: number, feather: number) {
     uniforms.uTransitStrength.value = MathUtils.clamp(strength, 0, 1);
-    uniforms.uTransitRadius.value = radius ?? cfg.transitRadius ?? 8;
-    uniforms.uTransitFeather.value = feather ?? cfg.transitFeather ?? 3;
+    uniforms.uTransitRadius.value = radius;
+    uniforms.uTransitFeather.value = feather;
   }
 
-  return { uniforms, settings: cfg as Readonly<CutawayConfig>, apply, update, set, setTransit };
+  return {
+    uniforms,
+    get settings(): Readonly<CutawayConfig> {
+      return cfg;
+    },
+    apply,
+    update,
+    set,
+    setTransit,
+  };
 }

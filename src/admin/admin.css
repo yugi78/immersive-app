@@ -1364,3 +1364,40 @@ select.bo-input {
   background: #7048e8;
   color: #fff;
 }
+
+/* ---- Onglet Découpe ---- */
+.bo-cut__row {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 1.1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.bo-cut__row select {
+  height: 34px;
+}
+.bo-cut__used {
+  display: block;
+  margin-top: 4px;
+  color: var(--bo-muted);
+  font-size: 12px;
+}
+.bo-cut__body {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.bo-cutdot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--bo-ink);
+}
+.bo-cutdot--sphere {
+  border-radius: 50%;
+}
+.bo-cutdot--cylinder {
+  width: 18px;
+  height: 10px;
+  border-radius: 5px;
+}

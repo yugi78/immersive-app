@@ -65,17 +65,47 @@
     "offsetZ": 0
   },
   "cutaway": {
-    "radius": 80,
-    "feather": 4,
-    "fadeStartDistance": 400,
-    "fadeEndDistance": 210,
     "cutColor": "#000000",
-    "cameraRadius": 4,
-    "transitRadius": 8,
-    "transitFeather": 3,
-    "transitFade": 0.2,
-    "workRadius": 2,
-    "workFeather": 1
+    "presets": [
+      {
+        "id": "exterieur",
+        "name": "Vue extérieure",
+        "kind": "cylinder",
+        "radius": 80,
+        "feather": 4,
+        "fadeStartDistance": 400,
+        "fadeEndDistance": 210,
+        "cameraRadius": 4
+      },
+      {
+        "id": "transition",
+        "name": "Transition",
+        "kind": "sphere",
+        "radius": 8,
+        "feather": 3,
+        "fadeStartDistance": 400,
+        "fadeEndDistance": 200,
+        "cameraRadius": 0
+      },
+      {
+        "id": "oeuvre",
+        "name": "Sur l’œuvre",
+        "kind": "sphere",
+        "radius": 2,
+        "feather": 1,
+        "fadeStartDistance": 400,
+        "fadeEndDistance": 200,
+        "cameraRadius": 0
+      }
+    ],
+    "use": {
+      "intro": "exterieur",
+      "loop": "exterieur",
+      "orbit": "exterieur",
+      "work": "oeuvre",
+      "transit": "transition"
+    },
+    "transitFade": 0.2
   },
   "mist": {
     "startDistance": 160,

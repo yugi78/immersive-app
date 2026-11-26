@@ -2,7 +2,7 @@ import { createUsePuck, FieldGroup, FieldTab, Puck, type Config, type CustomFiel
 import '@puckeditor/core/puck.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createViewer, type Viewer } from '../viewer';
-import { type ContentBlock, type ScenarioConfig, type SceneConfig, type StartConfig, type MapView, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
+import { type ContentBlock, type CutawayConfig, type ScenarioConfig, type SceneConfig, type StartConfig, type MapView, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
 import { newWorkId, uniqueSlugs } from '../viewer/tour/slug';
 import { bridge, useActiveWork, useViewer } from './bridge';
 import { checkbox, colorField, slider } from './fields';
@@ -11,6 +11,7 @@ import { Icon } from './icons';
 import { blocksField, hotspotsField, imageField, thumbnailField, workTabsField, WorkSummary } from './workFields';
 import { mapViewsField } from './mapFields';
 import { scenarioField } from './scenarioFields';
+import { cutawayField } from './cutawayFields';
 import { AdminLayout, type SaveState } from './AdminLayout';
 import { isFull, publishContent } from './backend';
 import { activeProject, setActiveProject } from './project';
@@ -55,17 +56,8 @@ type SceneProps = {
   scenario: ScenarioConfig;
   /** [x, hauteur, z] : décalage du focus depuis le centre de la bbox. */
   focusOffset: Vec3;
-  cutRadius: number;
-  cutFeather: number;
-  cutFadeStart: number;
-  cutFadeEnd: number;
-  cutColor: string;
-  cutCameraRadius: number;
-  cutTransitRadius: number;
-  cutTransitFeather: number;
-  cutTransitFade: number;
-  cutWorkRadius: number;
-  cutWorkFeather: number;
+  /** Découpes (formes nommées) et découpe de chaque moment, telles quelles. */
+  cutaway: CutawayConfig;
   mistStart: number;
   mistEnd: number;
   mistColor: string;
@@ -137,17 +129,7 @@ const SCENE_KEYS = [
   'startButton',
   'scenario',
   'focusOffset',
-  'cutRadius',
-  'cutFeather',
-  'cutFadeStart',
-  'cutFadeEnd',
-  'cutColor',
-  'cutCameraRadius',
-  'cutTransitRadius',
-  'cutTransitFeather',
-  'cutTransitFade',
-  'cutWorkRadius',
-  'cutWorkFeather',
+  'cutaway',
   'mistStart',
   'mistEnd',
   'mistColor',
@@ -311,19 +293,7 @@ function ViewerPreview(props: SceneProps) {
     v.setFocusOffset(p.focusOffset);
     if (p.scenario) v.setScenario(p.scenario);
     v.setStart(startFromProps(p));
-    v.setCutaway({
-      radius: p.cutRadius,
-      feather: p.cutFeather,
-      fadeStartDistance: p.cutFadeStart,
-      fadeEndDistance: p.cutFadeEnd,
-      cameraRadius: p.cutCameraRadius,
-      transitRadius: p.cutTransitRadius,
-      transitFeather: p.cutTransitFeather,
-      transitFade: p.cutTransitFade,
-      workRadius: p.cutWorkRadius,
-      workFeather: p.cutWorkFeather,
-      cutColor: p.cutColor,
-    });
+    if (p.cutaway) v.setCutaway(p.cutaway);
     v.setMist({ startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor });
     v.setClay(clayPatch(p));
     v.setScanGrade(scanGradePatch(p));
@@ -395,17 +365,7 @@ const config: Config<{}, Record<string, unknown>> = {
       startPreview: startPreviewField,
       scenario: scenarioField,
       focusOffset: focusOffsetField,
-      cutRadius: slider('Rayon de découpe', 5, 200, 1),
-      cutFeather: slider('Dégradé du bord', 0, 15, 0.5),
-      cutFadeStart: slider('Début du fondu (distance)', 20, 800, 5),
-      cutFadeEnd: slider('Fin du fondu (distance)', 10, 800, 5),
-      cutColor: colorField('Couleur de coupe (épaisseur des murs)'),
-      cutCameraRadius: slider('Sphère autour de la caméra (rayon, éteinte avec la découpe)', 0, 30, 0.5),
-      cutTransitRadius: slider('Rayon de la sphère', 0, 40, 0.5),
-      cutTransitFeather: slider('Dégradé du bord', 0, 15, 0.5),
-      cutWorkRadius: slider('Rayon de la sphère (0 : désactivée)', 0, 15, 0.25),
-      cutWorkFeather: slider('Dégradé du bord', 0, 8, 0.25),
-      cutTransitFade: slider('Fondu au départ et à l’arrivée (part du trajet)', 0.02, 0.5, 0.01, null),
+      cutaway: cutawayField,
       tourViaHub: checkbox('Passer par le point central', 'Sinon trajet direct d’une œuvre à l’autre, la sphère de découpe traverse les obstacles'),
       mistStart: slider('Brume — début (distance au Panthéon)', 0, 3000, 10),
       mistEnd: slider('Brume — fin (distance au Panthéon)', 0, 3000, 10),
@@ -551,10 +511,6 @@ const config: Config<{}, Record<string, unknown>> = {
         </FieldTab>
         <FieldTab label="Caméra orbitale">
           {fields.focusOffset}
-          <FieldGroup label="Sphère de découpe autour de la caméra, sur les œuvres" defaultExpanded>
-            {fields.cutWorkRadius}
-            {fields.cutWorkFeather}
-          </FieldGroup>
           <FieldGroup label="Vol libre" defaultExpanded>
             {fields.flyEnabled}
             {fields.flySpeed}
@@ -563,19 +519,7 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.flySphereFeather}
           </FieldGroup>
         </FieldTab>
-        <FieldTab label="Découpe">
-          {fields.cutRadius}
-          {fields.cutFeather}
-          {fields.cutFadeStart}
-          {fields.cutFadeEnd}
-          {fields.cutCameraRadius}
-          {fields.cutColor}
-          <FieldGroup label="Sphère pendant les transitions entre œuvres" defaultExpanded>
-            {fields.cutTransitRadius}
-            {fields.cutTransitFeather}
-            {fields.cutTransitFade}
-          </FieldGroup>
-        </FieldTab>
+        <FieldTab label="Découpe">{fields.cutaway}</FieldTab>
         <FieldTab label="Visite guidée">
           <FieldGroup label="Œuvres" defaultExpanded>
             {fields.tourWorks}
@@ -647,17 +591,7 @@ function initialDataFor(cfg: SceneConfig): Data<{}, Record<string, unknown>> {
       startButton: cfg.start.button,
       scenario: structuredClone(scenario),
       focusOffset: [focus.offsetX ?? 0, focus.heightOffset, focus.offsetZ ?? 0] as Vec3,
-      cutRadius: cutaway.radius,
-      cutFeather: cutaway.feather,
-      cutFadeStart: cutaway.fadeStartDistance,
-      cutFadeEnd: cutaway.fadeEndDistance,
-      cutColor: cutaway.cutColor,
-      cutCameraRadius: cutaway.cameraRadius,
-      cutTransitRadius: cutaway.transitRadius ?? 8,
-      cutTransitFeather: cutaway.transitFeather ?? 3,
-      cutTransitFade: cutaway.transitFade ?? 0.2,
-      cutWorkRadius: cutaway.workRadius ?? 2,
-      cutWorkFeather: cutaway.workFeather ?? 1,
+      cutaway: structuredClone(cutaway),
       mistStart: mist.startDistance,
       mistEnd: mist.endDistance,
       mistColor: mist.color,
@@ -731,19 +665,7 @@ export default function SceneEditor({ project }: { project: string }) {
     // Seul le CONTENU est publié (content.json) : jamais la structure de la scène.
     const result = await publishContent({
           focus: { offsetX: p.focusOffset[0], heightOffset: p.focusOffset[1], offsetZ: p.focusOffset[2] },
-          cutaway: {
-            radius: p.cutRadius,
-            feather: p.cutFeather,
-            fadeStartDistance: p.cutFadeStart,
-            fadeEndDistance: p.cutFadeEnd,
-            cameraRadius: p.cutCameraRadius,
-      transitRadius: p.cutTransitRadius,
-      transitFeather: p.cutTransitFeather,
-      transitFade: p.cutTransitFade,
-      workRadius: p.cutWorkRadius,
-      workFeather: p.cutWorkFeather,
-            cutColor: p.cutColor,
-          },
+          cutaway: p.cutaway,
           mist: { startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor },
           clay: clayPatch(p),
           scanGrade: scanGradePatch(p),

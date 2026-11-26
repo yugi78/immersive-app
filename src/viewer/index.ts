@@ -1,5 +1,5 @@
 import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer, Vector3, type Object3D } from 'three';
-import type { SceneConfig, TourConfig, UiConfig, Vec3, ScenarioConfig, StartConfig } from './config/types';
+import type { SceneConfig, TourConfig, UiConfig, Vec3, ScenarioConfig, StartConfig, CutPreset } from './config/types';
 import { isTiled, normalizeScene, type GlbObject, type MaterialDef, type ObjectTransform, type SceneObject } from './config/scene-model';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
@@ -11,6 +11,7 @@ import { withBase } from './url';
 import { createScanLod } from './loaders/scanLod';
 import { isMobile } from './scene/renderer';
 import { createScenario, homePose } from './scene/scenario';
+import { cutFor } from './config/cutaway';
 import { createCamera, createOrbit } from './scene/orbit';
 import { computeReference, type SceneReference } from './scene/reference';
 import { prepareAsset } from './scene/prepare';
@@ -49,8 +50,8 @@ export interface Viewer {
   reference: SceneReference;
   /** Décale le point de focus (cible d'orbite) depuis le centre de la bbox : [x, hauteur, z] en mètres. */
   setFocusOffset(offset: Vec3): void;
-  /** Modifie les réglages de découpe à chaud. */
-  setCutaway(patch: Partial<CutawaySettings>): void;
+  /** Remplace les réglages de découpe à chaud (formes et attribution par moment). */
+  setCutaway(next: CutawaySettings): void;
   /** Modifie la brume d'arrière-plan à chaud. */
   setMist(patch: Partial<MistSettings>): void;
   /** Modifie le réglage colorimétrique commun aux maquettes clay, à chaud. */
@@ -440,12 +441,18 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     frame(Math.min(timer.getDelta(), 0.1));
   });
 
+  /** Transition (0–1 du trajet) : la découpe apparaît au début et disparaît à la fin. */
+  function transitCurve(p: number, fadePart: number) {
+    const fade = Math.max(fadePart ?? 0.2, 1e-3);
+    return Math.min(MathUtils.smoothstep(p, 0, fade), 1 - MathUtils.smoothstep(p, 1 - fade, 1));
+  }
+
   function frame(delta: number) {
     // Carte ouverte : la visite est en pause, seule la vue orthogonale est rendue.
     if (mapView.active) {
       mapView.update(delta);
       tourUi?.update(delta);
-      cutaway.update(camera.position, orbit.controls.target, 0);
+      cutaway.update(camera.position, orbit.controls.target, null);
       scan?.update(mapView.camera, null, undefined, mapView.clip);
       mapView.render();
       return;
@@ -466,28 +473,37 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     editorTools?.update(delta);
     // Interface : points d'intérêt projetés avec la caméra de cette image.
     tourUi?.update(delta);
-    // Découpe : extrémité et intensité pilotées par la visite (entrée / sortie) ;
-    // éteinte en vol libre (on circule à l'intérieur).
-    if (tour.active) cutaway.update(camera.position, tour.cutTarget, tour.cutScale);
-    else if (scenario.driving) cutaway.update(camera.position, scenario.lookTarget);
-    else if (editorTools?.flying) cutaway.update(camera.position, orbit.controls.target, 0);
-    else cutaway.update(camera.position, orbit.controls.target);
-    // Sphère de découpe autour de la caméra, selon le moment :
-    // - transition entre œuvres : monte au départ, tient, redescend à l'arrivée ;
-    // - sur une œuvre (parcours et orbite libre) : petite sphère (« workRadius ») ;
-    // - vol libre du back-office : ses propres réglages.
-    // Les valeurs sont lissées : on passe de l'une à l'autre sans saut.
-    const cs = cutaway.settings;
-    let target = { s: 0, r: sphere.r, f: sphere.f };
+    // Découpe du moment (onglet Découpe : une forme attribuée à chaque moment).
+    //   cylindre : de la caméra vers le point regardé ; sphère : autour de la caméra.
+    // La sphère est lissée d'une image à l'autre : on passe d'un moment à l'autre sans saut.
+    const cc = cutaway.settings;
     const blendP = scenario.blendProgress;
-    if (tour.state === 'transit' || blendP >= 0) {
-      // Transition entre œuvres, ou raccord du scénario (intro → boucle → vue de départ).
-      const p = blendP >= 0 ? blendP : tour.phaseProgress;
-      const fade = Math.max(cs.transitFade ?? 0.2, 1e-3);
-      target = { s: Math.min(MathUtils.smoothstep(p, 0, fade), 1 - MathUtils.smoothstep(p, 1 - fade, 1)), r: cs.transitRadius ?? 8, f: cs.transitFeather ?? 3 };
-    } else if (tour.state === 'loop' && (cs.workRadius ?? 0) > 0) {
-      target = { s: 1, r: cs.workRadius ?? 0, f: cs.workFeather ?? 1 };
+    /** Forme, point regardé, intensité (0–1) du moment courant. */
+    let moment: { preset: CutPreset | null; target: Vector3; scale: number };
+    if (tour.active) {
+      if (tour.state === 'transit') {
+        moment = { preset: cutFor(cc, 'transit'), target: tour.lookTarget, scale: transitCurve(tour.phaseProgress, cc.transitFade) };
+      } else if (tour.state === 'loop') {
+        moment = { preset: cutFor(cc, 'work'), target: tour.lookTarget, scale: 1 };
+      } else {
+        // Entrée / sortie de la visite : la découpe de l'orbite s'éteint / se rallume.
+        moment = { preset: cutFor(cc, 'orbit'), target: tour.cutTarget, scale: tour.cutScale };
+      }
+    } else if (blendP >= 0) {
+      moment = { preset: cutFor(cc, 'transit'), target: scenario.lookTarget, scale: transitCurve(blendP, cc.transitFade) };
+    } else if (scenario.driving) {
+      moment = { preset: cutFor(cc, scenario.state === 'loop' ? 'loop' : 'intro'), target: scenario.lookTarget, scale: 1 };
+    } else if (editorTools?.flying) {
+      moment = { preset: null, target: orbit.controls.target, scale: 0 };
+    } else {
+      moment = { preset: cutFor(cc, 'orbit'), target: orbit.controls.target, scale: 1 };
+    }
+    cutaway.update(camera.position, moment.target, moment.preset, moment.scale);
+    let target = { s: 0, r: sphere.r, f: sphere.f };
+    if (moment.preset?.kind === 'sphere') {
+      target = { s: moment.scale, r: moment.preset.radius, f: moment.preset.feather };
     } else if (editorTools?.flying && flySphere.enabled) {
+      // Vol libre du back-office : ses propres réglages.
       target = { s: 1, r: flySphere.radius, f: flySphere.feather };
     }
     const ks = 1 - Math.exp(-8 * delta);
@@ -523,8 +539,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       }
       scenarioHelpers();
     },
-    setCutaway(patch) {
-      cutaway.set(patch);
+    setCutaway(next) {
+      cutaway.set(next);
     },
     setMist(patch) {
       mist.set(patch);
