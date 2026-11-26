@@ -13,6 +13,8 @@
  *   commit dans le dépôt GitHub, ce qui relance la mise en ligne du site.
  */
 
+import { activeProject } from './project';
+
 export type AdminMode = 'full' | 'client';
 
 const params = typeof location === 'undefined' ? new URLSearchParams() : new URLSearchParams(location.search);
@@ -43,7 +45,8 @@ async function readError(res: Response) {
 
 /** Publie le contenu : écrit content.json (local) ou fait un commit (en ligne). */
 export async function publishContent(patch: ContentPatch): Promise<PublishResult> {
-  const url = LOCAL ? '/__admin/scene-config' : '/api/publish';
+  const project = encodeURIComponent(activeProject().slug);
+  const url = `${LOCAL ? '/__admin/scene-config' : '/api/publish'}?project=${project}`;
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -62,7 +65,7 @@ export async function publishContent(patch: ContentPatch): Promise<PublishResult
 
 /** Envoie une image (vignette, illustration) ; renvoie son URL depuis la racine du site. */
 export async function uploadImage(file: Blob, name: string): Promise<string> {
-  const url = `${LOCAL ? '/__admin/upload' : '/api/upload'}?name=${encodeURIComponent(name)}`;
+  const url = `${LOCAL ? '/__admin/upload' : '/api/upload'}?project=${encodeURIComponent(activeProject().slug)}&name=${encodeURIComponent(name)}`;
   const res = await fetch(url, { method: 'POST', body: file, credentials: 'same-origin' });
   if (res.status === 401) throw new Error('Session expirée : reconnectez-vous.');
   if (!res.ok) throw new Error(await readError(res));

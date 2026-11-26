@@ -1,0 +1,39 @@
+---
+/** Page publique d'un projet : /<projet>/ (un dossier projects/<projet>/). */
+import PantheonViewer from '../../components/PantheonViewer.astro';
+import { withBase } from '../../viewer/url';
+import { PROJECT_SLUGS, projectConfig } from '../../viewer/config/projects';
+
+export function getStaticPaths() {
+	return PROJECT_SLUGS.map((project) => ({ params: { project } }));
+}
+const config = projectConfig(Astro.params.project!);
+const title = config.project?.title ?? config.project?.name ?? Astro.params.project;
+---
+
+<html lang="fr">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
+		<link rel="icon" href={withBase('/favicon.ico')} />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<meta name="generator" content={Astro.generator} />
+		<title>{title}</title>
+		<style is:global>
+			html,
+			body {
+				margin: 0;
+				height: 100%;
+				overscroll-behavior: none;
+			}
+			main {
+				height: 100dvh;
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<PantheonViewer config={config} />
+		</main>
+	</body>
+</html>

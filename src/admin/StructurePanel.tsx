@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { IDENTITY, isTiled, normalizeScene, type MaterialDef, type ObjectTransform, type SceneObject } from '../viewer/config/scene-model';
-import { defaultConfig, type Vec3 } from '../viewer/config/types';
+import type { Vec3 } from '../viewer/config/types';
+import { activeProject } from './project';
 import { useViewer } from './bridge';
 import { Icon } from './icons';
 import { Button, XYZ } from './tourFields';
@@ -17,7 +18,7 @@ import { Button, XYZ } from './tourFields';
 
 type Materials = Record<string, MaterialDef>;
 const initial = () => {
-  const m = normalizeScene(defaultConfig as unknown as Parameters<typeof normalizeScene>[0]);
+  const m = normalizeScene(activeProject().cfg as unknown as Parameters<typeof normalizeScene>[0]);
   return { objects: structuredClone(m.objects), materials: structuredClone(m.materials) };
 };
 
@@ -135,7 +136,7 @@ export function StructurePanel() {
   async function save() {
     setStatus({ kind: 'busy', text: 'Enregistrement…' });
     try {
-      const res = await fetch('/__admin/scene-structure', {
+      const res = await fetch(`/__admin/scene-structure?project=${encodeURIComponent(activeProject().slug)}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(state),

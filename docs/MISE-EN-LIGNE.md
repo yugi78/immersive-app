@@ -5,14 +5,16 @@ Cloudflare reconstruit le site à chaque commit sur `master`, que le commit vien
 (`git push`) ou du client (bouton **Publier** de l'espace client).
 
 ```
-toi (local) ── git push ──▶ GitHub ◀── commit ── espace client (/admin, mot de passe)
+toi (local) ── git push ──▶ GitHub ◀── commit ── espace client (/<projet>/admin, mot de passe)
                               │
                               └──▶ Cloudflare Pages : construit et met en ligne le site
 ```
 
+- Un dossier par projet : `projects/<projet>/` (réglages) et `public/projects/<projet>/`
+  (fichiers 3D, images). Site public : `/<projet>/`, espace client : `/<projet>/admin/`.
 - `scene.json` : la structure (fichiers 3D, scan…), modifiée par toi seulement.
 - `content.json` : le contenu (visite, œuvres, carte, réglages), modifié par le client.
-- Les fonctions serveur sont dans `functions/` : connexion, protection de `/admin`,
+- Les fonctions serveur sont dans `functions/` : connexion, protection des espaces client,
   publication (`/api/publish`) et envoi d'images (`/api/upload`).
 
 À faire une seule fois. Les étapes marquées ✋ se font dans ton navigateur : je ne crée
@@ -68,11 +70,11 @@ choisis `yugi78/immersive-app`.
 | `NODE_VERSION` | `24` |
 
 Lance le déploiement. Le site est alors sur `https://<projet>.pages.dev`, l'espace client
-sur `https://<projet>.pages.dev/admin` (redirige vers la page de connexion).
+sur `https://<projet>.pages.dev/pantheon/admin/` (redirige vers la page de connexion).
 
 ## 4. Vérifier
 
-1. `/admin` sans être connecté → page de connexion.
+1. `/pantheon/admin/` sans être connecté → page de connexion.
 2. Mauvais mot de passe → refusé (après un court délai).
 3. Bon mot de passe → espace client. Modifier un texte → **Publier** → la pastille indique
    « Publié · en ligne d'ici 1 à 2 min » ; un commit « Contenu publié depuis l'espace
@@ -82,7 +84,7 @@ sur `https://<projet>.pages.dev/admin` (redirige vers la page de connexion).
 
 Aujourd'hui (option retenue) : le site public reste sur **pantheon.stylz.fr**, servi par
 GitHub Pages (enregistrement **A** chez FreeDNS → 185.199.108.153), et l'espace client est
-sur l'adresse Cloudflare (`…pages.dev/admin`). Chaque publication met à jour les deux.
+sur l'adresse Cloudflare (`…pages.dev/pantheon/admin/`). Chaque publication met à jour les deux.
 
 Pour tout regrouper sur Cloudflare, il faudra un **CNAME** vers l'adresse `…pages.dev`
 (ou confier le DNS du domaine à Cloudflare) :
@@ -105,7 +107,7 @@ inclut une règle). La connexion attend déjà ~1 s après chaque échec.
 
 ## Au quotidien
 
-- **Le client** se connecte sur `/admin`, modifie, **Publier**. Les images importées
+- **Le client** se connecte sur `/<projet>/admin/`, modifie, **Publier**. Les images importées
   (vignettes, illustrations) apparaissent en ligne après la reconstruction (1 à 2 min).
 - **Toi** : fais toujours `git pull` avant de travailler (pour récupérer ses
   publications), modifie la structure (`scene.json`, fichiers 3D, scan), puis `git push`.

@@ -1,5 +1,5 @@
 import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer, Vector3, type Object3D } from 'three';
-import { defaultConfig, type SceneConfig, type TourConfig, type UiConfig, type Vec3 } from './config/types';
+import type { SceneConfig, TourConfig, UiConfig, Vec3 } from './config/types';
 import { isTiled, normalizeScene, type GlbObject, type MaterialDef, type ObjectTransform, type SceneObject } from './config/scene-model';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
@@ -82,7 +82,9 @@ export interface Viewer {
 }
 
 export async function createViewer(container: HTMLElement, opts: ViewerOptions = {}): Promise<Viewer> {
-  const cfg = opts.config ?? defaultConfig;
+  // Configuration du projet à afficher (fournie par la page ou le back-office).
+  if (!opts.config) throw new Error('createViewer : configuration du projet manquante (option config)');
+  const cfg = opts.config;
   const debug = opts.debug ?? new URLSearchParams(location.search).has('debug');
 
   const { renderer, scene } = createRenderer(container, cfg.renderer);

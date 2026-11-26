@@ -8,7 +8,7 @@
       "id": "paris",
       "name": "Ville (contexte)",
       "material": "clay",
-      "file": "/models/opt/paris.glb",
+      "file": "/projects/pantheon/models/opt/paris.glb",
       "merge": false
     },
     {
@@ -19,7 +19,7 @@
       "map": {
         "views": true
       },
-      "file": "/models/opt/cull_pantheon.glb",
+      "file": "/projects/pantheon/models/opt/cull_pantheon.glb",
       "merge": true
     },
     {
@@ -31,7 +31,7 @@
         "views": true,
         "minimap": true
       },
-      "file": "/models/opt/sol_pantheon.glb",
+      "file": "/projects/pantheon/models/opt/sol_pantheon.glb",
       "merge": true
     },
     {
@@ -42,7 +42,7 @@
         "plan": true,
         "minimap": true
       },
-      "file": "/models/opt/tranche.glb",
+      "file": "/projects/pantheon/models/opt/tranche.glb",
       "merge": true
     },
     {
@@ -54,7 +54,7 @@
       },
       "pick": true,
       "type": "tiled",
-      "manifest": "/models/scan_lod_opt/manifest.json",
+      "manifest": "/projects/pantheon/models/scan_lod_opt/manifest.json",
       "transform": [
         1.39382372288,
         0,

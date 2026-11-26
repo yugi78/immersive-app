@@ -1,6 +1,7 @@
 import { createUsePuck, Puck, type Data } from '@puckeditor/core';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BRAND, PROJECT } from '../config/brand';
+import { BRAND } from '../config/brand';
+import { projectName } from './project';
 import { isFull, LOCAL } from './backend';
 import { bridge, useDevice, useViewer } from './bridge';
 import { Icon } from './icons';
@@ -86,7 +87,7 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
           <span className="bo-brand__text">
             <b>{BRAND}</b>
             <span>
-              {PROJECT.name} · {isFull ? 'administration complète' : 'espace client'}
+              {projectName()} · {isFull ? 'administration complète' : 'espace client'}
             </span>
           </span>
         </div>

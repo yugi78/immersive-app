@@ -1,0 +1,34 @@
+---
+/**
+ * Back-office d'un projet : /<projet>/admin/. En local : administration complète ;
+ * en ligne : espace client (protégé par la connexion, fonctions Cloudflare).
+ */
+import SceneEditor from '../../admin/SceneEditor';
+import { BRAND } from '../../config/brand';
+import { PROJECT_SLUGS, projectConfig } from '../../viewer/config/projects';
+
+export function getStaticPaths() {
+	return PROJECT_SLUGS.map((project) => ({ params: { project } }));
+}
+const project = Astro.params.project!;
+const name = projectConfig(project).project?.name ?? project;
+---
+
+<html lang="fr">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="robots" content="noindex" />
+		<title>{name} — {BRAND}</title>
+		<style is:global>
+			html,
+			body {
+				margin: 0;
+				height: 100%;
+			}
+		</style>
+	</head>
+	<body>
+		<SceneEditor client:only="react" project={project} />
+	</body>
+</html>

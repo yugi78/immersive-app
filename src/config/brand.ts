@@ -1,4 +1,4 @@
-import { defaultConfig } from '../viewer/config/types';
+import { defaultConfig } from '../viewer/config/projects';
 
 /**
  * Marque de l'outil (commune à tous les projets) et identité du projet affiché

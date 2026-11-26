@@ -1,13 +1,24 @@
 ---
 // Island client isolée : le viewer Three.js ne dépend pas du reste du site.
+// La configuration du projet est calculée au build et transmise dans la page :
+// le site public n'embarque que les données de SON projet.
+import type { SceneConfig } from '../viewer/config/types';
+
+interface Props {
+	config: SceneConfig;
+}
+const { config } = Astro.props;
 ---
 
-<div class="pantheon-viewer" data-pantheon-viewer></div>
+<div class="pantheon-viewer" data-pantheon-viewer>
+	<script type="application/json" data-config set:html={JSON.stringify(config).replace(/</g, '\\u003c')} />
+</div>
 
 <script>
-  import { createViewer } from '../viewer';
+	import { createViewer } from '../viewer';
 
-  for (const el of document.querySelectorAll<HTMLElement>('[data-pantheon-viewer]')) {
-    createViewer(el).catch(() => {});
-  }
+	for (const el of document.querySelectorAll<HTMLElement>('[data-pantheon-viewer]')) {
+		const json = el.querySelector('script[data-config]')?.textContent ?? '{}';
+		createViewer(el, { config: JSON.parse(json) }).catch(() => {});
+	}
 </script>

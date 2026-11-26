@@ -127,7 +127,7 @@ import { BRAND, PROJECT } from '../config/brand';
 			const error = document.querySelector<HTMLElement>('#error')!;
 			// Retour après connexion : seulement vers l'espace client (pas de redirection externe).
 			const back = new URLSearchParams(location.search).get('retour') ?? '';
-			const target = /^\/admin(\/|$)/.test(back) ? back : '/admin/';
+			const target = /^\/([a-z0-9-]+\/)?admin(\/|$)/.test(back) ? back : '/admin/';
 			form.addEventListener('submit', async (e) => {
 				e.preventDefault();
 				error.textContent = '';

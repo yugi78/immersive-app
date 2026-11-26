@@ -68,7 +68,7 @@
         "id": "w-exemple1",
         "title": "La Gloire",
         "author": "François Gérard",
-        "thumbnail": "/media/oeuvre-1-mwtlfye0.webp",
+        "thumbnail": "/projects/pantheon/media/oeuvre-1-mwtlfye0.webp",
         "slug": "la-gloire",
         "focus": [
           9.62,
@@ -151,7 +151,7 @@
         "id": "w-exemple2",
         "title": "La Patrie",
         "author": "François Gérard",
-        "thumbnail": "/media/oeuvre-2-mwtlfb3a.webp",
+        "thumbnail": "/projects/pantheon/media/oeuvre-2-mwtlfb3a.webp",
         "slug": "la-patrie",
         "focus": [
           20.91,
@@ -239,7 +239,7 @@
         "id": "w-dzhw0gg0n",
         "title": "La Justice",
         "author": "François Gérard",
-        "thumbnail": "/media/oeuvre-3-mwtlesbv.webp",
+        "thumbnail": "/projects/pantheon/media/oeuvre-3-mwtlesbv.webp",
         "slug": "la-justice",
         "focus": [
           3.98,
@@ -322,7 +322,7 @@
         "id": "w-r7bhpgb20",
         "title": "La Mort",
         "author": "François Gérard",
-        "thumbnail": "/media/oeuvre-4-mwxqpwpc.webp",
+        "thumbnail": "/projects/pantheon/media/oeuvre-4-mwxqpwpc.webp",
         "slug": "la-mort",
         "focus": [
           26.26,
@@ -401,7 +401,7 @@
         "id": "w-9timywkx1",
         "title": "Mosaïque de l'abside",
         "author": "Ernest Hébert",
-        "thumbnail": "/media/oeuvre-4-mwxq61tc.webp",
+        "thumbnail": "/projects/pantheon/media/oeuvre-4-mwxq61tc.webp",
         "slug": "mosaique-de-l-abside",
         "focus": [
           61.51,

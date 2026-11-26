@@ -1,24 +1,22 @@
-import sceneRaw from './scene.json';
-import contentRaw from './content.json';
 import type { MaterialDef, SceneObject } from './scene-model';
 
 /**
- * La configuration est répartie en deux fichiers, par propriétaire :
- * - scene.json   : la STRUCTURE (fichiers 3D, scan, rendu, caméra, intro, orbite),
+ * PROJETS : chaque dossier `projects/<slug>/` contient un projet (un bâtiment, un
+ * site), décrit par deux fichiers, par propriétaire :
+ * - scene.json   : la STRUCTURE (objets 3D, matériaux, rendu, caméra, intro, orbite),
  *   gérée par le développeur en local ;
  * - content.json : le CONTENU (visite, œuvres, carte, interface, découpe, brume,
  *   couleurs, flou), modifié par le client dans le back-office en ligne.
  * Chacun n'écrit que son fichier : pas de conflit, rien de perdu à la mise à jour.
  * Les deux sont fusionnés ici ; le reste du code voit une seule configuration.
+ * Les fichiers 3D et images du projet sont dans `public/projects/<slug>/`.
  */
-const { version: contentVersion, ...content } = contentRaw;
-const raw = { ...sceneRaw, ...content };
+// Forme de référence des fichiers (types) : celle du projet Panthéon.
+type SceneJson = typeof import('../../../projects/pantheon/scene.json');
+type ContentJson = typeof import('../../../projects/pantheon/content.json');
 
-/** Version du format de content.json (migrations futures). */
-export const CONTENT_VERSION = contentVersion;
-/** Sections de la configuration qui appartiennent à content.json. */
-export const CONTENT_KEYS = Object.keys(content) as (keyof typeof content)[];
-
+/** Configuration fusionnée (structure + contenu, sans le numéro de version du contenu). */
+type Raw = SceneJson & Omit<ContentJson, 'version'>;
 /** Fichier à télécharger (chargeur GLB). */
 export interface AssetItem {
   id: string;
@@ -141,12 +139,9 @@ export interface UiConfig {
   map: MapConfig;
 }
 
-export type SceneConfig = Omit<typeof raw, 'tour' | 'ui' | 'objects' | 'materials'> & {
+export type SceneConfig = Omit<Raw, 'tour' | 'ui' | 'objects' | 'materials'> & {
   objects: SceneObject[];
   materials: Record<string, MaterialDef>;
   tour: TourConfig;
   ui: UiConfig;
 };
-
-/** Configuration complète : structure (scene.json) + contenu (content.json). */
-export const defaultConfig = raw as unknown as SceneConfig;

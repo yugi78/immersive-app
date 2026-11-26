@@ -1,32 +1,92 @@
 ---
-import PantheonViewer from '../components/PantheonViewer.astro';
+/**
+ * Racine du site. Un seul projet : redirection vers sa page (en gardant le #œuvre,
+ * pour les anciens liens). Plusieurs : liste des projets.
+ */
+import { BRAND } from '../config/brand';
+import { PROJECT_SLUGS, PROJECTS } from '../viewer/config/projects';
 import { withBase } from '../viewer/url';
-import { PROJECT } from '../config/brand';
+
+const single = PROJECT_SLUGS.length === 1 ? PROJECT_SLUGS[0] : null;
+const target = single ? withBase(`/${single}/`) : null;
 ---
 
 <html lang="fr">
 	<head>
 		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
-		<link rel="icon" href={withBase('/favicon.ico')} />
-		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-		<meta name="generator" content={Astro.generator} />
-		<title>{PROJECT.title}</title>
+		<title>{BRAND}</title>
+		{target && <meta http-equiv="refresh" content={`0; url=${target}`} />}
 		<style is:global>
+			@font-face {
+				font-family: 'Mona Sans';
+				src: url('/fonts/mona-sans/mona-sans-vf.woff2') format('woff2');
+				font-weight: 200 900;
+				font-stretch: 75% 125%;
+				font-display: swap;
+			}
 			html,
 			body {
 				margin: 0;
-				height: 100%;
-				overscroll-behavior: none;
+				min-height: 100%;
+				background: #f3f2ef;
+				color: #141414;
+				font-family: 'Mona Sans', system-ui, sans-serif;
 			}
 			main {
-				height: 100dvh;
+				max-width: 900px;
+				margin: 0 auto;
+				padding: 64px 24px;
+			}
+			h1 {
+				margin: 0 0 32px;
+				font-size: 40px;
+				font-weight: 650;
+				font-stretch: 125%;
+			}
+			ul {
+				display: grid;
+				grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+				gap: 16px;
+				margin: 0;
+				padding: 0;
+				list-style: none;
+			}
+			a {
+				display: block;
+				padding: 24px;
+				border-radius: 18px;
+				background: #fff;
+				color: inherit;
+				font-size: 20px;
+				font-weight: 600;
+				text-decoration: none;
+				box-shadow: 0 6px 24px rgb(20 20 20 / 0.06);
+			}
+			a:hover {
+				box-shadow: 0 0 0 2px #141414;
 			}
 		</style>
 	</head>
 	<body>
-		<main>
-			<PantheonViewer />
-		</main>
+		{
+			target ? (
+				<script is:inline define:vars={{ target }}>
+					location.replace(target + location.hash);
+				</script>
+			) : (
+				<main>
+					<h1>{BRAND}</h1>
+					<ul>
+						{PROJECT_SLUGS.map((slug) => (
+							<li>
+								<a href={withBase(`/${slug}/`)}>{PROJECTS[slug].project?.name ?? slug}</a>
+							</li>
+						))}
+					</ul>
+				</main>
+			)
+		}
 	</body>
 </html>

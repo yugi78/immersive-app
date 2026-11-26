@@ -24,15 +24,30 @@ const rm = (rel) => {
   removed.push(rel);
 };
 
-// Modèles sources (models/*.glb à la racine, scan non optimisé).
-for (const f of readdirSync(join(dist, 'models'))) if (f.endsWith('.glb')) rm(`models/${f}`);
-rm('models/scan_lod');
-// Essais de tuilage (non suivis par Git, présents seulement en local).
-rm('models/3dtile');
-rm('models/3dtile_opt');
+// Par projet (dist/projects/<slug>/models/) : modèles sources (*.glb à la racine de
+// models/), scan non optimisé et essais de tuilage (présents seulement en local).
+let slugs = [];
+try {
+  slugs = readdirSync(join(dist, 'projects'));
+} catch {
+  slugs = [];
+}
+for (const slug of slugs) {
+  const models = `projects/${slug}/models`;
+  try {
+    for (const f of readdirSync(join(dist, models))) if (f.endsWith('.glb')) rm(`${models}/${f}`);
+  } catch {
+    continue;
+  }
+  rm(`${models}/scan_lod`);
+  rm(`${models}/3dtile`);
+  rm(`${models}/3dtile_opt`);
+}
 
 if (process.argv.includes('--sans-admin')) {
   rm('admin');
   rm('connexion');
+  // Espace client de chaque projet : dist/<slug>/admin/.
+  for (const d of readdirSync(dist)) rm(`${d}/admin`);
 }
 console.log(`dist/ : retiré ${removed.length ? removed.join(', ') : 'rien'}`);

@@ -2,7 +2,7 @@ import { createUsePuck, FieldGroup, FieldTab, Puck, type Config, type Data } fro
 import '@puckeditor/core/puck.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createViewer, type Viewer } from '../viewer';
-import { defaultConfig, type ContentBlock, type MapView, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
+import { type ContentBlock, type SceneConfig, type MapView, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
 import { newWorkId, uniqueSlugs } from '../viewer/tour/slug';
 import { bridge, useActiveWork, useViewer } from './bridge';
 import { checkbox, colorField, slider } from './fields';
@@ -11,6 +11,7 @@ import { blocksField, hotspotsField, thumbnailField, workTabsField, WorkSummary 
 import { mapViewsField } from './mapFields';
 import { AdminLayout, type SaveState } from './AdminLayout';
 import { isFull, publishContent } from './backend';
+import { activeProject, setActiveProject } from './project';
 import './admin.css';
 
 const usePuckState = createUsePuck();
@@ -309,7 +310,7 @@ function ViewerPreview(props: SceneProps) {
 
   useEffect(() => {
     let disposed = false;
-    createViewer(el.current!, { skipIntro: true, debug: true, urlHash: false, editor: true }).then((v) => {
+    createViewer(el.current!, { config: activeProject().cfg, skipIntro: true, debug: true, urlHash: false, editor: true }).then((v) => {
       if (disposed) return v.dispose();
       viewer.current = v;
       apply(v, latest.current);
@@ -432,7 +433,7 @@ const config: Config<{}, Record<string, unknown>> = {
         defaultItemProps: (index: number) => ({
           id: newWorkId(),
           infos: { title: `Œuvre ${index + 1}`, author: '', thumbnail: '' },
-          parcours: { focus: [...defaultConfig.tour.hub.position] as Vec3, cameraPoints: [], bounds: null },
+          parcours: { focus: [...activeProject().cfg.tour.hub.position] as Vec3, cameraPoints: [], bounds: null },
           hotspots: [],
           blocks: [],
         }),
@@ -569,8 +570,10 @@ const config: Config<{}, Record<string, unknown>> = {
   },
 };
 
-const { focus, cutaway, mist, clay, scanGrade, dof, tour, ui } = defaultConfig;
-const initialData: Data<{}, Record<string, unknown>> = {
+/** Données initiales de Puck : réglages du projet ouvert. */
+function initialDataFor(cfg: SceneConfig): Data<{}, Record<string, unknown>> {
+  const { focus, cutaway, mist, clay, scanGrade, dof, tour, ui } = cfg;
+  return {
   root: {
     props: {
       focusOffset: [focus.offsetX ?? 0, focus.heightOffset, focus.offsetZ ?? 0] as Vec3,
@@ -643,9 +646,13 @@ const initialData: Data<{}, Record<string, unknown>> = {
     },
   },
   content: [],
-};
+  };
+}
 
-export default function SceneEditor() {
+/** Back-office d'un projet (`project` : dossier projects/<project>/). */
+export default function SceneEditor({ project }: { project: string }) {
+  setActiveProject(project);
+  const initialData = useMemo(() => initialDataFor(activeProject().cfg), [project]);
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
 
   async function publish(data: Data<{}, Record<string, unknown>>) {

@@ -1,5 +1,5 @@
 import type { AstroIntegration } from 'astro';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,12 +28,28 @@ export default function sceneConfigApi(): AstroIntegration {
     hooks: {
       'astro:server:setup': ({ server, logger }) => {
         // Le back-office ne modifie que le CONTENU (content.json), jamais la structure (scene.json).
-        const file = fileURLToPath(new URL('../src/viewer/config/content.json', import.meta.url));
+        // Chaque requête vise un projet (?project=<slug>) : projects/<slug>/ pour les
+        // réglages, public/projects/<slug>/media/ pour les images.
+        const projectsDir = fileURLToPath(new URL('../projects/', import.meta.url));
+        const publicProjects = fileURLToPath(new URL('../public/projects/', import.meta.url));
+        async function projectOf(url: string | undefined) {
+          const slug = new URL(url ?? '', 'http://x').searchParams.get('project') ?? '';
+          if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug)) throw new Error('Projet invalide (paramètre project)');
+          await access(join(projectsDir, slug, 'scene.json')).catch(() => {
+            throw new Error(`Projet inconnu : ${slug}`);
+          });
+          return {
+            slug,
+            content: join(projectsDir, slug, 'content.json'),
+            scene: join(projectsDir, slug, 'scene.json'),
+            media: join(publicProjects, slug, 'media'),
+          };
+        }
         const schema = fileURLToPath(new URL('./scene-config-schema.ts', import.meta.url));
 
-        const media = fileURLToPath(new URL('../public/media/', import.meta.url));
+
         // Structure de la scène (objets + matériaux) : administration complète en local uniquement.
-        const sceneFile = fileURLToPath(new URL('../src/viewer/config/scene.json', import.meta.url));
+
         const structureSchema = fileURLToPath(new URL('./scene-structure-schema.ts', import.meta.url));
         server.middlewares.use(STRUCTURE, async (req, res) => {
           const send = (status: number, data: unknown) => {
@@ -47,6 +63,7 @@ export default function sceneConfigApi(): AstroIntegration {
             for await (const chunk of req) raw += chunk;
             const { sanitizeStructure } = (await server.ssrLoadModule(structureSchema)) as typeof import('./scene-structure-schema');
             const { objects, materials } = sanitizeStructure(JSON.parse(raw));
+            const { scene: sceneFile, slug } = await projectOf(req.originalUrl ?? req.url);
             const text = await readFile(sceneFile, 'utf8');
             const scene = JSON.parse(text);
             // Ancien format (rôles) remplacé par le nouveau : on retire ses sections.
@@ -61,7 +78,7 @@ export default function sceneConfigApi(): AstroIntegration {
             for (const [k, v] of Object.entries(scene)) if (!(k in out)) out[k] = v;
             const eol = text.includes('\r\n') ? '\r\n' : '\n';
             await writeFile(sceneFile, JSON.stringify(out, null, 2).replace(/\n/g, eol) + eol, 'utf8');
-            logger.info(`scene.json : structure mise à jour (${objects.length} objets, ${Object.keys(materials).length} matériaux)`);
+            logger.info(`${slug}/scene.json : structure mise à jour (${objects.length} objets, ${Object.keys(materials).length} matériaux)`);
             send(200, { ok: true });
           } catch (err) {
             send(400, { error: err instanceof Error ? err.message : String(err) });
@@ -87,10 +104,11 @@ export default function sceneConfigApi(): AstroIntegration {
               chunks.push(chunk as Buffer);
             }
             const name = `${m[1]}.${m[2].toLowerCase()}`;
+            const { media, slug } = await projectOf(req.originalUrl ?? req.url);
             await mkdir(media, { recursive: true });
             await writeFile(join(media, name), Buffer.concat(chunks));
-            logger.info(`image enregistrée : public/media/${name}`);
-            send(200, { url: `/media/${name}` });
+            logger.info(`image enregistrée : public/projects/${slug}/media/${name}`);
+            send(200, { url: `/projects/${slug}/media/${name}` });
           } catch (err) {
             send(400, { error: err instanceof Error ? err.message : String(err) });
           }
@@ -109,6 +127,7 @@ export default function sceneConfigApi(): AstroIntegration {
             // Chargé via Vite à chaque requête : toujours la version à jour du fichier.
             const { sanitize } = (await server.ssrLoadModule(schema)) as typeof import('./scene-config-schema');
             const patch = sanitize(JSON.parse(raw));
+            const { content: file, slug } = await projectOf(req.originalUrl ?? req.url);
             const config = JSON.parse(await readFile(file, 'utf8'));
             for (const [section, values] of Object.entries(patch)) {
               // Garde-fou : seules les sections déjà présentes dans content.json sont modifiables.
@@ -116,7 +135,7 @@ export default function sceneConfigApi(): AstroIntegration {
               config[section] = { ...config[section], ...values };
             }
             await writeFile(file, JSON.stringify(config, null, 2) + '\n', 'utf8');
-            logger.info(`content.json mis à jour : ${Object.keys(patch).join(', ')}`);
+            logger.info(`${slug}/content.json mis à jour : ${Object.keys(patch).join(', ')}`);
             send(200, { ok: true, config });
           } catch (err) {
             send(400, { error: err instanceof Error ? err.message : String(err) });
