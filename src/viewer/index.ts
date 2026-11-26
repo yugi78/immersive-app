@@ -1,6 +1,6 @@
 import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer, Vector3, type Object3D } from 'three';
 import { defaultConfig, type SceneConfig, type TourConfig, type UiConfig, type Vec3 } from './config/types';
-import { isTiled, normalizeScene, type GlbObject, type MaterialDef, type SceneObject } from './config/scene-model';
+import { isTiled, normalizeScene, type GlbObject, type MaterialDef, type ObjectTransform, type SceneObject } from './config/scene-model';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
 import { createMist } from './scene/mist';
@@ -66,6 +66,12 @@ export interface Viewer {
   tour: Pick<Tour, 'start' | 'goTo' | 'next' | 'prev' | 'stop' | 'togglePause' | 'status' | 'onChange' | 'cancel'>;
   /** Carte interactive : ouvrir une vue (0 : plan, 1–4 : murs), fermer, cadrer une vue depuis la caméra. */
   map: { open(view?: number): void; close(): void; frameFromCamera(): { center: Vec3; yaw: number } };
+  /** Objets de la scène (outliner) : racines 3D, visibilité, placement. */
+  objects: {
+    root(id: string): Object3D | null;
+    setVisible(id: string, visible: boolean): void;
+    setTransform(id: string, t: ObjectTransform): void;
+  };
   /** Outils d'édition (option `editor`), sinon null. */
   editor: EditorTools | null;
   /** Objets internes pour l'inspection (mode debug uniquement). */
@@ -136,12 +142,22 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     throw err;
   }
 
+  /** Place la racine d'un objet (en plus du placement du fichier, déjà dans ses nœuds). */
+  function applyTransform(r: Object3D, t: ObjectTransform) {
+    r.position.fromArray(t.position);
+    r.rotation.set(...(t.rotation.map((d) => MathUtils.degToRad(d)) as [number, number, number]), 'XYZ');
+    r.scale.fromArray(t.scale);
+    r.updateMatrixWorld(true);
+  }
   // Objet de la scène correspondant à chaque fichier chargé.
   const objOf = (a: { item: { id: string } }) => glbObjects.find((o) => o.id === a.item.id)!;
   for (const a of assets) {
     const o = objOf(a);
     const m = matOf(o);
     a.root = prepareAsset(a.root, { unlit: m.unlit !== false, doubleSided: !!m.doubleSided, merge: !!o.merge });
+    a.root.name = o.id;
+    if (o.transform) applyTransform(a.root, o.transform);
+    if (o.visible === false) a.root.visible = false;
     scene.add(a.root);
   }
 
@@ -241,8 +257,12 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     applyMapLayers(scan.root, tiled);
     applyGrade(scan.root, m);
     if (m.mist !== false) mist.apply(scan.root);
+    if (tiled.visible === false) scan.root.visible = false;
     scene.add(scan.root);
   }
+  /** Racine 3D de chaque objet, par identifiant (outliner). */
+  const objectRoots = new Map<string, Object3D>(assets.map((a) => [objOf(a).id, a.root]));
+  if (scan && tiled) objectRoots.set(tiled.id, scan.root);
   /** Racine 3D de chaque objet (pour le pointage, la mini-carte…). */
   const rootsWhere = (pred: (o: SceneObject) => boolean) => [
     ...assets.filter((a) => pred(objOf(a))).map((a) => a.root),
@@ -446,6 +466,18 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       open: (view = 0) => tourUi?.openMap(view),
       close: () => tourUi?.closeMap(),
       frameFromCamera: () => mapView.frameFromCamera(camera),
+    },
+    objects: {
+      root: (id) => objectRoots.get(id) ?? null,
+      setVisible(id, visible) {
+        const r = objectRoots.get(id);
+        if (r) r.visible = visible;
+      },
+      setTransform(id, t) {
+        const r = objectRoots.get(id);
+        // Ensemble tuilé : placé par sa propre matrice (pas de déplacement depuis l'outliner).
+        if (r && !(tiled && id === tiled.id)) applyTransform(r, t);
+      },
     },
     editor: editorTools,
     debug: debug ? debugHandle : undefined,

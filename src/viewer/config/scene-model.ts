@@ -37,9 +37,20 @@ export interface MapFlags {
   minimap?: boolean;
 }
 
+/** Placement d'un objet (en plus de celui du fichier) : mètres, degrés (ordre XYZ), échelle. */
+export interface ObjectTransform {
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+}
+
+export const IDENTITY: ObjectTransform = { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] };
+
 interface ObjectBase {
   id: string;
   name?: string;
+  /** Masqué (false) : chargé mais pas affiché. Par défaut : visible. */
+  visible?: boolean;
   /** Clé dans `materials`. */
   material: string;
   /** Objet de référence : sa boîte englobante donne le centre, le sol et le focus. */
@@ -58,6 +69,8 @@ export interface GlbObject extends ObjectBase {
   merge?: boolean;
   /** Absent du serveur → ignoré sans erreur. */
   optional?: boolean;
+  /** Placement dans la scène (outliner). Absent : tel que dans le fichier. */
+  transform?: ObjectTransform;
 }
 
 /** Ensemble tuilé à niveaux de texture (relevé photogrammétrique). */

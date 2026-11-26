@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
  */
 const ROUTE = '/__admin/scene-config';
 const UPLOAD = '/__admin/upload';
+const STRUCTURE = '/__admin/scene-structure';
 const UPLOAD_MAX = 15 * 1024 * 1024;
 
 export default function sceneConfigApi(): AstroIntegration {
@@ -31,6 +32,41 @@ export default function sceneConfigApi(): AstroIntegration {
         const schema = fileURLToPath(new URL('./scene-config-schema.ts', import.meta.url));
 
         const media = fileURLToPath(new URL('../public/media/', import.meta.url));
+        // Structure de la scène (objets + matériaux) : administration complète en local uniquement.
+        const sceneFile = fileURLToPath(new URL('../src/viewer/config/scene.json', import.meta.url));
+        const structureSchema = fileURLToPath(new URL('./scene-structure-schema.ts', import.meta.url));
+        server.middlewares.use(STRUCTURE, async (req, res) => {
+          const send = (status: number, data: unknown) => {
+            res.statusCode = status;
+            res.setHeader('content-type', 'application/json');
+            res.end(JSON.stringify(data));
+          };
+          if (req.method !== 'POST') return send(405, { error: 'POST uniquement' });
+          try {
+            let raw = '';
+            for await (const chunk of req) raw += chunk;
+            const { sanitizeStructure } = (await server.ssrLoadModule(structureSchema)) as typeof import('./scene-structure-schema');
+            const { objects, materials } = sanitizeStructure(JSON.parse(raw));
+            const text = await readFile(sceneFile, 'utf8');
+            const scene = JSON.parse(text);
+            // Ancien format (rôles) remplacé par le nouveau : on retire ses sections.
+            delete scene.assets;
+            delete scene.scan;
+            delete scene.scanTransform;
+            const out: Record<string, unknown> = {};
+            // Ordre des sections conservé : project, objects, materials, puis le reste.
+            if (scene.project) out.project = scene.project;
+            out.objects = objects;
+            out.materials = materials;
+            for (const [k, v] of Object.entries(scene)) if (!(k in out)) out[k] = v;
+            const eol = text.includes('\r\n') ? '\r\n' : '\n';
+            await writeFile(sceneFile, JSON.stringify(out, null, 2).replace(/\n/g, eol) + eol, 'utf8');
+            logger.info(`scene.json : structure mise à jour (${objects.length} objets, ${Object.keys(materials).length} matériaux)`);
+            send(200, { ok: true });
+          } catch (err) {
+            send(400, { error: err instanceof Error ? err.message : String(err) });
+          }
+        });
         server.middlewares.use(UPLOAD, async (req, res) => {
           const send = (status: number, data: unknown) => {
             res.statusCode = status;

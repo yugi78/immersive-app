@@ -1,5 +1,6 @@
 import {
   Box3Helper,
+  BoxHelper,
   BoxGeometry,
   BufferGeometry,
   CanvasTexture,
@@ -20,7 +21,7 @@ import {
   SpriteMaterial,
   Vector2,
   Vector3,
-  type Object3D,
+  Object3D,
   type PerspectiveCamera,
   type Scene,
   type WebGLRenderer,
@@ -264,6 +265,11 @@ export function createEditorTools(ctx: EditorContext) {
   gizmo.addEventListener('objectChange', () => {
     const o = gizmo.object;
     if (!o) return;
+    if (objectChange) {
+      objectChange(transformOf(o));
+      selBox.update();
+      return;
+    }
     // Lacet lu en ordre YXZ : plage complète ±180° (l'ordre XYZ replie au-delà de 90°).
     if (gizmo.mode === 'rotate') gizmoRotate?.(r2(MathUtils.radToDeg(yaw.setFromQuaternion(o.quaternion, 'YXZ').y)));
     else gizmoMove?.(o.position.toArray().map(r2) as Vec3);
@@ -295,7 +301,41 @@ export function createEditorTools(ctx: EditorContext) {
     gizmoKey = null;
     gizmoMove = null;
     gizmoRotate = null;
+    objectChange = null;
     gizmo.detach();
+  }
+
+  // ---- Objets de la scène (outliner) : gizmo sur la racine, surlignage ---------------
+  type ObjTransform = { position: Vec3; rotation: Vec3; scale: Vec3 };
+  let objectChange: ((t: ObjTransform) => void) | null = null;
+  const transformOf = (o: Object3D): ObjTransform => ({
+    position: o.position.toArray().map(r2) as Vec3,
+    rotation: [o.rotation.x, o.rotation.y, o.rotation.z].map((v) => r2(MathUtils.radToDeg(v))) as Vec3,
+    scale: o.scale.toArray().map((v) => Math.round(v * 1000) / 1000) as Vec3,
+  });
+  const selBox = new BoxHelper(new Object3D(), 0x3b5bff);
+  selBox.visible = false;
+  (selBox.material as LineBasicMaterial).depthTest = false;
+  selBox.renderOrder = 998;
+  scene.add(selBox);
+  /** Surligne un objet (boîte bleue) ; null : rien. */
+  function highlight(o: Object3D | null) {
+    selBox.visible = !!o;
+    if (o) selBox.setFromObject(o);
+  }
+  /** Gizmo sur la racine d'un objet : déplacer, tourner ou mettre à l'échelle. */
+  function attachObject(key: string, o: Object3D, mode: 'translate' | 'rotate' | 'scale', onChange: (t: ObjTransform) => void) {
+    setActiveLook(gizmoKey, false);
+    gizmoKey = key;
+    gizmoMove = null;
+    gizmoRotate = null;
+    objectChange = onChange;
+    gizmo.setMode(mode);
+    gizmo.setSpace(mode === 'scale' ? 'local' : 'world');
+    gizmo.showX = gizmo.showY = gizmo.showZ = true;
+    gizmo.attach(o);
+    highlight(o);
+    return true;
   }
 
   // ---- Pointage sur le scan -------------------------------------------------
@@ -467,6 +507,8 @@ export function createEditorTools(ctx: EditorContext) {
     setFly,
     attachGizmo,
     detachGizmo,
+    attachObject,
+    highlight,
     /** Affiche les poignées de la boîte de l'œuvre `work` ; null : masque. */
     editBounds(work: number | null, onChange?: (b: TourBounds) => void) {
       boundsEdit = work === null || !onChange ? null : { work, onChange };

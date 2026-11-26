@@ -945,3 +945,194 @@ body {
   color: var(--bo-ink);
   border-color: var(--bo-ink);
 }
+
+/* ---- Onglet Objets 3D : outliner, inspecteur, matériaux ---- */
+.bo-structure {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0 0;
+  font-family: var(--bo-font);
+  font-size: 13px;
+}
+.bo-section {
+  padding: 10px 16px 14px;
+  border-bottom: 1px solid var(--bo-line);
+}
+.bo-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.bo-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+  font-size: 13.5px;
+}
+.bo-outliner {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bo-outliner__row {
+  display: flex;
+  align-items: center;
+  border-radius: 10px;
+  transition: background 0.12s ease;
+}
+.bo-outliner__row:hover {
+  background: var(--bo-soft);
+}
+.bo-outliner__row.is-on {
+  background: var(--bo-accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--bo-accent);
+}
+.bo-outliner__row.is-hidden .bo-outliner__name {
+  color: var(--bo-faint);
+  text-decoration: line-through;
+}
+.bo-outliner__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 4px 0 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+.bo-outliner__icon {
+  display: grid;
+  place-items: center;
+  color: var(--bo-muted);
+}
+.bo-outliner__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 550;
+}
+.bo-outliner__eye {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-right: 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--bo-muted);
+}
+.bo-outliner__eye:hover {
+  background: var(--bo-ground);
+  color: var(--bo-ink);
+}
+.bo-tag {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--bo-ground);
+  color: var(--bo-muted);
+  font-size: 11px;
+  font-weight: 550;
+}
+.bo-tag--accent {
+  background: var(--bo-accent-soft);
+  color: var(--bo-accent-ink);
+}
+.bo-inspector {
+  display: grid;
+  gap: 14px;
+}
+.bo-inspector .bo-field {
+  gap: 8px;
+}
+.bo-code {
+  display: block;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: var(--bo-ground);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.bo-warn {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff4e5;
+  color: #8a4b08;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.bo-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.bo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.bo-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--bo-line-strong);
+  border-radius: 999px;
+  background: var(--bo-surface);
+  font-weight: 550;
+}
+.bo-chip-btn small {
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--bo-ground);
+  color: var(--bo-muted);
+  font-size: 11px;
+}
+.bo-chip-btn.is-on {
+  background: var(--bo-ink);
+  border-color: var(--bo-ink);
+  color: #fff;
+}
+.bo-chip-btn.is-on small {
+  background: rgb(255 255 255 / 0.2);
+  color: #fff;
+}
+.bo-savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--bo-surface);
+  border-top: 1px solid var(--bo-line);
+}
+.bo-savebar .bo-pill {
+  margin-left: 0;
+  max-width: 220px;
+}
+select.bo-input {
+  height: 34px;
+  padding: 0 8px;
+}

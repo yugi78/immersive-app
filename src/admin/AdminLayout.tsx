@@ -4,19 +4,23 @@ import { BRAND, PROJECT } from '../config/brand';
 import { isFull, LOCAL } from './backend';
 import { bridge, useDevice, useViewer } from './bridge';
 import { Icon } from './icons';
+import { StructurePanel } from './StructurePanel';
 
 const usePuck = createUsePuck();
 
 /** Onglets de réglages (libellés identiques aux FieldTab de SceneEditor). */
-const TABS: { tab: string; label: string; icon: ReactNode; bottom?: boolean }[] = [
+const STRUCTURE_TAB = 'Objets 3D';
+const TABS: { tab: string; label: string; icon: ReactNode; bottom?: boolean; fullOnly?: boolean }[] = [
   { tab: 'Scène', label: 'Scène', icon: <Icon.scene size={20} /> },
   { tab: 'Caméra orbitale', label: 'Caméra', icon: <Icon.camera size={20} /> },
   { tab: 'Découpe', label: 'Découpe', icon: <Icon.cut size={20} /> },
   { tab: 'Visite guidée', label: 'Visite', icon: <Icon.route size={20} /> },
   { tab: 'Plans', label: 'Plans', icon: <Icon.map size={20} /> },
   { tab: 'Interface', label: 'Interface', icon: <Icon.layout size={20} /> },
-  { tab: 'Debug', label: 'Debug', icon: <Icon.bug size={20} />, bottom: true },
-].filter((t) => isFull || t.tab !== 'Debug');
+  // Administration complète seulement : structure de la scène (scene.json) et debug.
+  { tab: STRUCTURE_TAB, label: 'Objets', icon: <Icon.box size={20} />, bottom: true, fullOnly: true },
+  { tab: 'Debug', label: 'Debug', icon: <Icon.bug size={20} />, fullOnly: true },
+].filter((t) => isFull || !t.fullOnly);
 const SUBTITLES: Record<string, string> = {
   Scène: 'Brume, couleurs des maquettes et du scan, flou',
   'Caméra orbitale': "Point de focus de la vue extérieure",
@@ -25,6 +29,7 @@ const SUBTITLES: Record<string, string> = {
   Plans: 'Carte interactive : plan et vues de face',
   Interface: 'À propos, mini-carte',
   Debug: 'Vol libre et repères',
+  [STRUCTURE_TAB]: 'Fichiers de la scène, placement et matériaux (en local)',
 };
 
 export type SaveState = { kind: 'idle' | 'saving' | 'saved' | 'error'; message?: string };
@@ -154,9 +159,7 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
             <h1>{tab}</h1>
             <p>{SUBTITLES[tab] ?? ''}</p>
           </div>
-          <div className="bo-panel__fields">
-            <Puck.Fields />
-          </div>
+          <div className="bo-panel__fields">{tab === STRUCTURE_TAB ? <StructurePanel /> : <Puck.Fields />}</div>
         </aside>
 
         <main className="bo-stage">

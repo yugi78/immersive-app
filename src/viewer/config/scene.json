@@ -7,47 +7,52 @@
     {
       "id": "paris",
       "name": "Ville (contexte)",
-      "file": "/models/opt/paris.glb",
       "material": "clay",
+      "file": "/models/opt/paris.glb",
       "merge": false
     },
     {
       "id": "pantheon",
       "name": "Panthéon (maquette)",
-      "file": "/models/opt/cull_pantheon.glb",
       "material": "clay-coupe",
-      "merge": true,
       "reference": true,
       "map": {
         "views": true
-      }
+      },
+      "file": "/models/opt/cull_pantheon.glb",
+      "merge": true
     },
     {
       "id": "sol",
       "name": "Sol",
-      "file": "/models/opt/sol_pantheon.glb",
       "material": "clay",
-      "merge": true,
       "map": {
         "plan": true,
-        "minimap": true,
-        "views": true
-      }
+        "views": true,
+        "minimap": true
+      },
+      "file": "/models/opt/sol_pantheon.glb",
+      "merge": true
     },
     {
       "id": "tranche",
       "name": "Tranche de coupe",
-      "file": "/models/opt/tranche.glb",
       "material": "remplissage",
-      "merge": true,
       "map": {
         "plan": true,
         "minimap": true
-      }
+      },
+      "file": "/models/opt/tranche.glb",
+      "merge": true
     },
     {
       "id": "scan",
       "name": "Scan des plafonds",
+      "material": "scan",
+      "map": {
+        "views": true
+      },
+      "pick": true,
       "type": "tiled",
       "manifest": "/models/scan_lod_opt/manifest.json",
       "transform": [
@@ -76,12 +81,7 @@
         },
         "lodBias": 1,
         "downgradeDelayMs": 1000
-      },
-      "material": "scan",
-      "map": {
-        "views": true
-      },
-      "pick": true
+      }
     }
   ],
   "materials": {
@@ -92,10 +92,10 @@
     },
     "clay-coupe": {
       "unlit": true,
-      "grade": "clay",
-      "mist": true,
+      "doubleSided": true,
       "cutaway": true,
-      "doubleSided": true
+      "grade": "clay",
+      "mist": true
     },
     "remplissage": {
       "unlit": true,
@@ -104,9 +104,9 @@
     },
     "scan": {
       "unlit": true,
+      "cutaway": true,
       "grade": "scan",
-      "mist": false,
-      "cutaway": true
+      "mist": false
     }
   },
   "decoders": {
