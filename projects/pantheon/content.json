@@ -1,10 +1,10 @@
 {
   "version": 1,
   "start": {
-    "enabled": false,
-    "title": "Panthéon interactif",
-    "description": "",
-    "image": "",
+    "enabled": true,
+    "title": "Panthéon de Paris",
+    "description": "<p>Plongez au cœur de l’un des monuments les plus emblématiques de Paris grâce à cette carte interactive en 3D. Conçu à l'origine au XVIIIe siècle par l'architecte Jacques-Germain Soufflot comme une église dédiée à sainte Geneviève, ce joyau du néoclassicisme est devenu, dès la Révolution française, le temple laïque consacré aux grands personnages de la nation.<br></p>",
+    "image": "/projects/pantheon/media/demarrage-mwy5gyno.webp",
     "button": "Entrer"
   },
   "scenario": {
