@@ -91,23 +91,26 @@ sur `https://<projet>.pages.dev/pantheon/admin/` (redirige vers la page de conne
    « Publié · en ligne d'ici 1 à 2 min » ; un commit « Contenu publié depuis l'espace
    client » apparaît dans GitHub ; le site se met à jour après la reconstruction.
 
-## 5. ✋ Brancher le domaine (immersive-app.stylz.fr)
+## 5. Le domaine immersive-app.stylz.fr (FreeDNS)
 
-Cloudflare Pages ne se branche **pas** avec un enregistrement A : il faut un **CNAME**
-vers l'adresse `…pages.dev` (ou confier le DNS de stylz.fr à Cloudflare).
+Le sous-domaine FreeDNS n'accepte que des enregistrements **A** : il ne peut pas pointer
+vers Cloudflare Pages (qui demande un CNAME). Organisation actuelle :
 
-1. Cloudflare Pages → ton projet → **Custom domains** → **Set up a custom domain** →
-   `immersive-app.stylz.fr`. Cloudflare affiche la valeur du CNAME à créer.
-2. Chez le gestionnaire DNS de stylz.fr : enregistrement **CNAME** `immersive-app` →
-   `immersive-app.pages.dev`. Le certificat HTTPS est automatique (quelques minutes).
-   - Si ce gestionnaire n'accepte que des enregistrements A : transfère la gestion DNS de
-     stylz.fr à Cloudflare (offre gratuite, *Add a site* → change les serveurs de noms
-     chez le registraire ; recrée d'abord les enregistrements existants, dont
-     `pantheon` → 185.199.108.153).
-3. Une fois tout servi par Cloudflare, désactive le déploiement GitHub Pages (onglet
-   *Actions* du dépôt → *Déploiement GitHub Pages* → **Disable workflow**). En attendant,
-   ce workflow publie `pantheon.stylz.fr` **sans** l'espace client
-   (`npm run build:github-pages`), qui ne pourrait pas y être protégé.
+| Adresse | Servi par | Contenu |
+| --- | --- | --- |
+| `immersive-app.stylz.fr` | GitHub Pages (A → 185.199.108.153) | accueil + apps publiques `/<projet>/` |
+| `immersive-app.pages.dev` | Cloudflare Pages | la même chose **+ l'espace client** (`/admin/`) |
+
+Le bouton « Espace client » de l'accueil sur `immersive-app.stylz.fr` mène à
+`https://immersive-app.pages.dev/admin/` (variable `PUBLIC_ADMIN_URL` du workflow
+`.github/workflows/deploy.yml`). Chaque publication met à jour les deux sites.
+Réglage GitHub (une fois) : *Settings → Pages → Custom domain* `immersive-app.stylz.fr`
++ *Enforce HTTPS*.
+
+Avec un vrai nom de domaine (quelques euros par an), tout peut passer sur Cloudflare :
+Cloudflare Pages → **Custom domains** → ajouter le domaine, CNAME vers
+`immersive-app.pages.dev`, retirer `PUBLIC_ADMIN_URL`, puis désactiver le workflow GitHub
+Pages (onglet *Actions* → *Déploiement GitHub Pages* → **Disable workflow**).
 
 ## Recommandé : limiter les essais de connexion
 

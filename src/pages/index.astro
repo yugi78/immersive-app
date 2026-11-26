@@ -13,7 +13,9 @@ import { PROJECT_SLUGS } from '../viewer/config/projects';
 import { withBase } from '../viewer/url';
 
 const legacy = withBase(`/${PROJECT_SLUGS.includes('pantheon') ? 'pantheon' : PROJECT_SLUGS[0]}/`);
-const admin = withBase('/admin/');
+// Espace client : sur le même site (Cloudflare), ou à une autre adresse quand ce site
+// est servi sans fonctions serveur (GitHub Pages → PUBLIC_ADMIN_URL, voir deploy.yml).
+const admin = import.meta.env.PUBLIC_ADMIN_URL || withBase('/admin/');
 ---
 
 <html lang="fr">

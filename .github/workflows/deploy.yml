@@ -1,9 +1,11 @@
-# Build Astro puis déploiement sur GitHub Pages : https://pantheon.stylz.fr/
+# Build Astro puis déploiement sur GitHub Pages : https://immersive-app.stylz.fr/
 # Seul le dossier dist/ (le site construit) est publié sur Pages.
 # Prérequis (une fois), dans Settings → Pages :
 #   - Build and deployment → Source : « GitHub Actions »
-#   - Custom domain : pantheon.stylz.fr (+ Enforce HTTPS)
-# DNS (FreeDNS) : enregistrement A  pantheon.stylz.fr  →  185.199.108.153 (GitHub Pages).
+#   - Custom domain : immersive-app.stylz.fr (+ Enforce HTTPS)
+# DNS (FreeDNS, enregistrements A uniquement) : immersive-app.stylz.fr → 185.199.108.153.
+# Cloudflare Pages demande un CNAME : il sert l'espace client sur immersive-app.pages.dev,
+# vers lequel pointe le bouton « Espace client » de l'accueil (PUBLIC_ADMIN_URL).
 name: Déploiement GitHub Pages
 
 on:
@@ -45,6 +47,8 @@ jobs:
           # Préfixe des URL selon la config Pages : vide avec le domaine personnalisé,
           # « /pantheon » sans (voir astro.config.mjs).
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          # Espace client (connexion, publication) : servi par Cloudflare Pages.
+          PUBLIC_ADMIN_URL: https://immersive-app.pages.dev/admin/
 
       - uses: actions/upload-pages-artifact@v3
         with:
