@@ -2,13 +2,14 @@ import { createUsePuck, FieldGroup, FieldTab, Puck, type Config, type Data } fro
 import '@puckeditor/core/puck.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createViewer, type Viewer } from '../viewer';
-import { type ContentBlock, type SceneConfig, type MapView, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
+import { type ContentBlock, type ScenarioConfig, type SceneConfig, type MapView, type TourBounds, type TourConfig, type TourHotspot, type UiConfig, type Vec3 } from '../viewer/config/types';
 import { newWorkId, uniqueSlugs } from '../viewer/tour/slug';
 import { bridge, useActiveWork, useViewer } from './bridge';
 import { checkbox, colorField, slider } from './fields';
 import { boundsField, cameraPointsField, focusOffsetField, pointField, previewField } from './tourFields';
 import { blocksField, hotspotsField, thumbnailField, workTabsField, WorkSummary } from './workFields';
 import { mapViewsField } from './mapFields';
+import { scenarioField } from './scenarioFields';
 import { AdminLayout, type SaveState } from './AdminLayout';
 import { isFull, publishContent } from './backend';
 import { activeProject, setActiveProject } from './project';
@@ -43,6 +44,8 @@ const flyPrefs = loadFlyPrefs();
  */
 
 type SceneProps = {
+  /** Scénario d'ouverture (intro, boucle d'attente, prise en main, inactivité), tel quel. */
+  scenario: ScenarioConfig;
   /** [x, hauteur, z] : décalage du focus depuis le centre de la bbox. */
   focusOffset: Vec3;
   cutRadius: number;
@@ -120,6 +123,7 @@ type TourWorkItem = {
 };
 
 const SCENE_KEYS = [
+  'scenario',
   'focusOffset',
   'cutRadius',
   'cutFeather',
@@ -282,6 +286,7 @@ function ViewerPreview(props: SceneProps) {
 
   const apply = (v: Viewer, p: SceneProps) => {
     v.setFocusOffset(p.focusOffset);
+    if (p.scenario) v.setScenario(p.scenario);
     v.setCutaway({
       radius: p.cutRadius,
       feather: p.cutFeather,
@@ -343,6 +348,7 @@ const config: Config<{}, Record<string, unknown>> = {
   components: {},
   root: {
     fields: {
+      scenario: scenarioField,
       focusOffset: focusOffsetField,
       cutRadius: slider('Rayon de découpe', 5, 200, 1),
       cutFeather: slider('Dégradé du bord', 0, 15, 0.5),
@@ -485,6 +491,7 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.dofMaxBlur}
           </FieldGroup>
         </FieldTab>
+        <FieldTab label="Scénario">{fields.scenario}</FieldTab>
         <FieldTab label="Caméra orbitale">
           {fields.focusOffset}
           <FieldGroup label="Sphère de découpe autour de la caméra, sur les œuvres" defaultExpanded>
@@ -572,10 +579,11 @@ const config: Config<{}, Record<string, unknown>> = {
 
 /** Données initiales de Puck : réglages du projet ouvert. */
 function initialDataFor(cfg: SceneConfig): Data<{}, Record<string, unknown>> {
-  const { focus, cutaway, mist, clay, scanGrade, dof, tour, ui } = cfg;
+  const { focus, cutaway, mist, clay, scanGrade, dof, tour, ui, scenario } = cfg;
   return {
   root: {
     props: {
+      scenario: structuredClone(scenario),
       focusOffset: [focus.offsetX ?? 0, focus.heightOffset, focus.offsetZ ?? 0] as Vec3,
       cutRadius: cutaway.radius,
       cutFeather: cutaway.feather,
@@ -680,6 +688,7 @@ export default function SceneEditor({ project }: { project: string }) {
           dof: dofPatch(p),
           tour: tourFromProps(p),
           ui: uiFromProps(p),
+          scenario: p.scenario,
     });
     setSave(
       result.ok

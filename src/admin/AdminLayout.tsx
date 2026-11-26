@@ -14,6 +14,7 @@ const usePuck = createUsePuck();
 const STRUCTURE_TAB = 'Objets 3D';
 const TABS: { tab: string; label: string; icon: ReactNode; bottom?: boolean; fullOnly?: boolean }[] = [
   { tab: 'Scène', label: 'Scène', icon: <Icon.scene size={20} /> },
+  { tab: 'Scénario', label: 'Scénario', icon: <Icon.play size={20} /> },
   { tab: 'Caméra orbitale', label: 'Caméra', icon: <Icon.camera size={20} /> },
   { tab: 'Découpe', label: 'Découpe', icon: <Icon.cut size={20} /> },
   { tab: 'Visite guidée', label: 'Visite', icon: <Icon.route size={20} /> },
@@ -25,6 +26,7 @@ const TABS: { tab: string; label: string; icon: ReactNode; bottom?: boolean; ful
 ].filter((t) => isFull || !t.fullOnly);
 const SUBTITLES: Record<string, string> = {
   Scène: 'Brume, couleurs des maquettes et du scan, flou',
+  Scénario: 'Intro, boucle d’attente, prise en main, inactivité',
   'Caméra orbitale': "Point de focus de la vue extérieure",
   Découpe: 'Ouverture dans les murs, vue de l’extérieur',
   'Visite guidée': 'Œuvres, parcours caméra, points d’intérêt',

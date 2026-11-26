@@ -92,6 +92,8 @@ interface Options {
   busy: () => boolean;
   /** Sans intro ni boucle (back-office) : prise en main immédiate. */
   skip?: boolean;
+  /** Vol libre du back-office en cours (l'orbite reste alors coupée). */
+  flying?: () => boolean;
   /** Appelé une fois, à la fin de l'ouverture (fin ou interruption de l'intro). */
   onReady: () => void;
 }
@@ -110,6 +112,11 @@ export function createScenario(o: Options) {
   /** Après une prise en main sur place : la cible d'orbite glisse vers le focus. */
   let retarget = false;
   let idleTimer: number | undefined;
+  /**
+   * Back-office (skip) : la boucle d'attente sur inactivité ne se déclenche que pendant
+   * un aperçu (« Jouer le scénario »), pas pendant l'édition.
+   */
+  let previewing = !o.skip;
 
   const cfg = () => o.config();
   const loopUsable = () => cfg().loop.enabled && cfg().loop.points.length >= 3;
@@ -164,7 +171,7 @@ export function createScenario(o: Options) {
     sky = null;
     state = 'control';
     controls.target.copy(target);
-    controls.enabled = true;
+    controls.enabled = !o.flying?.();
     controls.autoRotate = false;
     controls.update();
     markReady();
@@ -202,7 +209,7 @@ export function createScenario(o: Options) {
       if (state !== 'control') return;
       if (o.busy()) return scheduleIdle();
       if (idle.action === 'rotate') controls.autoRotate = true;
-      else if (idle.action === 'loop' && loopUsable()) startLoop();
+      else if (idle.action === 'loop' && loopUsable() && previewing) startLoop();
     }, Math.max(idle.afterMs, 0));
   }
 
@@ -322,6 +329,7 @@ export function createScenario(o: Options) {
     replay() {
       clearIdle();
       ready = true;
+      previewing = true;
       const c = cfg();
       if (c.intro.enabled) {
         const prevSkip = o.skip;
@@ -331,8 +339,25 @@ export function createScenario(o: Options) {
       } else if (loopUsable()) startLoop();
       else goHome();
     },
-    /** Retour à la vue de départ. */
-    goHome,
+    /** Retour à la vue de départ (fin de l'aperçu). */
+    goHome() {
+      if (o.skip) previewing = false;
+      goHome();
+    },
+    /** Caméra placée à la main (back-office) : prise en main immédiate, sans rotation ni minuterie. */
+    placeAt(target: Vector3) {
+      if (o.skip) previewing = false;
+      blend = null;
+      path = null;
+      sky = null;
+      retarget = false;
+      state = 'control';
+      clearIdle();
+      controls.autoRotate = false;
+      controls.target.copy(target);
+      controls.enabled = !o.flying?.();
+      markReady();
+    },
     dispose() {
       clearIdle();
       controls.removeEventListener('start', onStart);

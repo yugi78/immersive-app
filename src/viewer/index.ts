@@ -62,6 +62,13 @@ export interface Viewer {
   setScenario(scenario: ScenarioConfig): void;
   /** Scénario : rejouer l'ouverture (aperçu) ou revenir à la vue de départ. */
   scenario: { replay(): void; goHome(): void; readonly state: string };
+  /** Caméra (back-office) : pose courante, placement, vue de départ depuis la caméra. */
+  view: {
+    pose(): { position: Vec3; target: Vec3 };
+    setPose(position: Vec3, target: Vec3): void;
+    /** Distance, azimut et élévation de la caméra autour du point de focus (vue de départ). */
+    orbitStart(): { distance: number; azimuthDeg: number; elevationDeg: number };
+  };
   /** Remplace les données de la visite guidée à chaud (back-office). */
   setTour(tour: TourConfig): void;
   /** Remplace les réglages de l'interface publique à chaud (back-office). */
@@ -350,6 +357,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     config: () => scenarioCfg,
     busy: () => tour.active || !!editorTools?.flying || mapView.active,
     skip: opts.skipIntro,
+    flying: () => !!editorTools?.flying,
     onReady,
   });
   // Interface créée à la fin de l'intro (pas de visite pendant l'ouverture).
@@ -503,6 +511,35 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       if (JSON.stringify(next) === JSON.stringify(scenarioCfg)) return;
       scenarioCfg = structuredClone(next);
       orbit.set(scenarioCfg.control);
+    },
+    view: {
+      pose() {
+        const p = camera.position;
+        let t: Vector3;
+        if (tour.active) t = tour.lookTarget;
+        else if (scenario.driving) t = scenario.lookTarget;
+        else if (editorTools?.flying) t = p.clone().add(camera.getWorldDirection(new Vector3()).multiplyScalar(20));
+        else t = orbit.controls.target;
+        const r = (v: Vector3) => v.toArray().map((x) => Math.round(x * 100) / 100) as Vec3;
+        return { position: r(p), target: r(t) };
+      },
+      setPose(position, target) {
+        tour.cancel();
+        const t = new Vector3(...target);
+        camera.position.set(...position);
+        camera.lookAt(t);
+        scenario.placeAt(t);
+      },
+      orbitStart() {
+        const d = camera.position.clone().sub(reference.focus);
+        const distance = d.length() || 1;
+        const r1 = (x: number) => Math.round(x * 10) / 10;
+        return {
+          distance: r1(distance),
+          azimuthDeg: r1(MathUtils.radToDeg(Math.atan2(d.x, d.z))),
+          elevationDeg: r1(MathUtils.radToDeg(Math.asin(MathUtils.clamp(d.y / distance, -1, 1)))),
+        };
+      },
     },
     scenario: {
       replay: () => {

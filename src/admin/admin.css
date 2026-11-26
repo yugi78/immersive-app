@@ -1229,3 +1229,133 @@ select.bo-input {
 .bo-addr .bo-addr {
   padding-left: 22px;
 }
+
+/* ---- Onglet Scénario : cartes reliées par des raccords ---- */
+.bo-scn__wrap {
+  display: grid;
+  gap: 0;
+}
+.bo-scn__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bo-scn__help {
+  margin: 8px 0;
+  color: var(--bo-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.bo-scn__warn {
+  margin: 4px 0;
+  color: var(--bo-danger);
+  font-size: 12px;
+}
+.bo-scn {
+  display: grid;
+  border: 1px solid var(--bo-line);
+  border-radius: var(--bo-radius);
+  background: var(--bo-surface);
+}
+.bo-scn.is-off {
+  background: var(--bo-soft);
+}
+.bo-scn__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.bo-scn__head > span {
+  display: grid;
+  gap: 2px;
+}
+.bo-scn__head b {
+  font-size: 14px;
+}
+.bo-scn__head small,
+.bo-scn__sub small,
+.bo-scn__coords small {
+  color: var(--bo-muted);
+  font-size: 12px;
+}
+.bo-scn.is-off .bo-scn__head b {
+  color: var(--bo-muted);
+}
+.bo-scn__toggle {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  cursor: pointer;
+}
+.bo-scn__toggle input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.bo-scn__toggle input:checked + .bo-switch__track {
+  background: var(--bo-accent);
+}
+.bo-scn__toggle input:checked + .bo-switch__track::after {
+  translate: 18px 0;
+}
+.bo-scn__toggle input:focus-visible + .bo-switch__track {
+  outline: 2px solid var(--bo-accent);
+  outline-offset: 2px;
+}
+.bo-scn__body {
+  display: grid;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+.bo-scn__sub {
+  display: grid;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 13px;
+}
+.bo-scn__link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding-left: 22px;
+  color: var(--bo-faint);
+  font-size: 12px;
+}
+.bo-scn__link span {
+  width: 1px;
+  height: 100%;
+  background: var(--bo-line);
+}
+.bo-scn__points {
+  display: grid;
+  gap: 6px;
+}
+.bo-scn__actions {
+  display: flex;
+  gap: 2px;
+}
+.bo-scn__dur {
+  color: var(--bo-muted);
+  font-size: 12px;
+}
+.bo-scn__coords {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+.bo-scn__foot {
+  margin-top: 14px;
+}
+.bo-seg--block {
+  display: flex;
+  width: 100%;
+}
+.bo-seg--block button {
+  flex: 1;
+  justify-content: center;
+}
