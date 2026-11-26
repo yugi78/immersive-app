@@ -11,6 +11,7 @@
     "build:cloudflare": "astro build && node scripts/prune-dist.mjs",
     "build:github-pages": "astro build && node scripts/prune-dist.mjs --sans-admin",
     "hash-password": "node scripts/hash-password.mjs",
+    "add-client": "node scripts/add-client.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

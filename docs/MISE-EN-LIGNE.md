@@ -31,16 +31,26 @@ tokens** → **Fine-grained tokens** → **Generate new token** :
 
 Copie le jeton (il ne sera plus affiché). Ne le colle nulle part ailleurs qu'à l'étape 3.
 
-## 2. Préparer le mot de passe et le secret de session (en local)
+## 2. Préparer les comptes et le secret de session (en local)
+
+Chaque compte est rattaché à **un seul projet** : le client du Panthéon ne voit et ne
+publie que `/pantheon/admin/`. Un compte au projet `*` (le tien) ouvre tous les projets.
 
 ```powershell
-npm run hash-password
+npm run add-client -- pantheon pantheon
 ```
 
-Saisis le mot de passe du client (10 caractères minimum, il ne s'affiche pas). La commande
-renvoie une ligne `pbkdf2$100000$…$…` : c'est l'**empreinte**, à coller à l'étape 3. Le
-mot de passe lui-même n'est stocké nulle part : transmets-le au client de vive voix ou par
-un canal sûr.
+(identifiant, puis projet). Saisis deux fois le mot de passe (10 caractères minimum, il ne
+s'affiche pas). La commande garde la liste des comptes dans `clients.local.json` (ignoré
+par Git) et affiche la valeur complète de **`ADMIN_USERS`** à coller à l'étape 3 : une
+liste `[{"user":…,"project":…,"hash":"pbkdf2$…"}]`. Seules les **empreintes** des mots
+de passe y figurent ; transmets le mot de passe au client de vive voix ou par un canal sûr.
+
+- Ton compte, tous projets : `npm run add-client -- moi "*"`
+- Voir les comptes : `npm run add-client -- --list`
+- Retirer un compte : `npm run add-client -- --retirer <identifiant>`
+
+Chaque commande réaffiche `ADMIN_USERS` : recolle-la dans Cloudflare pour l'appliquer.
 
 Secret de session (une longue chaîne aléatoire) :
 
@@ -57,14 +67,13 @@ choisis `yugi78/immersive-app`.
 - *Build command* : `npm run build:cloudflare`
 - *Build output directory* : `dist`
 - *Environment variables* (onglet *Settings → Variables and Secrets*, environnement
-  **Production**, type **Secret** pour les quatre premières) :
+  **Production**, type **Secret** pour les trois premières) :
 
 | Variable | Valeur |
 | --- | --- |
-| `ADMIN_PASSWORD_HASH` | l'empreinte de l'étape 2 |
+| `ADMIN_USERS` | la liste des comptes de l'étape 2 |
 | `SESSION_SECRET` | le secret de l'étape 2 |
 | `GITHUB_TOKEN` | le jeton de l'étape 1 |
-| `ADMIN_USER` | l'identifiant du client (ex. `pantheon`) |
 | `GITHUB_REPO` | `yugi78/immersive-app` |
 | `GITHUB_BRANCH` | `master` |
 | `NODE_VERSION` | `24` |
@@ -76,28 +85,29 @@ sur `https://<projet>.pages.dev/pantheon/admin/` (redirige vers la page de conne
 
 1. `/pantheon/admin/` sans être connecté → page de connexion.
 2. Mauvais mot de passe → refusé (après un court délai).
-3. Bon mot de passe → espace client. Modifier un texte → **Publier** → la pastille indique
+3. Compte d'un projet sur l'espace d'un autre projet (ou sur `/admin/`) → renvoyé vers
+   l'espace de son projet ; une publication vers un autre projet est refusée.
+4. Bon mot de passe → espace client. Modifier un texte → **Publier** → la pastille indique
    « Publié · en ligne d'ici 1 à 2 min » ; un commit « Contenu publié depuis l'espace
    client » apparaît dans GitHub ; le site se met à jour après la reconstruction.
 
-## 5. ✋ Brancher le domaine (plus tard, optionnel)
+## 5. ✋ Brancher le domaine (immersive-app.stylz.fr)
 
-Aujourd'hui (option retenue) : le site public reste sur **pantheon.stylz.fr**, servi par
-GitHub Pages (enregistrement **A** chez FreeDNS → 185.199.108.153), et l'espace client est
-sur l'adresse Cloudflare (`…pages.dev/pantheon/admin/`). Chaque publication met à jour les deux.
-
-Pour tout regrouper sur Cloudflare, il faudra un **CNAME** vers l'adresse `…pages.dev`
-(ou confier le DNS du domaine à Cloudflare) :
+Cloudflare Pages ne se branche **pas** avec un enregistrement A : il faut un **CNAME**
+vers l'adresse `…pages.dev` (ou confier le DNS de stylz.fr à Cloudflare).
 
 1. Cloudflare Pages → ton projet → **Custom domains** → **Set up a custom domain** →
-   `pantheon.stylz.fr`.
-2. Chez le registraire de stylz.fr : remplace le CNAME `pantheon` par
-   `<projet>.pages.dev` (Cloudflare affiche la valeur exacte). Le certificat HTTPS est
-   automatique.
-3. Une fois le site servi par Cloudflare, désactive le déploiement GitHub Pages (onglet
-   *Actions* du dépôt → *Déploiement GitHub Pages* → **Disable workflow**, ou supprime
-   `.github/workflows/deploy.yml`). En attendant, ce workflow publie le site **sans**
-   l'espace client (`npm run build:github-pages`), qui ne pourrait pas y être protégé.
+   `immersive-app.stylz.fr`. Cloudflare affiche la valeur du CNAME à créer.
+2. Chez le gestionnaire DNS de stylz.fr : enregistrement **CNAME** `immersive-app` →
+   `immersive-app.pages.dev`. Le certificat HTTPS est automatique (quelques minutes).
+   - Si ce gestionnaire n'accepte que des enregistrements A : transfère la gestion DNS de
+     stylz.fr à Cloudflare (offre gratuite, *Add a site* → change les serveurs de noms
+     chez le registraire ; recrée d'abord les enregistrements existants, dont
+     `pantheon` → 185.199.108.153).
+3. Une fois tout servi par Cloudflare, désactive le déploiement GitHub Pages (onglet
+   *Actions* du dépôt → *Déploiement GitHub Pages* → **Disable workflow**). En attendant,
+   ce workflow publie `pantheon.stylz.fr` **sans** l'espace client
+   (`npm run build:github-pages`), qui ne pourrait pas y être protégé.
 
 ## Recommandé : limiter les essais de connexion
 
@@ -112,8 +122,15 @@ inclut une règle). La connexion attend déjà ~1 s après chaque échec.
 - **Toi** : fais toujours `git pull` avant de travailler (pour récupérer ses
   publications), modifie la structure (`scene.json`, fichiers 3D, scan), puis `git push`.
   Ne modifie pas `content.json` à la main sans avoir fait `git pull` juste avant.
-- **Changer le mot de passe** : `npm run hash-password`, puis remplace
-  `ADMIN_PASSWORD_HASH` dans Cloudflare. Pour déconnecter tout le monde, change aussi
+- **Nouveau client / nouveau projet** : `npm run add-client -- <identifiant> <projet>`,
+  puis recolle `ADMIN_USERS` dans Cloudflare (*Settings → Variables and Secrets*) et
+  relance un déploiement (*Deployments → Retry deployment*) pour que la valeur s'applique.
+- **Changer un mot de passe** : relance `npm run add-client` avec le même identifiant,
+  puis recolle `ADMIN_USERS`. Les sessions ouvertes de ce compte sont fermées ; retirer
+  un compte ferme aussi les siennes. Pour déconnecter tout le monde, change
   `SESSION_SECRET`.
+- **Ancienne configuration** (`ADMIN_USER` + `ADMIN_PASSWORD_HASH`) : toujours acceptée
+  tant que `ADMIN_USERS` n'existe pas, limitée au projet `pantheon` (ou `ADMIN_PROJECT`).
+  Une fois `ADMIN_USERS` en place, tu peux supprimer ces deux variables.
 - **Si deux publications se croisent**, la seconde est refusée avec un message
   (« modifié entre-temps ») au lieu d'écraser la première : recharger la page suffit.

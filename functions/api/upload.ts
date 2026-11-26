@@ -1,4 +1,4 @@
-import { json, sameOrigin, sessionUser, type Ctx } from '../_lib/auth';
+import { canEdit, json, sameOrigin, session, type Ctx } from '../_lib/auth';
 import { GitHubError, writeFile } from '../_lib/github';
 import { SLUG } from '../_lib/project';
 
@@ -13,12 +13,15 @@ const MAX = 8 * 1024 * 1024;
  */
 export async function onRequestPost({ request, env }: Ctx) {
   if (!sameOrigin(request)) return json(403, { error: 'Origine refusée' });
-  const user = await sessionUser(request, env);
-  if (!user) return json(401, { error: 'Session expirée' });
+  const account = await session(request, env);
+  if (!account) return json(401, { error: 'Session expirée' });
+  const user = account.user;
   try {
     const params = new URL(request.url).searchParams;
     const project = params.get('project') ?? '';
     if (!SLUG.test(project)) return json(400, { error: 'Projet invalide' });
+    // Chaque compte ne publie que dans SON projet.
+    if (!canEdit(account, project)) return json(403, { error: 'Ce compte n’a pas accès à ce projet' });
     const raw = params.get('name') ?? '';
     const m = /^([\w-]{1,80})\.(webp|jpe?g|png|avif)$/i.exec(
       raw.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '-'),

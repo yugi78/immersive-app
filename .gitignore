@@ -18,6 +18,8 @@ pnpm-debug.log*
 .env.production
 # secrets locaux des fonctions Cloudflare (wrangler pages dev)
 .dev.vars
+# comptes de l'espace client (empreintes) : copie locale de ADMIN_USERS
+clients.local.json
 
 # macOS-specific files
 .DS_Store
@@ -35,3 +37,5 @@ public/projects/*/models/3dtile/
 public/projects/*/models/3dtile_opt/
 public/projects/*/models/scan_hd.glb
 public/projects/*/models/scan.glb
+# comptes de l'espace client (empreintes) : copie locale de ADMIN_USERS
+clients.local.json

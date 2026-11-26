@@ -1,9 +1,7 @@
 import { sanitize } from '../../integrations/scene-config-schema';
-import { json, sameOrigin, sessionUser, type Ctx } from '../_lib/auth';
+import { canEdit, json, sameOrigin, session, type Ctx } from '../_lib/auth';
 import { GitHubError, readFile, writeFile } from '../_lib/github';
 import { SLUG } from '../_lib/project';
-
-
 
 /**
  * POST /api/publish (session requise) : valide les réglages envoyés par l'espace
@@ -13,11 +11,14 @@ import { SLUG } from '../_lib/project';
  */
 export async function onRequestPost({ request, env }: Ctx) {
   if (!sameOrigin(request)) return json(403, { error: 'Origine refusée' });
-  const user = await sessionUser(request, env);
-  if (!user) return json(401, { error: 'Session expirée' });
+  const account = await session(request, env);
+  if (!account) return json(401, { error: 'Session expirée' });
+  const user = account.user;
   try {
     const project = new URL(request.url).searchParams.get('project') ?? '';
     if (!SLUG.test(project)) return json(400, { error: 'Projet invalide' });
+    // Chaque compte ne publie que dans SON projet.
+    if (!canEdit(account, project)) return json(403, { error: 'Ce compte n’a pas accès à ce projet' });
     // Le client ne peut écrire que le CONTENU de son projet.
     const CONTENT = `projects/${project}/content.json`;
     const patch = sanitize(await request.json());

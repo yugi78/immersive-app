@@ -1,9 +1,14 @@
 ---
 /**
  * Connexion à l'espace client (en ligne). Le formulaire appelle /api/login (fonction
- * Cloudflare) qui pose un cookie de session, puis ramène vers /admin.
+ * Cloudflare) qui pose un cookie de session, puis ramène vers l'espace client du projet
+ * du compte (la page demandée si elle appartient à ce projet).
  */
-import { BRAND, PROJECT } from '../config/brand';
+import { BRAND } from '../config/brand';
+import { PROJECTS } from '../viewer/config/projects';
+
+// Noms des projets, pour afficher « Espace client · <projet> » d'après la page demandée.
+const names = Object.fromEntries(Object.entries(PROJECTS).map(([slug, cfg]) => [slug, cfg.project?.name ?? slug]));
 ---
 
 <html lang="fr">
@@ -115,19 +120,22 @@ import { BRAND, PROJECT } from '../config/brand';
 					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M6 20v-7M10 20v-7M14 20v-7M18 20v-7M4 13h16M6 13a6 6 0 0 1 12 0M12 4v3"></path></svg>
 				</span>
 				<h1>{BRAND}</h1>
-				<p>Espace client · {PROJECT.name}</p>
+				<p id="sub">Espace client</p>
 				<label>Identifiant <input name="user" autocomplete="username" required /></label>
 				<label>Mot de passe <input name="password" type="password" autocomplete="current-password" required /></label>
 				<p class="error" role="alert" id="error"></p>
 				<button type="submit">Se connecter</button>
 			</form>
 		</main>
+		<script type="application/json" id="names" set:html={JSON.stringify(names)} />
 		<script>
 			const form = document.querySelector<HTMLFormElement>('#login')!;
 			const error = document.querySelector<HTMLElement>('#error')!;
-			// Retour après connexion : seulement vers l'espace client (pas de redirection externe).
+			// Retour après connexion : seulement vers un espace client (pas de redirection externe).
 			const back = new URLSearchParams(location.search).get('retour') ?? '';
-			const target = /^\/([a-z0-9-]+\/)?admin(\/|$)/.test(back) ? back : '/admin/';
+			const m = /^\/(?:([a-z0-9-]+)\/)?admin(\/|$)/.exec(back);
+			const names: Record<string, string> = JSON.parse(document.querySelector('#names')!.textContent || '{}');
+			if (m?.[1] && names[m[1]]) document.querySelector('#sub')!.textContent = `Espace client · ${names[m[1]]}`;
 			form.addEventListener('submit', async (e) => {
 				e.preventDefault();
 				error.textContent = '';
@@ -140,7 +148,13 @@ import { BRAND, PROJECT } from '../config/brand';
 						headers: { 'content-type': 'application/json' },
 						body: JSON.stringify({ user: data.get('user'), password: data.get('password') }),
 					});
-					if (res.ok) return location.assign(target);
+					if (res.ok) {
+						// Le serveur indique le projet du compte : on n'y retourne que si la page
+						// demandée en fait partie, sinon on va à l'accueil de ce compte.
+						const { project, home } = await res.json();
+						const ok = m && (project === '*' || m[1] === project);
+						return location.assign(ok ? back : home || '/admin/');
+					}
 					const json = await res.json().catch(() => ({}));
 					error.textContent = json.error ?? `Erreur ${res.status}`;
 				} catch {
