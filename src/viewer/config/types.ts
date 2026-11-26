@@ -1,5 +1,6 @@
 import sceneRaw from './scene.json';
 import contentRaw from './content.json';
+import type { MaterialDef, SceneObject } from './scene-model';
 
 /**
  * La configuration est répartie en deux fichiers, par propriétaire :
@@ -18,19 +19,10 @@ export const CONTENT_VERSION = contentVersion;
 /** Sections de la configuration qui appartiennent à content.json. */
 export const CONTENT_KEYS = Object.keys(content) as (keyof typeof content)[];
 
-/**
- * - context  : ville, sans découpe
- * - clay     : maquette sans découpe (sol)
- * - clay-cut : maquette découpée, faces arrière en couleur de coupe
- * - cut-fill : tranche de coupe (recouvre le pied des murs coupés), unie dans la couleur de coupe
- * - scan     : relevé photogrammétrique
- */
-export type AssetRole = 'context' | 'clay' | 'clay-cut' | 'cut-fill' | 'scan';
-
+/** Fichier à télécharger (chargeur GLB). */
 export interface AssetItem {
   id: string;
   url: string;
-  role: AssetRole;
   optional?: boolean;
 }
 
@@ -147,8 +139,9 @@ export interface UiConfig {
   map: MapConfig;
 }
 
-export type SceneConfig = Omit<typeof raw, 'tour' | 'ui'> & {
-  assets: { items: AssetItem[] };
+export type SceneConfig = Omit<typeof raw, 'tour' | 'ui' | 'objects' | 'materials'> & {
+  objects: SceneObject[];
+  materials: Record<string, MaterialDef>;
   tour: TourConfig;
   ui: UiConfig;
 };

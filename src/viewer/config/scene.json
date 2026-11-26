@@ -3,47 +3,114 @@
     "name": "Panthéon",
     "title": "Panthéon interactif"
   },
-  "assets": {
-    "reference": {
-      "id": "pantheon",
-      "url": "/models/opt/cull_pantheon.glb"
+  "objects": [
+    {
+      "id": "paris",
+      "name": "Ville (contexte)",
+      "file": "/models/opt/paris.glb",
+      "material": "clay",
+      "merge": false
     },
-    "items": [
-      {
-        "id": "paris",
-        "url": "/models/opt/paris.glb",
-        "role": "context"
-      },
-      {
-        "id": "pantheon",
-        "url": "/models/opt/cull_pantheon.glb",
-        "role": "clay-cut"
-      },
-      {
-        "id": "sol",
-        "url": "/models/opt/sol_pantheon.glb",
-        "role": "clay"
-      },
-      {
-        "id": "tranche",
-        "url": "/models/opt/tranche.glb",
-        "role": "cut-fill"
+    {
+      "id": "pantheon",
+      "name": "Panthéon (maquette)",
+      "file": "/models/opt/cull_pantheon.glb",
+      "material": "clay-coupe",
+      "merge": true,
+      "reference": true,
+      "map": {
+        "views": true
       }
-    ],
-    "decoders": {
-      "basisTranscoderPath": "/libs/basis/"
+    },
+    {
+      "id": "sol",
+      "name": "Sol",
+      "file": "/models/opt/sol_pantheon.glb",
+      "material": "clay",
+      "merge": true,
+      "map": {
+        "plan": true,
+        "minimap": true,
+        "views": true
+      }
+    },
+    {
+      "id": "tranche",
+      "name": "Tranche de coupe",
+      "file": "/models/opt/tranche.glb",
+      "material": "remplissage",
+      "merge": true,
+      "map": {
+        "plan": true,
+        "minimap": true
+      }
+    },
+    {
+      "id": "scan",
+      "name": "Scan des plafonds",
+      "type": "tiled",
+      "manifest": "/models/scan_lod_opt/manifest.json",
+      "transform": [
+        1.39382372288,
+        0,
+        1.40881949542,
+        0,
+        0,
+        1.98179638386,
+        0,
+        0,
+        -1.40881949542,
+        0,
+        1.39382372288,
+        0,
+        16.0762176514,
+        68.5246124268,
+        117.862426758,
+        1
+      ],
+      "lod": {
+        "maxLevel": 2048,
+        "budgetMB": {
+          "mobile": 160,
+          "desktop": 320
+        },
+        "lodBias": 1,
+        "downgradeDelayMs": 1000
+      },
+      "material": "scan",
+      "map": {
+        "views": true
+      },
+      "pick": true
+    }
+  ],
+  "materials": {
+    "clay": {
+      "unlit": true,
+      "grade": "clay",
+      "mist": true
+    },
+    "clay-coupe": {
+      "unlit": true,
+      "grade": "clay",
+      "mist": true,
+      "cutaway": true,
+      "doubleSided": true
+    },
+    "remplissage": {
+      "unlit": true,
+      "fill": "coupe",
+      "mist": true
+    },
+    "scan": {
+      "unlit": true,
+      "grade": "scan",
+      "mist": false,
+      "cutaway": true
     }
   },
-  "scan": {
-    "manifest": "/models/scan_lod_opt/manifest.json",
-    "template": "/models/scan.glb",
-    "maxLevel": 2048,
-    "budgetMB": {
-      "mobile": 160,
-      "desktop": 320
-    },
-    "lodBias": 1,
-    "downgradeDelayMs": 1000
+  "decoders": {
+    "basisTranscoderPath": "/libs/basis/"
   },
   "renderer": {
     "maxPixelRatioDesktop": 2,
@@ -72,26 +139,5 @@
     "autoRotateSpeed": 0.4,
     "autoRotateResumeDelayMs": 4000,
     "groundMargin": 1.5
-  },
-  "scanTransform": {
-    "source": "/models/scan.glb → nœud « matrice_de_coordonee »",
-    "matrix": [
-      1.39382372288,
-      0,
-      1.40881949542,
-      0,
-      0,
-      1.98179638386,
-      0,
-      0,
-      -1.40881949542,
-      0,
-      1.39382372288,
-      0,
-      16.0762176514,
-      68.5246124268,
-      117.862426758,
-      1
-    ]
   }
 }

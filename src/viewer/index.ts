@@ -1,5 +1,6 @@
-import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer, Vector3 } from 'three';
-import { defaultConfig, type AssetItem, type SceneConfig, type TourConfig, type UiConfig, type Vec3 } from './config/types';
+import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer, Vector3, type Object3D } from 'three';
+import { defaultConfig, type SceneConfig, type TourConfig, type UiConfig, type Vec3 } from './config/types';
+import { isTiled, normalizeScene, type GlbObject, type MaterialDef, type SceneObject } from './config/scene-model';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
 import { createMist } from './scene/mist';
@@ -82,38 +83,48 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   container.style.background = cfg.mist.color;
   const progress = createProgress(container);
 
-  // Maquette et scan téléchargés EN PARALLÈLE : le scan ne dépend que de sa
-  // propre matrice (scanTransform), pas de la maquette.
-  // Progression : 75 % pour la maquette, 25 % pour les tuiles du scan.
+  // Scène décrite par des OBJETS et des MATÉRIAUX (scene.json) ; l'ancien format à
+  // rôles est converti à la volée. Le code ne connaît aucun nom d'objet.
+  const model = normalizeScene(cfg as unknown as Parameters<typeof normalizeScene>[0]);
+  const matOf = (o: SceneObject): MaterialDef => model.materials[o.material] ?? {};
+  const glbObjects = model.objects.filter((o): o is GlbObject => !isTiled(o));
+  // Un seul ensemble tuilé pour l'instant (le scan).
+  const tiled = model.objects.find(isTiled) ?? null;
+  const basisPath = withBase(model.decoders.basisTranscoderPath);
+
+  // Fichiers GLB et ensemble tuilé téléchargés EN PARALLÈLE : les tuiles ne dépendent
+  // que de leur propre matrice, pas de la maquette.
+  // Progression : 75 % pour les GLB, 25 % pour les tuiles.
   let assetsRatio = 0;
-  let scanRatio = 0;
+  let scanRatio = tiled ? 0 : 1;
   const report = () => progress.set(assetsRatio * 0.75 + scanRatio * 0.25);
 
-  // Scan des plafonds : tuiles à LOD de texture (256 px d'emblée, 2048 ensuite en
-  // arrière-plan), placées par scanTransform ; elles reçoivent le même cylindre
-  // de découpe et la même couleur de coupe que la maquette.
-  const scanPromise = createScanLod({
-    manifestUrl: withBase(cfg.scan.manifest),
-    basisTranscoderPath: withBase(cfg.assets.decoders.basisTranscoderPath),
-    transform: cfg.scanTransform.matrix,
-    maxLevel: cfg.scan.maxLevel,
-    budgetMB: isMobile() ? cfg.scan.budgetMB.mobile : cfg.scan.budgetMB.desktop,
-    lodBias: cfg.scan.lodBias,
-    downgradeDelayMs: cfg.scan.downgradeDelayMs,
-    renderer,
-    onProgress: (r) => {
-      scanRatio = r;
-      report();
-    },
-  });
+  // Ensemble tuilé : tuiles à LOD de texture (256 px d'emblée, 2048 ensuite en
+  // arrière-plan), placées par leur matrice.
+  const scanPromise = tiled
+    ? createScanLod({
+        manifestUrl: withBase(tiled.manifest),
+        basisTranscoderPath: basisPath,
+        transform: tiled.transform,
+        maxLevel: tiled.lod.maxLevel,
+        budgetMB: isMobile() ? tiled.lod.budgetMB.mobile : tiled.lod.budgetMB.desktop,
+        lodBias: tiled.lod.lodBias,
+        downgradeDelayMs: tiled.lod.downgradeDelayMs,
+        renderer,
+        onProgress: (r) => {
+          scanRatio = r;
+          report();
+        },
+      })
+    : Promise.resolve(null);
   // Évite une « unhandled rejection » si la maquette échoue avant qu'on attende le scan.
   scanPromise.catch(() => {});
 
   let assets;
   try {
     // URL de scene.json écrites depuis la racine : préfixées par la base du site.
-    const items = cfg.assets.items.map((item) => ({ ...item, url: withBase(item.url) }) as AssetItem);
-    assets = await loadAssets(items, renderer, withBase(cfg.assets.decoders.basisTranscoderPath), {
+    const items = glbObjects.map((o) => ({ id: o.id, url: withBase(o.file), optional: o.optional }));
+    assets = await loadAssets(items, renderer, basisPath, {
       onProgress: (r) => {
         assetsRatio = r;
         report();
@@ -125,14 +136,18 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     throw err;
   }
 
+  // Objet de la scène correspondant à chaque fichier chargé.
+  const objOf = (a: { item: { id: string } }) => glbObjects.find((o) => o.id === a.item.id)!;
   for (const a of assets) {
-    a.root = prepareAsset(a.root, a.item.role);
+    const o = objOf(a);
+    const m = matOf(o);
+    a.root = prepareAsset(a.root, { unlit: m.unlit !== false, doubleSided: !!m.doubleSided, merge: !!o.merge });
     scene.add(a.root);
   }
 
   // 1. Référence : bbox du Panthéon → cible d'orbite, centre de découpe, hauteur du sol.
-  const refAsset = assets.find((a) => a.item.id === cfg.assets.reference.id);
-  if (!refAsset) throw new Error(`Asset de référence introuvable : ${cfg.assets.reference.id}`);
+  const refAsset = assets.find((a) => objOf(a).reference) ?? assets[0];
+  if (!refAsset) throw new Error('Aucun objet de référence (« reference »: true) dans scene.json');
   const focusCfg = { x: cfg.focus.offsetX ?? 0, y: cfg.focus.heightOffset, z: cfg.focus.offsetZ ?? 0 };
   const reference = computeReference(refAsset.root, focusCfg);
   // Repères bbox + focus (le back-office a les siens, déplaçables au gizmo).
@@ -151,19 +166,20 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     });
   }
 
-  // Découpe + faces arrière en couleur de coupe : maquette du Panthéon et scan ;
-  // jamais le sol ni la ville.
+  // Effets de matériau, toujours dans le même ordre (ils se chaînent) :
+  // découpe → remplissage de coupe → réglage colorimétrique → brume.
+  // Découpe + faces arrière en couleur de coupe (matériaux « cutaway »).
   const cutaway = createCutaway(cfg.cutaway);
   for (const a of assets) {
-    if (a.item.role === 'clay-cut' || a.item.role === 'scan') cutaway.apply(a.root);
+    if (matOf(objOf(a)).cutaway) cutaway.apply(a.root);
   }
 
-  // Tranche de coupe (sol) : matériau uni qui partage l'objet Color de la coupe,
-  // donc suit « Couleur de coupe » en direct. Jamais découpée.
+  // Remplissage de coupe : matériau uni qui partage l'objet Color de la coupe,
+  // donc suit « Couleur de coupe » en direct. Jamais découpé.
   const cutFill = new MeshBasicMaterial({ name: 'cut-fill', side: DoubleSide });
   cutFill.color = cutaway.uniforms.uCutColor.value;
   for (const a of assets) {
-    if (a.item.role !== 'cut-fill') continue;
+    if (matOf(objOf(a)).fill !== 'coupe') continue;
     a.root.traverse((o) => {
       if (!(o instanceof Mesh)) return;
       for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose();
@@ -171,17 +187,26 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     });
   }
 
-  // Brume d'arrière-plan centrée sur le Panthéon (distance horizontale au centre
-  // de la bbox). Appliquée après la découpe, avec laquelle elle se chaîne.
-  // Réglage colorimétrique commun à la ville, au Panthéon et au sol (uniforms
-  // partagés). Ni le scan ni la tranche de coupe. Appliqué après la découpe.
+  // Réglages colorimétriques (uniforms partagés par famille, réglés par le client) :
+  // « clay » pour les maquettes, « scan » pour les textures photogrammétriques.
   const clayGrade = createClayGrade(cfg.clay);
-  for (const a of assets) {
-    if (a.item.role === 'context' || a.item.role === 'clay' || a.item.role === 'clay-cut') clayGrade.apply(a.root);
-  }
+  const scanGrade = createScanGrade(cfg.scanGrade);
+  const applyGrade = (root: Object3D, m: MaterialDef) => {
+    if (m.grade === 'clay') clayGrade.apply(root);
+    else if (m.grade === 'scan') scanGrade.apply(root);
+  };
+  for (const a of assets) applyGrade(a.root, matOf(objOf(a)));
 
+  // Brume d'arrière-plan centrée sur la référence (distance horizontale au centre
+  // de sa bbox). Appliquée en dernier : elle se chaîne aux effets précédents.
   const mist = createMist(cfg.mist, reference.center);
-  for (const a of assets) mist.apply(a.root);
+  for (const a of assets) if (matOf(objOf(a)).mist !== false) mist.apply(a.root);
+
+  // Présence dans la carte : calque « plan » (mini-carte) et calque des vues.
+  const applyMapLayers = (root: Object3D, o: SceneObject) => {
+    if (o.map?.plan) enableLayer(root, LAYER_PLAN);
+    if (o.map?.views) enableLayer(root, LAYER_WALLS);
+  };
 
   // Debug : fond de scène en couleur vive pour repérer les fuites (jours entre la
   // maquette et le scan). Aussi activable d'emblée avec ?debug&leaks.
@@ -208,25 +233,29 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     progress.error('Impossible de charger le scan.');
     throw err;
   }
-  cutaway.apply(scan.root);
-  // Calques de la carte : plan = sol + tranche ; vues de face = sol + maquette + scan.
-  for (const a of assets) {
-    if (a.item.id === 'sol' || a.item.role === 'cut-fill') enableLayer(a.root, LAYER_PLAN);
-    if (a.item.id === 'sol' || a.item.role === 'clay-cut') enableLayer(a.root, LAYER_WALLS);
+  for (const a of assets) applyMapLayers(a.root, objOf(a));
+  if (scan && tiled) {
+    // Mêmes effets que les GLB, dans le même ordre.
+    const m = matOf(tiled);
+    if (m.cutaway) cutaway.apply(scan.root);
+    applyMapLayers(scan.root, tiled);
+    applyGrade(scan.root, m);
+    if (m.mist !== false) mist.apply(scan.root);
+    scene.add(scan.root);
   }
-  enableLayer(scan.root, LAYER_WALLS);
-  // Couleur du scan (uniforms partagés par toutes les tuiles), après la découpe.
-  const scanGrade = createScanGrade(cfg.scanGrade);
-  scanGrade.apply(scan.root);
-  scene.add(scan.root);
+  /** Racine 3D de chaque objet (pour le pointage, la mini-carte…). */
+  const rootsWhere = (pred: (o: SceneObject) => boolean) => [
+    ...assets.filter((a) => pred(objOf(a))).map((a) => a.root),
+    ...(scan && tiled && pred(tiled) ? [scan.root] : []),
+  ];
 
   // Debug : compteur des niveaux de texture chargés.
-  if (debug) {
+  if (debug && scan) {
     const hud = document.createElement('div');
     hud.className = 'pv-hud';
     container.appendChild(hud);
     setInterval(() => {
-      const s = scan.stats();
+      const s = scan!.stats();
       hud.textContent = `scan · ${Object.entries(s.perLevel).map(([l, n]) => `${l}px×${n}`).join(' · ')} · ${s.textureMB} Mo · ${s.loading} en cours`;
     }, 500);
   }
@@ -263,7 +292,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
         controls: orbit.controls,
         tour,
         reference,
-        pickTargets: [scan.root],
+        pickTargets: rootsWhere((o) => !!o.pick),
       })
     : null;
   let uiCfg: UiConfig = structuredClone(cfg.ui);
@@ -271,7 +300,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   // Mini-carte : vue de dessus du sol et de la tranche, rendue une fois.
   let minimap: MinimapImage | null = null;
   try {
-    const roots = assets.filter((a) => a.item.id === 'sol' || a.item.role === 'cut-fill').map((a) => a.root);
+    const roots = rootsWhere((o) => !!o.map?.minimap);
     if (roots.length) minimap = renderMinimap(renderer, roots, reference.box);
   } catch (err) {
     console.warn('[viewer] mini-carte indisponible', err);
@@ -335,7 +364,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       mapView.update(delta);
       tourUi?.update(delta);
       cutaway.update(camera.position, orbit.controls.target, 0);
-      if (mapView.view > 0) scan.update(mapView.camera, null, undefined, mapView.clip);
+      scan?.update(mapView.camera, null, undefined, mapView.clip);
       mapView.render();
       return;
     }
@@ -362,7 +391,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     else cutaway.update(camera.position, orbit.controls.target);
     camera.updateMatrixWorld();
     // En transition, la destination est préchargée en haute définition.
-    scan.update(camera, tour.active ? tour.lookahead() : null);
+    scan?.update(camera, tour.active ? tour.lookahead() : null);
     // Mise au point automatique : sur la cible d'orbite (ou l'œuvre visée), suit le zoom.
     const focusPoint = tour.active ? tour.lookTarget : orbit.controls.target;
     dof.render(scene, camera, camera.position.distanceTo(focusPoint));
@@ -428,7 +457,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       ro.disconnect();
       timer.dispose();
       orbit.dispose();
-      scan.dispose();
+      scan?.dispose();
       dof.dispose();
       renderer.dispose();
       renderer.domElement.remove();

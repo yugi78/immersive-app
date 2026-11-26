@@ -9,21 +9,20 @@ import {
   type Object3D,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { AssetRole } from '../config/types';
 
 /**
  * Les textures sont bakées pour un affichage unlit (sans ombrage) : on remplace
  * chaque matériau par un MeshBasicMaterial qui affiche la texture telle quelle.
  */
-function toUnlit(mat: Material, role: AssetRole): MeshBasicMaterial {
+function toUnlit(mat: Material, doubleSided: boolean): MeshBasicMaterial {
   const src = mat as Material & { map?: MeshBasicMaterial['map']; color?: MeshBasicMaterial['color'] };
   const out = new MeshBasicMaterial({
     name: mat.name,
     map: src.map ?? null,
     color: src.map ? 0xffffff : (src.color ?? 0xffffff),
-    // Maquette découpée en DoubleSide : ses faces arrière (épaisseur des murs coupés)
-    // sont rendues en couleur de coupe par le shader de découpe.
-    side: role === 'clay-cut' ? DoubleSide : mat.side,
+    // Double face (ex. maquette découpée : ses faces arrière, l'épaisseur des murs
+    // coupés, sont rendues en couleur de coupe par le shader de découpe).
+    side: doubleSided ? DoubleSide : mat.side,
     transparent: mat.transparent,
     alphaTest: mat.alphaTest,
   });
@@ -31,11 +30,11 @@ function toUnlit(mat: Material, role: AssetRole): MeshBasicMaterial {
   return out;
 }
 
-function convertMaterials(root: Object3D, role: AssetRole) {
+function convertMaterials(root: Object3D, doubleSided: boolean) {
   const cache = new Map<Material, MeshBasicMaterial>();
   const conv = (m: Material) => {
     let c = cache.get(m);
-    if (!c) cache.set(m, (c = toUnlit(m, role)));
+    if (!c) cache.set(m, (c = toUnlit(m, doubleSided)));
     return c;
   };
   root.traverse((o) => {
@@ -104,7 +103,11 @@ function mergeByMaterial(root: Object3D): Object3D {
   return out;
 }
 
-export function prepareAsset(root: Object3D, role: AssetRole): Object3D {
-  convertMaterials(root, role);
-  return role === 'clay' || role === 'clay-cut' || role === 'cut-fill' ? mergeByMaterial(root) : root;
+/**
+ * Prépare un GLB selon son objet et son matériau (scene.json) : matériaux sans
+ * ombrage (unlit), double face, fusion des maillages par matériau.
+ */
+export function prepareAsset(root: Object3D, opts: { unlit: boolean; doubleSided: boolean; merge: boolean }): Object3D {
+  if (opts.unlit) convertMaterials(root, opts.doubleSided);
+  return opts.merge ? mergeByMaterial(root) : root;
 }
