@@ -1539,3 +1539,49 @@ select.bo-input {
   background: var(--bo-ink);
   color: #fff;
 }
+
+/* ---- Scénario : accueil, modes, passages ---- */
+.bo-scn__section {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+.bo-scn__sechead {
+  display: grid;
+  gap: 2px;
+}
+.bo-scn__sechead b {
+  font-size: 14px;
+  font-weight: 650;
+}
+.bo-scn__sechead small {
+  color: var(--bo-muted);
+  font-size: 12px;
+}
+.bo-step__chev {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  color: var(--bo-muted);
+}
+.bo-step.is-off .bo-step__icon {
+  opacity: 0.5;
+}
+.bo-step--soon .bo-step__icon {
+  background: var(--bo-soft);
+  color: var(--bo-faint);
+}
+.bo-step__toggle:disabled {
+  cursor: default;
+}
+.bo-scn__first {
+  padding: 10px 12px;
+  border: 1px solid var(--bo-line);
+  border-radius: var(--bo-radius);
+  background: var(--bo-surface);
+}
+.bo-scn__raccords {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}

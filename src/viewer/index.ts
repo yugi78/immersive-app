@@ -1,5 +1,5 @@
 import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer, Vector3, type Object3D } from 'three';
-import type { SceneConfig, TourConfig, UiConfig, Vec3, ScenarioConfig, StartConfig, CutPreset, ControlStep, PathStep, LoopStep } from './config/types';
+import type { SceneConfig, TourConfig, UiConfig, Vec3, ScenarioConfig, StartConfig, CutPreset, PassageId } from './config/types';
 import { isTiled, normalizeScene, type GlbObject, type MaterialDef, type ObjectTransform, type SceneObject } from './config/scene-model';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
@@ -11,7 +11,6 @@ import { withBase } from './url';
 import { createScanLod } from './loaders/scanLod';
 import { isMobile } from './scene/renderer';
 import { createScenario, homePose } from './scene/scenario';
-import { firstControl, newStep } from './config/scenario';
 import { cutFor } from './config/cutaway';
 import { createCamera, createOrbit } from './scene/orbit';
 import { computeReference, type SceneReference } from './scene/reference';
@@ -23,7 +22,7 @@ import { createTour, type Tour } from './tour/tour';
 import { createTourUi, type TourUi } from './ui/tourUi';
 import { renderMinimap, type MinimapImage } from './ui/minimap';
 import { createMapView, enableLayer, LAYER_PLAN, LAYER_WALLS } from './map/mapView';
-import type { EditorTools } from './editor/editor';
+import type { EditorTools, ScenarioHelpers } from './editor/editor';
 import './ui/viewer.css';
 
 /** Fond de repérage des fuites (mode debug). */
@@ -68,7 +67,7 @@ export interface Viewer {
   /** Remplace le scénario d'ouverture à chaud (back-office). */
   setScenario(scenario: ScenarioConfig): void;
   /** Scénario : rejouer depuis le début, jouer une étape (aperçu), revenir à la vue de départ. */
-  scenario: { replay(): void; playStep(id: string): void; goHome(): void; readonly state: string; readonly stepId: string | null };
+  scenario: { replay(): void; playLoop(): void; playPassage(id: PassageId): void; goHome(): void; readonly state: string; readonly part: string };
   /** Caméra (back-office) : pose courante, placement, vue de départ depuis la caméra. */
   view: {
     pose(): { position: Vec3; target: Vec3 };
@@ -269,13 +268,12 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   // première étape).
   let scenarioCfg: ScenarioConfig = structuredClone(cfg.scenario);
   const camera = createCamera(cfg.camera, container.clientWidth / container.clientHeight);
-  const control0 = firstControl(scenarioCfg) ?? (newStep('control') as ControlStep);
   {
-    const h = homePose(control0, reference.focus);
+    const h = homePose(scenarioCfg.orbit, reference.focus);
     camera.position.copy(h.position);
     camera.lookAt(h.target);
   }
-  const orbit = createOrbit(camera, renderer.domElement, control0, reference);
+  const orbit = createOrbit(camera, renderer.domElement, scenarioCfg.orbit, reference);
 
   let scan: Awaited<typeof scanPromise>;
   try {
@@ -375,15 +373,29 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     busy: () => tour.active || !!editorTools?.flying || mapView.active,
     skip: opts.skipIntro,
     flying: () => !!editorTools?.flying,
-    startTour: (i) => tour.start(i),
-    applyControl: (st) => orbit.set(st),
+    tour: {
+      start: (i) => tour.start(i),
+      stop: () => tour.stop(),
+      cancel: () => tour.cancel(),
+      jump: (i) => tour.jumpTo(i),
+      get active() {
+        return tour.active;
+      },
+    },
+    applyOrbit: (o) => orbit.set(o),
     onReady,
   });
   // Interface créée à la fin de l'intro (pas de visite pendant l'ouverture).
+  // L'interface publique lance et quitte la visite par le scénario (passages : trajet
+  // éventuel entre la vue extérieure et la visite) ; le reste passe à la visite.
+  const uiTour = Object.assign(Object.create(tour) as typeof tour, {
+    start: (i: number) => (tour.active ? tour.start(i) : scenario.enterTour(i)),
+    stop: () => (tour.active ? scenario.leaveTour() : undefined),
+  });
   function onReady() {
     tourUi = createTourUi({
       container,
-      tour,
+      tour: uiTour,
       camera,
       works: () => tourCfg.works,
       hotspotIntervalMs: () => tourCfg.hotspotIntervalMs ?? 6000,
@@ -420,20 +432,25 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   const ro = new ResizeObserver(resize);
   ro.observe(container);
 
-  /** Repères 3D du scénario dans le back-office (onglet Expérience), étape par étape. */
+  /** Repères 3D du scénario dans le back-office (onglet Expérience). */
   function scenarioHelpers() {
     if (!editorTools) return;
     const r = (v: Vector3) => v.toArray() as Vec3;
-    const steps = scenarioCfg.steps;
+    const c = scenarioCfg;
+    const focus = r(reference.focus);
+    const poses = scenario.poses();
+    const paths: ScenarioHelpers['paths'] = [];
+    if (c.intro.enabled && c.intro.style === 'points') {
+      paths.push({ id: 'intro', waypoints: c.intro.waypoints, look: c.intro.look ?? focus, end: c.intro.endAtNext && poses.afterIntro ? r(poses.afterIntro.position) : null });
+    }
+    for (const id of ['orbit>tour', 'tour>orbit'] as const) {
+      const ps = c.passages[id];
+      if (ps.kind === 'path') paths.push({ id, waypoints: ps.waypoints, look: ps.look ?? focus, end: id === 'tour>orbit' ? r(poses.orbit.position) : null });
+    }
     editorTools.setScenarioHelpers({
-      paths: steps
-        .filter((st): st is PathStep => st.kind === 'path' && st.style === 'points')
-        .map((st) => {
-          const next = st.endAtNext ? scenario.startPose(st.onEnd) : null;
-          return { id: st.id, waypoints: st.waypoints, look: st.look ?? r(reference.focus), end: next ? r(next.position) : null };
-        }),
-      loops: steps.filter((st): st is LoopStep => st.kind === 'loop').map((st) => ({ id: st.id, points: st.points.map((p) => p.position) })),
-      homes: steps.filter((st): st is ControlStep => st.kind === 'control').map((st) => ({ id: st.id, position: r(homePose(st, reference.focus).position) })),
+      paths,
+      loops: c.loop.enabled ? [{ id: 'loop', points: c.loop.points.map((x) => x.position) }] : [],
+      homes: [{ id: 'orbit', position: r(poses.orbit.position) }],
     });
   }
   scenarioHelpers();
@@ -484,8 +501,6 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     // œuvres). Un cylindre (vers le point regardé) et une sphère (autour de la caméra)
     // au plus ; la sphère est lissée d'une image à l'autre, sans saut.
     const cc = cutaway.settings;
-    const blendP = scenario.blendProgress;
-    const st = scenario.step;
     const pick = (ids: string[] | undefined, target: Vector3, scale: number) => {
       const list = (ids ?? []).map((id) => cc.presets.find((p) => p.id === id)).filter((p): p is CutPreset => !!p);
       return { cyl: list.find((p) => p.kind === 'cylinder') ?? null, sph: list.find((p) => p.kind === 'sphere') ?? null, target, scale };
@@ -495,16 +510,15 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     if (tour.active) {
       if (tour.state === 'transit') moment = one(cutFor(cc, 'transit'), tour.lookTarget, transitCurve(tour.phaseProgress, cc.transitFade));
       else if (tour.state === 'loop') moment = one(cutFor(cc, 'work'), tour.lookTarget, 1);
-      // Entrée / sortie de la visite : la découpe de l'étape de sortie s'éteint / se rallume.
-      else moment = pick(scenario.exitStep()?.cut, tour.cutTarget, tour.cutScale);
-    } else if (blendP >= 0) {
-      moment = pick(st?.arriveCut, scenario.lookTarget, transitCurve(blendP, cc.transitFade));
-    } else if (scenario.driving) {
-      moment = pick(st?.cut, scenario.lookTarget, 1);
+      // Entrée / sortie standard de la visite : la découpe de la vue extérieure s'éteint / se rallume.
+      else moment = pick(scenarioCfg.orbit.cut, tour.cutTarget, tour.cutScale);
     } else if (editorTools?.flying) {
       moment = pick([], orbit.controls.target, 0);
     } else {
-      moment = pick(st?.cut, orbit.controls.target, 1);
+      // Partie du scénario en cours ; raccords et passages : fondu au début et à la fin.
+      const c = scenario.cutNow();
+      const scale = c.progress === null ? 1 : transitCurve(c.progress, cc.transitFade);
+      moment = pick(c.ids, scenario.driving ? scenario.lookTarget : orbit.controls.target, scale);
     }
     const moment2 = { preset: moment.cyl, target: moment.target, scale: moment.scale };
     cutaway.update(camera.position, moment2.target, moment2.preset, moment2.scale);
@@ -579,8 +593,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     setScenario(next) {
       if (JSON.stringify(next) === JSON.stringify(scenarioCfg)) return;
       scenarioCfg = structuredClone(next);
-      const st = scenario.step;
-      if (st?.kind === 'control') orbit.set(scenarioCfg.steps.find((x) => x.id === st.id) as ControlStep ?? st);
+      if (scenario.part === 'orbit') orbit.set(scenarioCfg.orbit);
       scenarioHelpers();
     },
     view: {
@@ -617,10 +630,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
         tour.cancel();
         scenario.replay();
       },
-      playStep: (id) => {
-        tour.cancel();
-        scenario.playStep(id);
-      },
+      playLoop: () => scenario.playLoop(),
+      playPassage: (id) => scenario.playPassage(id),
       goHome: () => {
         tour.cancel();
         scenario.goHome();
@@ -628,8 +639,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       get state() {
         return scenario.state;
       },
-      get stepId() {
-        return scenario.step?.id ?? null;
+      get part() {
+        return scenario.part;
       },
     },
     // Réglages identiques (le back-office renvoie tout à chaque interaction) : rien à

@@ -1,163 +1,182 @@
-import type { ControlStep, LoopStep, PathStep, ScenarioConfig, ScenarioPoint, ScenarioStep, StepKind, TourStep, Vec3 } from './types';
+import type { IntroConfig, ModeId, OrbitMode, Passage, PassageId, ScenarioConfig, ScenarioPoint, Vec3 } from './types';
 
-/** Libellés des types d'étapes (back-office). */
-export const STEP_KINDS: { kind: StepKind; label: string; hint: string }[] = [
-  { kind: 'path', label: 'Trajet', hint: 'Joué une fois : arrivée du ciel ou point par point' },
-  { kind: 'loop', label: 'Boucle d’attente', hint: 'Tourne en boucle jusqu’à ce que le visiteur touche' },
-  { kind: 'control', label: 'Prise en main', hint: 'Le visiteur pilote la caméra (orbite)' },
-  { kind: 'tour', label: 'Visite guidée', hint: 'Œuvre par œuvre ; sortie par le bouton du monument' },
+/** Modes de l'expérience (libellés du back-office). */
+export const MODES: { id: ModeId | 'walk'; label: string; hint: string; soon?: boolean }[] = [
+  { id: 'orbit', label: 'Vue extérieure', hint: 'Orbite autour du bâtiment' },
+  { id: 'tour', label: 'Visite guidée', hint: 'Œuvre par œuvre' },
+  { id: 'walk', label: 'Visite à pied', hint: 'Bientôt', soon: true },
+];
+export const modeLabel = (id: ModeId) => MODES.find((m) => m.id === id)?.label ?? id;
+
+/** Passages entre modes (dans cet ordre dans le back-office). */
+export const PASSAGES: { id: PassageId; from: ModeId; to: ModeId; hint: string }[] = [
+  { id: 'orbit>tour', from: 'orbit', to: 'tour', hint: 'Bouton « Visite guidée », clic sur une œuvre' },
+  { id: 'tour>orbit', from: 'tour', to: 'orbit', hint: 'Bouton du monument (sortie de la visite)' },
 ];
 
-export const newStepId = () => `e-${Math.random().toString(36).slice(2, 8)}`;
+export const newPassage = (): Passage => ({ kind: 'direct', durationMs: 4000, waypoints: [], look: null, cut: [] });
 
-/** Nouvelle étape d'un type, avec des valeurs par défaut. */
-export function newStep(kind: StepKind, id = newStepId(), name?: string): ScenarioStep {
-  const base = { id, cut: [] as string[], arriveCut: [] as string[] };
-  switch (kind) {
-    case 'path':
-      return {
-        ...base,
-        kind,
-        name: name ?? 'Trajet',
-        style: 'points',
-        durationMs: 4500,
-        startHeightAboveGround: 200,
-        startDistance: 350,
-        sweepDeg: 70,
-        waypoints: [],
-        look: null,
-        endAtNext: true,
-        interruptible: true,
-        onEnd: '',
-        onTouch: '',
-      } satisfies PathStep;
-    case 'loop':
-      return { ...base, kind, name: name ?? 'Boucle d’attente', points: [], onTouch: '' } satisfies LoopStep;
-    case 'control':
-      return {
-        ...base,
-        kind,
-        name: name ?? 'Prise en main',
-        mode: 'orbit',
-        start: { distance: 120, azimuthDeg: 200, elevationDeg: 25 },
-        minDistance: 5,
-        maxDistance: 600,
-        dampingFactor: 0.08,
-        groundMargin: 1.5,
-        autoRotateSpeed: 0.4,
-        idle: { action: 'rotate', afterMs: 4000, step: '' },
-      } satisfies ControlStep;
-    case 'tour':
-      return { ...base, kind, name: name ?? 'Visite guidée', startWork: 0, exit: '' } satisfies TourStep;
-  }
-}
-
-/** Scénario par défaut d'un projet qui n'en décrit pas : prise en main directe en orbite, visite guidée. */
 export function defaultScenario(): ScenarioConfig {
-  const orbit = newStep('control', 'orbite', 'Vue extérieure') as ControlStep;
-  const tour = { ...(newStep('tour', 'visite') as TourStep), exit: 'orbite' };
-  return { first: 'orbite', steps: [orbit, tour], blendMs: 2500 };
+  return {
+    intro: {
+      enabled: false,
+      style: 'sky',
+      durationMs: 4500,
+      startHeightAboveGround: 200,
+      startDistance: 350,
+      sweepDeg: 70,
+      waypoints: [],
+      look: null,
+      cut: [],
+      interruptible: true,
+      endAtNext: true,
+    },
+    loop: { enabled: false, points: [], cut: [] },
+    firstMode: 'orbit',
+    orbit: {
+      start: { distance: 120, azimuthDeg: 200, elevationDeg: 25 },
+      minDistance: 5,
+      maxDistance: 600,
+      dampingFactor: 0.08,
+      groundMargin: 1.5,
+      autoRotateSpeed: 0.4,
+      idle: { action: 'rotate', afterMs: 4000 },
+      cut: [],
+    },
+    tour: { startWork: 0 },
+    passages: { 'orbit>tour': newPassage(), 'tour>orbit': newPassage() },
+    blend: { durationMs: 2500, cut: [] },
+  };
 }
-
-export const stepById = (s: ScenarioConfig, id: string) => s.steps.find((x) => x.id === id) ?? null;
-/** Première prise en main du scénario (vue de départ du back-office, repli des liens vides). */
-export const firstControl = (s: ScenarioConfig) => s.steps.find((x): x is ControlStep => x.kind === 'control') ?? null;
-export const tourStepOf = (s: ScenarioConfig) => s.steps.find((x): x is TourStep => x.kind === 'tour') ?? null;
 
 // ---- Conversion des anciens formats --------------------------------------------------
 
+type Use = Partial<Record<'intro' | 'loop' | 'orbit' | 'transit', string>>;
+const ids = (...v: (string | undefined)[]) => v.filter((x): x is string => !!x);
+
+/** Format « étapes reliées » (v2). */
+type V2 = {
+  first?: string;
+  blendMs?: number;
+  steps: ({ id: string; kind: string; cut?: string[]; arriveCut?: string[] } & Record<string, unknown>)[];
+};
+/** Format « intro / boucle / prise en main / inactivité » (v1). */
 type V1 = {
-  intro?: Partial<{
-    enabled: boolean;
-    kind: 'sky' | 'points';
-    interruptible: boolean;
-    durationMs: number;
-    startHeightAboveGround: number;
-    startDistance: number;
-    sweepDeg: number;
-    waypoints: Vec3[];
-    look: Vec3 | null;
-    endAtHome: boolean;
-    points: { position: Vec3; target: Vec3 }[];
-  }>;
+  intro?: Record<string, unknown> & { points?: { position: Vec3; target: Vec3 }[] };
   loop?: { enabled?: boolean; points?: ScenarioPoint[] };
-  control?: Partial<Omit<ControlStep, 'idle' | 'kind'>>;
+  control?: Partial<OrbitMode>;
   idle?: { action?: 'none' | 'rotate' | 'loop'; afterMs?: number };
   blendMs?: number;
 };
 
 type Legacy = {
-  scenario?: Partial<ScenarioConfig> & V1;
-  /** Ancien format (scene.json) : intro, orbite et vue de départ séparées. */
+  scenario?: Partial<ScenarioConfig> & Partial<V2> & V1;
   intro?: { durationMs: number; startHeightAboveGround: number; startDistance: number; sweepDeg: number };
   orbit?: { minDistance: number; maxDistance: number; dampingFactor: number; autoRotateSpeed: number; autoRotateResumeDelayMs: number; groundMargin: number };
-  camera?: { start?: ControlStep['start'] };
-  /** Ancienne attribution des découpes (intro, boucle, orbite) : reprise par les étapes. */
+  camera?: { start?: OrbitMode['start'] };
   cutaway?: { use?: Use };
 };
 
-const ids = (...v: (string | undefined)[]) => v.filter((x): x is string => !!x);
-type Use = Partial<Record<'intro' | 'loop' | 'orbit' | 'transit', string>>;
-
-/** Scénario v1 (intro / boucle / prise en main / inactivité figés) → étapes, à l'identique. */
-function fromV1(v1: V1, use: Use = {}): ScenarioConfig {
-  const transit = ids(use?.transit);
-  const orbit = newStep('control', 'orbite', 'Vue extérieure') as ControlStep;
-  const c = v1.control ?? {};
-  Object.assign(orbit, {
-    start: { ...orbit.start, ...c.start },
-    minDistance: c.minDistance ?? orbit.minDistance,
-    maxDistance: c.maxDistance ?? orbit.maxDistance,
-    dampingFactor: c.dampingFactor ?? orbit.dampingFactor,
-    groundMargin: c.groundMargin ?? orbit.groundMargin,
-    autoRotateSpeed: c.autoRotateSpeed ?? orbit.autoRotateSpeed,
-    cut: ids(use?.orbit),
-    arriveCut: transit,
-  });
-  const steps: ScenarioStep[] = [];
-  const loopOk = !!v1.loop?.enabled && (v1.loop.points?.length ?? 0) >= 3;
-  const i = v1.intro ?? {};
-  if (i.enabled) {
-    const old = i.points;
-    const p = newStep('path', 'intro', 'Intro') as PathStep;
-    Object.assign(p, {
-      style: i.kind ?? 'sky',
-      durationMs: i.durationMs ?? p.durationMs,
-      startHeightAboveGround: i.startHeightAboveGround ?? p.startHeightAboveGround,
-      startDistance: i.startDistance ?? p.startDistance,
-      sweepDeg: i.sweepDeg ?? p.sweepDeg,
-      waypoints: i.waypoints ?? old?.map((x) => x.position) ?? [],
-      look: i.look ?? old?.[0]?.target ?? null,
-      endAtNext: i.endAtHome ?? !old?.length,
-      interruptible: i.interruptible ?? false,
-      onEnd: loopOk ? 'boucle' : 'orbite',
-      onTouch: 'orbite',
-      cut: ids(use?.intro),
-      arriveCut: transit,
-    });
-    steps.push(p);
-  }
-  if (loopOk) {
-    steps.push({ ...(newStep('loop', 'boucle', 'Boucle d’attente') as LoopStep), points: v1.loop!.points!, onTouch: 'orbite', cut: ids(use?.loop), arriveCut: transit });
-  }
-  const idle = v1.idle ?? {};
-  orbit.idle = {
-    action: idle.action === 'loop' ? (loopOk ? 'goto' : 'none') : (idle.action ?? 'rotate'),
-    afterMs: idle.afterMs ?? 4000,
-    step: idle.action === 'loop' && loopOk ? 'boucle' : '',
+const pickOrbit = (o: Partial<OrbitMode> | Record<string, unknown>, d: OrbitMode): Omit<OrbitMode, 'idle' | 'cut'> => {
+  const x = o as Partial<OrbitMode>;
+  return {
+    start: { ...d.start, ...x.start },
+    minDistance: x.minDistance ?? d.minDistance,
+    maxDistance: x.maxDistance ?? d.maxDistance,
+    dampingFactor: x.dampingFactor ?? d.dampingFactor,
+    groundMargin: x.groundMargin ?? d.groundMargin,
+    autoRotateSpeed: x.autoRotateSpeed ?? d.autoRotateSpeed,
   };
-  steps.push(orbit);
-  steps.push({ ...(newStep('tour', 'visite', 'Visite guidée') as TourStep), exit: 'orbite' });
-  return { first: steps[0].id, steps, blendMs: v1.blendMs ?? 2500 };
+};
+
+function fromV2(v: V2): ScenarioConfig {
+  const d = defaultScenario();
+  const byId = (id: unknown) => v.steps.find((s) => s.id === id);
+  const path = v.steps.find((s) => s.kind === 'path');
+  const loop = v.steps.find((s) => s.kind === 'loop');
+  const control = v.steps.find((s) => s.kind === 'control');
+  const tour = v.steps.find((s) => s.kind === 'tour');
+  const first = byId(v.first);
+  const intro: IntroConfig = path
+    ? {
+        ...d.intro,
+        ...(path as Partial<IntroConfig>),
+        enabled: first?.id === path.id,
+        cut: path.cut ?? [],
+      }
+    : d.intro;
+  const loopPoints = (loop?.points as ScenarioPoint[] | undefined) ?? [];
+  // Premier mode : celui où mène l'intro (ou la première étape).
+  const after = first?.kind === 'path' ? byId(first.onEnd) : first?.kind === 'loop' ? byId(first.onTouch) : first;
+  const idle = (control?.idle as { action?: string; afterMs?: number } | undefined) ?? {};
+  return {
+    intro,
+    loop: { enabled: !!loop && loopPoints.length >= 3 && (first?.id === loop.id || byId(intro.enabled ? path?.onEnd : '')?.id === loop.id), points: loopPoints, cut: loop?.cut ?? [] },
+    firstMode: after?.kind === 'tour' ? 'tour' : 'orbit',
+    orbit: control
+      ? {
+          ...pickOrbit(control, d.orbit),
+          idle: { action: idle.action === 'goto' ? 'loop' : idle.action === 'none' ? 'none' : 'rotate', afterMs: idle.afterMs ?? 4000 },
+          cut: control.cut ?? [],
+        }
+      : d.orbit,
+    tour: { startWork: (tour?.startWork as number | undefined) ?? 0 },
+    passages: { 'orbit>tour': newPassage(), 'tour>orbit': newPassage() },
+    blend: { durationMs: v.blendMs ?? 2500, cut: control?.arriveCut ?? [] },
+  };
+}
+
+function fromV1(v1: V1, use: Use): ScenarioConfig {
+  const d = defaultScenario();
+  const i = v1.intro ?? {};
+  const old = i.points;
+  const loopOk = !!v1.loop?.enabled && (v1.loop.points?.length ?? 0) >= 3;
+  return {
+    intro: {
+      ...d.intro,
+      enabled: !!i.enabled,
+      style: (i.kind as IntroConfig['style']) ?? 'sky',
+      durationMs: (i.durationMs as number) ?? d.intro.durationMs,
+      startHeightAboveGround: (i.startHeightAboveGround as number) ?? d.intro.startHeightAboveGround,
+      startDistance: (i.startDistance as number) ?? d.intro.startDistance,
+      sweepDeg: (i.sweepDeg as number) ?? d.intro.sweepDeg,
+      waypoints: (i.waypoints as Vec3[]) ?? old?.map((x) => x.position) ?? [],
+      look: (i.look as Vec3 | null) ?? old?.[0]?.target ?? null,
+      endAtNext: (i.endAtHome as boolean) ?? !old?.length,
+      interruptible: (i.interruptible as boolean) ?? false,
+      cut: ids(use.intro),
+    },
+    loop: { enabled: loopOk, points: v1.loop?.points ?? [], cut: ids(use.loop) },
+    firstMode: 'orbit',
+    orbit: {
+      ...pickOrbit(v1.control ?? {}, d.orbit),
+      idle: { action: v1.idle?.action === 'loop' ? (loopOk ? 'loop' : 'none') : (v1.idle?.action ?? 'rotate'), afterMs: v1.idle?.afterMs ?? 4000 },
+      cut: ids(use.orbit),
+    },
+    tour: { startWork: 0 },
+    passages: { 'orbit>tour': newPassage(), 'tour>orbit': newPassage() },
+    blend: { durationMs: v1.blendMs ?? 2500, cut: ids(use.transit) },
+  };
 }
 
 /** Scénario complet d'un projet : le sien (converti des anciens formats au besoin), sinon par défaut. */
 export function normalizeScenario(raw: Legacy): ScenarioConfig {
-  const use = raw.cutaway?.use ?? {};
+  const d = defaultScenario();
   const s = raw.scenario;
-  if (s && Array.isArray(s.steps)) {
-    return { first: s.first ?? s.steps[0]?.id ?? '', steps: s.steps.map((x) => ({ ...newStep(x.kind, x.id, x.name), ...x }) as ScenarioStep), blendMs: s.blendMs ?? 2500 };
+  if (s && s.orbit && s.passages) {
+    const c = s as ScenarioConfig;
+    return {
+      intro: { ...d.intro, ...c.intro },
+      loop: { ...d.loop, ...c.loop },
+      firstMode: c.firstMode ?? 'orbit',
+      orbit: { ...d.orbit, ...c.orbit, start: { ...d.orbit.start, ...c.orbit.start }, idle: { ...d.orbit.idle, ...c.orbit.idle } },
+      tour: { ...d.tour, ...c.tour },
+      passages: { 'orbit>tour': { ...newPassage(), ...c.passages['orbit>tour'] }, 'tour>orbit': { ...newPassage(), ...c.passages['tour>orbit'] } },
+      blend: { ...d.blend, ...c.blend },
+    };
   }
+  if (s && Array.isArray(s.steps)) return fromV2(s as V2);
+  const use = raw.cutaway?.use ?? {};
   if (s) return fromV1(s, use);
   // Format le plus ancien : intro, orbite et vue de départ dans scene.json.
   const { intro, orbit, camera } = raw;
@@ -166,13 +185,10 @@ export function normalizeScenario(raw: Legacy): ScenarioConfig {
       intro: intro ? { ...intro, enabled: true, kind: 'sky', interruptible: false } : undefined,
       control: {
         ...(orbit ? { minDistance: orbit.minDistance, maxDistance: orbit.maxDistance, dampingFactor: orbit.dampingFactor, groundMargin: orbit.groundMargin, autoRotateSpeed: orbit.autoRotateSpeed } : {}),
-        start: camera?.start,
+        ...(camera?.start ? { start: camera.start } : {}),
       },
       idle: { action: 'rotate', afterMs: orbit?.autoRotateResumeDelayMs ?? 4000 },
     },
     use,
   );
 }
-
-/** Le scénario par défaut est utilisé quand rien n'est décrit du tout. */
-export const DEFAULT_SCENARIO = defaultScenario();

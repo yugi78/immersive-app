@@ -8,84 +8,87 @@
     "button": "Entrer"
   },
   "scenario": {
-    "first": "intro",
-    "steps": [
-      {
-        "id": "intro",
-        "name": "Intro",
-        "kind": "path",
-        "cut": [
-          "exterieur"
+    "intro": {
+      "enabled": true,
+      "style": "points",
+      "durationMs": 4500,
+      "startHeightAboveGround": 200,
+      "startDistance": 350,
+      "sweepDeg": 70,
+      "waypoints": [
+        [
+          -109.08,
+          2101.13,
+          453.45
         ],
-        "arriveCut": [
-          "transition"
+        [
+          -753.64,
+          1113.19,
+          -145.61
         ],
-        "style": "points",
-        "durationMs": 4500,
-        "startHeightAboveGround": 200,
-        "startDistance": 350,
-        "sweepDeg": 70,
-        "waypoints": [
-          [
-            -109.08,
-            2101.13,
-            453.45
-          ],
-          [
-            -753.64,
-            1113.19,
-            -145.61
-          ],
-          [
-            -229.34,
-            381.23,
-            -214.41
-          ]
-        ],
+        [
+          -229.34,
+          381.23,
+          -214.41
+        ]
+      ],
+      "look": null,
+      "cut": [
+        "exterieur"
+      ],
+      "interruptible": false,
+      "endAtNext": true
+    },
+    "loop": {
+      "enabled": false,
+      "points": [],
+      "cut": []
+    },
+    "firstMode": "orbit",
+    "orbit": {
+      "start": {
+        "distance": 190,
+        "azimuthDeg": 200,
+        "elevationDeg": 25
+      },
+      "minDistance": 15,
+      "maxDistance": 600,
+      "dampingFactor": 0.08,
+      "groundMargin": 1.5,
+      "autoRotateSpeed": 0.4,
+      "idle": {
+        "action": "rotate",
+        "afterMs": 4000
+      },
+      "cut": [
+        "exterieur"
+      ]
+    },
+    "tour": {
+      "startWork": 0
+    },
+    "passages": {
+      "orbit>tour": {
+        "kind": "direct",
+        "durationMs": 4000,
+        "waypoints": [],
         "look": null,
-        "endAtNext": true,
-        "interruptible": false,
-        "onEnd": "orbite",
-        "onTouch": "orbite"
+        "cut": []
       },
-      {
-        "id": "orbite",
-        "name": "Vue extérieure",
-        "kind": "control",
-        "cut": [
-          "exterieur"
-        ],
-        "arriveCut": [
-          "transition"
-        ],
-        "mode": "orbit",
-        "start": {
-          "distance": 190,
-          "azimuthDeg": 200,
-          "elevationDeg": 25
-        },
-        "minDistance": 15,
-        "maxDistance": 600,
-        "dampingFactor": 0.08,
-        "groundMargin": 1.5,
-        "autoRotateSpeed": 0.4,
-        "idle": {
-          "action": "rotate",
-          "afterMs": 4000,
-          "step": ""
-        }
-      },
-      {
-        "id": "visite",
-        "name": "Visite guidée",
-        "kind": "tour",
-        "cut": [],
-        "arriveCut": [],
-        "startWork": 0,
-        "exit": "orbite"
+      "tour>orbit": {
+        "kind": "direct",
+        "durationMs": 4000,
+        "waypoints": [],
+        "look": null,
+        "cut": []
       }
-    ],
-    "blendMs": 2500
+    },
+    "blend": {
+      "durationMs": 2500,
+      "cut": [
+        "transition"
+      ]
+    }
   },
   "focus": {
     "heightOffset": -26.3,

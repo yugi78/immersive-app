@@ -167,89 +167,81 @@ const positive = (v: unknown, n: string) => {
   if (x < 0) throw new Error(`${n} doit être positif`);
   return x;
 };
-// Scénario : étapes reliées (trajet, boucle d'attente, prise en main, visite guidée).
-const STEP_ID = /^[\w-]{0,40}$/;
-const link = (v: unknown, n: string) => str(v ?? '', n, STEP_ID);
+// Scénario : accueil (intro, boucle d'attente, premier mode), modes, passages.
 const cutIds = (v: unknown, n: string) => {
   if (v == null) return [];
   if (!Array.isArray(v) || v.length > 8) throw new Error(`${n} doit être une liste`);
   return v.map((x, i) => str(x, `${n}[${i}]`, /^[\w-]{1,40}$/));
 };
-function scenarioStep(v: unknown, n: string) {
+const waypoints = (v: unknown, n: string) => {
+  const w = v ?? [];
+  if (!Array.isArray(w) || w.length > 64) throw new Error(`${n} : liste de 64 points au plus`);
+  return w.map((p, i) => vec3(p, `${n}[${i}]`));
+};
+const lookOf = (v: unknown, n: string) => (v == null ? null : vec3(v, n));
+const passage = (v: unknown, n: string) => {
   const q = (v ?? {}) as Record<string, unknown>;
-  const base = {
-    id: str(q.id, `${n}.id`, /^[\w-]{1,40}$/),
-    name: str(q.name ?? '', `${n}.name`),
-    kind: str(q.kind, `${n}.kind`, /^(path|loop|control|tour)$/),
+  return {
+    kind: str(q.kind ?? 'direct', `${n}.kind`, /^(direct|path)$/),
+    durationMs: positive(q.durationMs ?? 4000, `${n}.durationMs`),
+    waypoints: waypoints(q.waypoints, `${n}.waypoints`),
+    look: lookOf(q.look, `${n}.look`),
     cut: cutIds(q.cut, `${n}.cut`),
-    arriveCut: cutIds(q.arriveCut, `${n}.arriveCut`),
   };
-  switch (base.kind) {
-    case 'path': {
-      const w = q.waypoints ?? [];
-      if (!Array.isArray(w) || w.length > 64) throw new Error(`${n}.waypoints : liste de 64 points au plus`);
-      return {
-        ...base,
-        style: str(q.style, `${n}.style`, /^(sky|points)$/),
-        durationMs: positive(q.durationMs, `${n}.durationMs`),
-        startHeightAboveGround: num(q.startHeightAboveGround, `${n}.startHeightAboveGround`),
-        startDistance: positive(q.startDistance, `${n}.startDistance`),
-        sweepDeg: num(q.sweepDeg, `${n}.sweepDeg`),
-        waypoints: w.map((p, i) => vec3(p, `${n}.waypoints[${i}]`)),
-        look: q.look == null ? null : vec3(q.look, `${n}.look`),
-        endAtNext: bool(q.endAtNext ?? true, `${n}.endAtNext`),
-        interruptible: bool(q.interruptible ?? false, `${n}.interruptible`),
-        onEnd: link(q.onEnd, `${n}.onEnd`),
-        onTouch: link(q.onTouch, `${n}.onTouch`),
-      };
-    }
-    case 'loop':
-      return { ...base, points: scenarioPoints(q.points ?? [], `${n}.points`), onTouch: link(q.onTouch, `${n}.onTouch`) };
-    case 'control': {
-      const st = (q.start ?? {}) as Record<string, unknown>;
-      const idle = (q.idle ?? {}) as Record<string, unknown>;
-      const minDistance = positive(q.minDistance, `${n}.minDistance`);
-      const maxDistance = positive(q.maxDistance, `${n}.maxDistance`);
-      if (maxDistance < minDistance) throw new Error(`${n} : distance max inférieure à la distance min`);
-      return {
-        ...base,
-        mode: str(q.mode ?? 'orbit', `${n}.mode`, /^orbit$/),
-        start: {
-          distance: positive(st.distance, `${n}.start.distance`),
-          azimuthDeg: num(st.azimuthDeg, `${n}.start.azimuthDeg`),
-          elevationDeg: num(st.elevationDeg, `${n}.start.elevationDeg`),
-        },
-        minDistance,
-        maxDistance,
-        dampingFactor: positive(q.dampingFactor, `${n}.dampingFactor`),
-        groundMargin: num(q.groundMargin, `${n}.groundMargin`),
-        autoRotateSpeed: num(q.autoRotateSpeed, `${n}.autoRotateSpeed`),
-        idle: {
-          action: str(idle.action, `${n}.idle.action`, /^(none|rotate|goto)$/),
-          afterMs: positive(idle.afterMs, `${n}.idle.afterMs`),
-          step: link(idle.step, `${n}.idle.step`),
-        },
-      };
-    }
-    default:
-      return { ...base, startWork: Math.max(0, Math.floor(num(q.startWork ?? 0, `${n}.startWork`))), exit: link(q.exit, `${n}.exit`) };
-  }
-}
+};
 OBJECT_KEYS.scenario = {
-  first: link,
-  steps: (v, n) => {
-    if (!Array.isArray(v)) throw new Error(`${n} doit être une liste`);
-    if (v.length > 32) throw new Error(`${n} : 32 étapes au plus`);
-    const steps = v.map((x, i) => scenarioStep(x, `${n}[${i}]`));
-    const ids = new Set<string>();
-    for (const st of steps) {
-      if (ids.has(st.id)) throw new Error(`${n} : étape en double (${st.id})`);
-      ids.add(st.id);
-    }
-    if (steps.filter((x) => x.kind === 'tour').length > 1) throw new Error(`${n} : une seule étape « visite guidée »`);
-    return steps;
+  intro: (v, n) => {
+    const q = (v ?? {}) as Record<string, unknown>;
+    return {
+      enabled: bool(q.enabled, `${n}.enabled`),
+      style: str(q.style, `${n}.style`, /^(sky|points)$/),
+      durationMs: positive(q.durationMs, `${n}.durationMs`),
+      startHeightAboveGround: num(q.startHeightAboveGround, `${n}.startHeightAboveGround`),
+      startDistance: positive(q.startDistance, `${n}.startDistance`),
+      sweepDeg: num(q.sweepDeg, `${n}.sweepDeg`),
+      waypoints: waypoints(q.waypoints, `${n}.waypoints`),
+      look: lookOf(q.look, `${n}.look`),
+      cut: cutIds(q.cut, `${n}.cut`),
+      interruptible: bool(q.interruptible ?? false, `${n}.interruptible`),
+      endAtNext: bool(q.endAtNext ?? true, `${n}.endAtNext`),
+    };
   },
-  blendMs: positive,
+  loop: (v, n) => {
+    const q = (v ?? {}) as Record<string, unknown>;
+    return { enabled: bool(q.enabled, `${n}.enabled`), points: scenarioPoints(q.points ?? [], `${n}.points`), cut: cutIds(q.cut, `${n}.cut`) };
+  },
+  firstMode: (v, n) => str(v, n, /^(orbit|tour)$/),
+  orbit: (v, n) => {
+    const q = (v ?? {}) as Record<string, unknown>;
+    const st = (q.start ?? {}) as Record<string, unknown>;
+    const idle = (q.idle ?? {}) as Record<string, unknown>;
+    const minDistance = positive(q.minDistance, `${n}.minDistance`);
+    const maxDistance = positive(q.maxDistance, `${n}.maxDistance`);
+    if (maxDistance < minDistance) throw new Error(`${n} : distance max inférieure à la distance min`);
+    return {
+      start: {
+        distance: positive(st.distance, `${n}.start.distance`),
+        azimuthDeg: num(st.azimuthDeg, `${n}.start.azimuthDeg`),
+        elevationDeg: num(st.elevationDeg, `${n}.start.elevationDeg`),
+      },
+      minDistance,
+      maxDistance,
+      dampingFactor: positive(q.dampingFactor, `${n}.dampingFactor`),
+      groundMargin: num(q.groundMargin, `${n}.groundMargin`),
+      autoRotateSpeed: num(q.autoRotateSpeed, `${n}.autoRotateSpeed`),
+      idle: { action: str(idle.action, `${n}.idle.action`, /^(none|rotate|loop)$/), afterMs: positive(idle.afterMs, `${n}.idle.afterMs`) },
+      cut: cutIds(q.cut, `${n}.cut`),
+    };
+  },
+  tour: (v, n) => ({ startWork: Math.max(0, Math.floor(num((v as { startWork?: unknown })?.startWork ?? 0, `${n}.startWork`))) }),
+  passages: (v, n) => {
+    const q = (v ?? {}) as Record<string, unknown>;
+    return { 'orbit>tour': passage(q['orbit>tour'], `${n}.orbit>tour`), 'tour>orbit': passage(q['tour>orbit'], `${n}.tour>orbit`) };
+  },
+  blend: (v, n) => {
+    const q = (v ?? {}) as Record<string, unknown>;
+    return { durationMs: positive(q.durationMs, `${n}.durationMs`), cut: cutIds(q.cut, `${n}.cut`) };
+  },
 };
 
 // Découpes : formes nommées et découpe de chaque moment.

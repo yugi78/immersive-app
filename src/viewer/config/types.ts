@@ -148,31 +148,21 @@ export interface ScenarioPoint {
 }
 
 /**
- * Scénario de l'expérience : des ÉTAPES reliées entre elles (après l'écran de
- * démarrage, on entre dans l'étape `first`). Chaque étape dit où aller ensuite :
- * à la fin, si le visiteur touche, après une inactivité. Les raccords entre étapes
- * sont des transitions douces (durée `blendMs`).
+ * Scénario de l'expérience :
  *
- *   path    : trajet joué une fois (arrivée du ciel ou point par point)
- *   loop    : boucle d'attente (points), jusqu'à ce que le visiteur touche
- *   control : prise en main (orbite ; 1re personne plus tard)
- *   tour    : visite guidée ; le bouton de sortie (icône du monument) mène à `exit`
+ *   ACCUEIL (une fois)  écran de démarrage → intro → boucle d'attente → premier mode
+ *   MODES               où se trouve le visiteur : vue extérieure (orbite), visite guidée
+ *                       (visite à pied plus tard) ; il en change avec les boutons
+ *   PASSAGES            comment la caméra va d'un mode à l'autre : direct (mouvement
+ *                       standard) ou trajet point par point
  *
- * Chaque étape porte aussi sa découpe (formes de la bibliothèque, onglet Rendu) :
- * pendant l'étape (`cut`) et pendant le raccord qui y mène (`arriveCut`).
+ * Chaque élément porte sa découpe (formes de la bibliothèque, onglet Rendu).
  */
-interface StepBase {
-  id: string;
-  name: string;
-  /** Formes de découpe actives pendant l'étape (ids ; un cylindre et une sphère au plus servent). */
-  cut: string[];
-  /** Formes de découpe pendant le raccord qui mène à cette étape. */
-  arriveCut: string[];
-}
+export type ModeId = 'orbit' | 'tour';
+export type PassageId = 'orbit>tour' | 'tour>orbit';
 
-export interface PathStep extends StepBase {
-  kind: 'path';
-  /** sky : arrivée du ciel en arc vers le départ de l'étape suivante ; points : points de passage. */
+/** Trajet de caméra : arrivée du ciel (paramétrique) ou points de passage, sur une durée totale. */
+export interface PathSpec {
   style: 'sky' | 'points';
   /** Durée totale (ajouter des points ne l'allonge pas). */
   durationMs: number;
@@ -182,24 +172,20 @@ export interface PathStep extends StepBase {
   waypoints: Vec3[];
   /** Point regardé (points) ; null : le point de focus. */
   look: Vec3 | null;
-  /** Points : le trajet se termine sur le départ de l'étape suivante (pas de raccord). */
-  endAtNext: boolean;
-  /** Le visiteur peut l'interrompre (→ onTouch). */
+  /** Découpe pendant le trajet. */
+  cut: string[];
+}
+
+export interface IntroConfig extends PathSpec {
+  enabled: boolean;
+  /** Le visiteur peut l'interrompre (il arrive alors dans le premier mode, sur place). */
   interruptible: boolean;
-  onEnd: string;
-  onTouch: string;
+  /** Points : le trajet se termine sur le départ de la suite (pas de raccord). */
+  endAtNext: boolean;
 }
 
-export interface LoopStep extends StepBase {
-  kind: 'loop';
-  points: ScenarioPoint[];
-  /** Interaction : vers cette étape (une prise en main démarre sur place). */
-  onTouch: string;
-}
-
-export interface ControlStep extends StepBase {
-  kind: 'control';
-  mode: 'orbit';
+/** Vue extérieure : orbite autour du point de focus. */
+export interface OrbitMode {
   /** Vue de départ autour du point de focus. */
   start: { distance: number; azimuthDeg: number; elevationDeg: number };
   minDistance: number;
@@ -207,27 +193,33 @@ export interface ControlStep extends StepBase {
   dampingFactor: number;
   groundMargin: number;
   autoRotateSpeed: number;
-  /** Inactivité : rien, rotation automatique, ou aller à une étape. */
-  idle: { action: 'none' | 'rotate' | 'goto'; afterMs: number; step: string };
+  /** Inactivité : rien, rotation automatique, ou retour à la boucle d'attente. */
+  idle: { action: 'none' | 'rotate' | 'loop'; afterMs: number };
+  cut: string[];
 }
 
-export interface TourStep extends StepBase {
-  kind: 'tour';
-  /** Œuvre de départ quand on y arrive par le scénario (0 : la première). */
-  startWork: number;
-  /** Sortie de la visite (bouton à l'icône du monument) : vers cette étape. */
-  exit: string;
+/** Passage d'un mode à l'autre. */
+export interface Passage {
+  /** direct : mouvement standard ; path : trajet point par point vers le départ du mode suivant. */
+  kind: 'direct' | 'path';
+  durationMs: number;
+  waypoints: Vec3[];
+  look: Vec3 | null;
+  cut: string[];
 }
-
-export type ScenarioStep = PathStep | LoopStep | ControlStep | TourStep;
-export type StepKind = ScenarioStep['kind'];
 
 export interface ScenarioConfig {
-  /** Première étape (après l'écran de démarrage). */
-  first: string;
-  steps: ScenarioStep[];
-  /** Durée des raccords entre étapes (ms). */
-  blendMs: number;
+  intro: IntroConfig;
+  /** Boucle d'attente : à l'accueil (avant le premier geste) et sur inactivité en vue extérieure. */
+  loop: { enabled: boolean; points: ScenarioPoint[]; cut: string[] };
+  /** Mode où arrive le visiteur après l'accueil. */
+  firstMode: ModeId;
+  orbit: OrbitMode;
+  /** Visite guidée : œuvre de départ quand on y arrive par l'accueil. */
+  tour: { startWork: number };
+  passages: Record<PassageId, Passage>;
+  /** Raccords de l'accueil (intro → boucle → premier mode). */
+  blend: { durationMs: number; cut: string[] };
 }
 
 /** Écran de démarrage : titre, description, image de fond, bouton (« Entrer »). */

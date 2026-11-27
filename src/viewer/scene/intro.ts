@@ -1,5 +1,5 @@
 import { MathUtils, type PerspectiveCamera, type Vector3 } from 'three';
-import type { PathStep } from '../config/types';
+import type { PathSpec } from '../config/types';
 import type { SceneReference } from './reference';
 
 const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
@@ -18,7 +18,7 @@ const introEase = (t: number) => easeInOutCubic(Math.pow(t, 0.65));
  */
 export function createIntro(
   camera: PerspectiveCamera,
-  cfg: Pick<PathStep, 'durationMs' | 'startHeightAboveGround' | 'startDistance' | 'sweepDeg'>,
+  cfg: Pick<PathSpec, 'durationMs' | 'startHeightAboveGround' | 'startDistance' | 'sweepDeg'>,
   ref: SceneReference,
   end: Vector3,
 ) {

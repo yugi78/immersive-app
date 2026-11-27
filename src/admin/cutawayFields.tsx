@@ -80,7 +80,20 @@ function CutawayUI({ value, onChange, readOnly }: { value: C; onChange: (v: C) =
   const scenario = usePuck((st) => st.appState.data.root?.props?.scenario as ScenarioConfig | undefined);
   // Où chaque forme est utilisée : étapes du scénario et visite guidée.
   const usedBy = (id: string) => [
-    ...(scenario?.steps ?? []).filter((x) => x.cut?.includes(id) || x.arriveCut?.includes(id)).map((x) => x.name),
+    ...(scenario
+      ? (
+          [
+            ['Intro', scenario.intro.cut],
+            ['Boucle d’attente', scenario.loop.cut],
+            ['Vue extérieure', scenario.orbit.cut],
+            ['Raccords de l’accueil', scenario.blend.cut],
+            ['Passage vers la visite', scenario.passages['orbit>tour'].cut],
+            ['Passage vers l’extérieur', scenario.passages['tour>orbit'].cut],
+          ] as [string, string[]][]
+        )
+          .filter(([, ids]) => ids?.includes(id))
+          .map(([n]) => n)
+      : []),
     ...CUT_MOMENTS.filter((m) => c.use[m.id] === id).map((m) => `visite (${m.label.toLowerCase()})`),
   ];
   const setPreset = (i: number, p: CutPreset) => onChange({ ...c, presets: c.presets.map((x, j) => (j === i ? p : x)) });
