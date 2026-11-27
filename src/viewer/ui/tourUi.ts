@@ -658,7 +658,45 @@ export function createTourUi(o: TourUiOptions) {
     el.stripBar.style.transform = `translateX(${(s.scrollLeft / Math.max(s.scrollWidth - s.clientWidth, 1)) * (1 / Math.min(ratio, 1) - 1) * 100}%)`;
   };
   el.strip.addEventListener('scroll', updateStripBar, { passive: true });
+  // Glisser à la souris (main) pour faire défiler le bandeau ; au doigt, le navigateur
+  // s'en charge. Un glisser ne compte pas comme un clic sur une vignette.
+  let drag: { id: number; x: number; left: number; moved: boolean } | null = null;
+  let suppressClick = false;
+  el.strip.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    drag = { id: e.pointerId, x: e.clientX, left: el.strip.scrollLeft, moved: false };
+  });
+  el.strip.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved && Math.abs(dx) < 5) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      el.strip.setPointerCapture(e.pointerId);
+      el.strip.classList.add('is-dragging');
+    }
+    el.strip.scrollLeft = drag.left - dx;
+  });
+  const endDrag = (e: PointerEvent) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (drag.moved) {
+      suppressClick = true;
+      el.strip.classList.remove('is-dragging');
+      // Le magnétisme reprend après le glisser : la vignette la plus proche se recentre.
+      el.strip.scrollBy({ left: 0 });
+    }
+    drag = null;
+  };
+  el.strip.addEventListener('pointerup', endDrag);
+  el.strip.addEventListener('pointercancel', endDrag);
+  el.strip.addEventListener('dragstart', (e) => e.preventDefault());
   el.strip.addEventListener('click', (e) => {
+    if (suppressClick) {
+      suppressClick = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-work]');
     if (b) goToWork(Number(b.dataset.work));
   });

@@ -483,6 +483,20 @@
 .pv-strip__scroll::-webkit-scrollbar {
   display: none;
 }
+@media (hover: hover) and (pointer: fine) {
+  .pv-strip__scroll {
+    cursor: grab;
+  }
+}
+/* Pendant un glisser à la souris : pas de magnétisme (il saccaderait), main fermée. */
+.pv-strip__scroll.is-dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+  user-select: none;
+}
+.pv-strip__scroll.is-dragging .pv-thumb {
+  pointer-events: none;
+}
 .pv-thumb {
   flex: none;
   display: block;
