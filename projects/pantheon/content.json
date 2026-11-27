@@ -61,7 +61,8 @@
         "afterMs": 4000
       },
       "cut": [
-        "exterieur"
+        "exterieur",
+        "d-0tcwuz"
       ]
     },
     "tour": {
@@ -124,6 +125,16 @@
         "kind": "sphere",
         "radius": 2,
         "feather": 1,
+        "fadeStartDistance": 400,
+        "fadeEndDistance": 200,
+        "cameraRadius": 0
+      },
+      {
+        "id": "d-0tcwuz",
+        "name": "clip ville",
+        "kind": "sphere",
+        "radius": 40,
+        "feather": 6.75,
         "fadeStartDistance": 400,
         "fadeEndDistance": 200,
         "cameraRadius": 0

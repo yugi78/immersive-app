@@ -87,6 +87,10 @@
   "materials": {
     "clay": {
       "unlit": true,
+      "cutaway": true,
+      "cuts": [
+        "d-0tcwuz"
+      ],
       "grade": "clay",
       "mist": true
     },
