@@ -1828,3 +1828,8 @@ select.bo-input {
   font: inherit;
   text-align: right;
 }
+
+.bo-fades__from {
+  font-size: 12px;
+  margin-top: 4px;
+}
