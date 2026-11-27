@@ -567,9 +567,10 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     viewCam.updateMatrixWorld();
     // En transition, la destination est préchargée en haute définition.
     scan?.update(viewCam, tour.active && !observing ? tour.lookahead() : null);
-    // Mise au point automatique : sur le point regardé (ou visé par la vue de contrôle).
-    const focusPoint = observing ? editorTools!.observerTarget() : lookPoint;
-    dof.render(scene, viewCam, viewCam.position.distanceTo(focusPoint));
+    // Vue de contrôle : rendu net (pas de flou de profondeur, inutile pour régler).
+    if (observing) renderer.render(scene, viewCam);
+    // Mise au point automatique : sur le point regardé.
+    else dof.render(scene, viewCam, viewCam.position.distanceTo(lookPoint));
   }
 
   renderer.domElement.style.visibility = '';

@@ -599,6 +599,19 @@ export function createEditorTools(ctx: EditorContext) {
     camTarget.geometry = new BufferGeometry().setFromPoints([camera.position.clone(), target.clone()]);
   }
 
+  // Double-clic en orbite de contrôle : le point de focus vient se poser sur la surface
+  // touchée (glissement doux, la caméra reste en place).
+  let focusGoal: Vector3 | null = null;
+  const onDblClick = (e: MouseEvent) => {
+    if (mode !== 'orbit' || pickResolve) return;
+    const helpers = new Set<Object3D>([tourGroup, orbitGroup, scnGroup, handles, selBox, camGizmo, camTarget, gizmo.getHelper()]);
+    const targets = scene.children.filter((o) => o.visible && !helpers.has(o));
+    raycaster.setFromCamera(ndcOf(e as PointerEvent), viewCam);
+    const hit = raycaster.intersectObjects(targets, true).find((h) => (h.object as Mesh).isMesh && visibleInScene(h.object));
+    if (hit) focusGoal = hit.point.clone();
+  };
+  dom.addEventListener('dblclick', onDblClick);
+
   /** Passe d'une vue à l'autre ; la caméra de contrôle part de derrière celle de l'expérience. */
   function setViewMode(next: ViewMode) {
     if (next === mode) return;
@@ -688,7 +701,13 @@ export function createEditorTools(ctx: EditorContext) {
           obsCam.fov = camera.fov;
           obsCam.updateProjectionMatrix();
         }
-        if (mode === 'orbit') obsOrbit.update();
+        if (mode === 'orbit') {
+          if (focusGoal) {
+            obsOrbit.target.lerp(focusGoal, 1 - Math.exp(-10 * dt));
+            if (obsOrbit.target.distanceTo(focusGoal) < 0.01) focusGoal = null;
+          }
+          obsOrbit.update();
+        } else focusGoal = null;
         fly.update(dt);
         drawCamera();
       }
@@ -784,6 +803,7 @@ export function createEditorTools(ctx: EditorContext) {
       gizmo.dispose();
       fly.dispose();
       obsOrbit.dispose();
+      dom.removeEventListener('dblclick', onDblClick);
       scene.remove(camGizmo, camTarget);
       scene.remove(tourGroup, orbitGroup, scnGroup, handles, gizmo.getHelper());
       for (const m of badgeCache.values()) {
