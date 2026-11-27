@@ -1,7 +1,8 @@
 /* Interface publique de la visite (maquettes desktop / mobile). Police : Mona Sans. */
 .pv-ui {
-  --pv-black: #000;
-  --pv-white: #fff;
+  /* Couleurs nommées du design (onglet Design UI), sinon noir et blanc. */
+  --pv-black: var(--pv-c-noir, #000);
+  --pv-white: var(--pv-c-blanc, #fff);
   --pv-gap: 16px;
   --pv-radius: 14px;
   position: absolute;
@@ -92,9 +93,9 @@
   padding: 0 10px 0 16px;
   line-height: 1;
   border: 0;
-  border-radius: 999px;
-  background: var(--pv-white);
-  color: var(--pv-black) !important;
+  border-radius: var(--cmp-r, 999px);
+  background: var(--cmp-bg, var(--pv-white));
+  color: var(--cmp-fg, var(--pv-black)) !important;
   font-style: italic !important;
   font-weight: 650 !important;
   font-size: 14px !important;
@@ -106,8 +107,8 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--pv-black);
-  color: var(--pv-white);
+  background: var(--cmp-fg, var(--pv-black));
+  color: var(--cmp-bg, var(--pv-white));
 }
 .pv-pill i svg {
   width: 14px;
@@ -124,21 +125,21 @@
   height: 40px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: var(--pv-white);
-  color: var(--pv-black) !important;
+  border-radius: var(--cmp-r, 50%);
+  background: var(--cmp-bg, var(--pv-white));
+  color: var(--cmp-fg, var(--pv-black)) !important;
   box-shadow: 0 4px 18px rgb(0 0 0 / 0.2);
 }
 .pv-pill--dark,
 .pv-round--dark {
-  background: var(--pv-black);
-  color: var(--pv-white) !important;
+  background: var(--cmp-bg, var(--pv-black));
+  color: var(--cmp-fg, var(--pv-white)) !important;
 }
 .pv-pill--dark i {
   width: auto;
   height: auto;
   background: none;
-  color: var(--pv-white);
+  color: var(--cmp-fg, var(--pv-white));
 }
 .pv-pill--dark i svg {
   width: 20px;
@@ -163,7 +164,7 @@
   padding: 4px 0;
   border: 0;
   background: none;
-  color: var(--pv-white);
+  color: var(--cmp-fg, var(--pv-white));
   mix-blend-mode: difference;
   font-size: 22px !important;
   font-weight: 640 !important;
@@ -294,6 +295,7 @@
   padding: 0;
   border: 0;
   background: none;
+  color: var(--cmp-fg, var(--pv-white)) !important;
   filter: drop-shadow(0 1px 6px rgb(0 0 0 / 0.45));
 }
 .pv-arrow svg {
@@ -468,8 +470,8 @@
   width: var(--pv-strip-w);
   translate: -50% 0;
   padding: 4px 4px 10px;
-  border-radius: 12px;
-  background: var(--pv-black);
+  border-radius: var(--cmp-r, 12px);
+  background: var(--cmp-bg, var(--pv-black));
   pointer-events: auto;
 }
 .pv-strip__scroll {
@@ -504,7 +506,7 @@
   height: 94px;
   padding: 0;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--cmp-r, 9px);
   overflow: hidden;
   background: #1a1a1a;
   scroll-snap-align: center;
@@ -825,7 +827,7 @@
     height: 44px;
     padding: 0;
     justify-content: center;
-    border-radius: 50%;
+    border-radius: var(--cmp-r, 50%);
   }
   .pv-row .pv-pill span {
     display: none;
@@ -1181,8 +1183,8 @@
   box-sizing: border-box;
   width: 250px;
   padding: 6px 6px 12px;
-  border-radius: 14px;
-  background: var(--pv-black);
+  border-radius: var(--cmp-r, 14px);
+  background: var(--cmp-bg, var(--pv-black));
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.25);
   pointer-events: auto;
 }
@@ -1215,11 +1217,11 @@
   height: 36px !important;
   gap: 10px !important;
   padding: 0 16px 0 12px !important;
-  background: var(--pv-white) !important;
-  color: var(--pv-black) !important;
+  background: var(--cmp-bg, var(--pv-white)) !important;
+  color: var(--cmp-fg, var(--pv-black)) !important;
 }
 .pv-map__card-go i {
-  color: var(--pv-black) !important;
+  color: var(--cmp-fg, var(--pv-black)) !important;
 }
 .pv-map__card-close {
   position: absolute;

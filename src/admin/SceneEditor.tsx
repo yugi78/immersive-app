@@ -12,6 +12,8 @@ import { blocksField, hotspotsField, imageField, thumbnailField, workTabsField, 
 import { mapViewsField } from './mapFields';
 import { scenarioField } from './scenarioFields';
 import { cutawayField, tourCutsField, type TourCuts } from './cutawayFields';
+import { designField } from './designFields';
+import type { DesignConfig } from '../viewer/config/design';
 import { AdminLayout, type SaveState } from './AdminLayout';
 import { isFull, publishContent } from './backend';
 import { activeProject, setActiveProject } from './project';
@@ -46,6 +48,8 @@ const flyPrefs = loadFlyPrefs();
  */
 
 type SceneProps = {
+  /** Design de l'interface publique (onglet Design UI), tel quel. */
+  design: DesignConfig;
   // Écran de démarrage.
   startEnabled: boolean;
   startTitle: string;
@@ -124,6 +128,7 @@ type TourWorkItem = {
 };
 
 const SCENE_KEYS = [
+  'design',
   'startEnabled',
   'startTitle',
   'startDescription',
@@ -302,6 +307,7 @@ function ViewerPreview(props: SceneProps) {
     if (p.scenario) v.setScenario(p.scenario);
     v.setStart(startFromProps(p));
     if (p.cutaway) v.setCutaway(cutawayFromProps(p));
+    if (p.design) v.setDesign(p.design);
     v.setMist({ startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor });
     v.setClay(clayPatch(p));
     v.setScanGrade(scanGradePatch(p));
@@ -365,6 +371,7 @@ const config: Config<{}, Record<string, unknown>> = {
   components: {},
   root: {
     fields: {
+      design: designField,
       startEnabled: checkbox('Afficher un écran de démarrage', 'Titre, description et bouton « Entrer » ; la scène se charge derrière'),
       startTitle: { type: 'text', label: 'Titre' },
       startDescription: { type: 'richtext', label: 'Description' },
@@ -569,8 +576,9 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.dofMaxBlur}
           </FieldGroup>
         </FieldTab>
-        <FieldTab label="Infos">
-          <FieldGroup label="À propos" defaultExpanded>
+        <FieldTab label="Design UI">
+          {fields.design}
+          <FieldGroup label="Fenêtre « À propos » : texte">
             {fields.aboutHtml}
           </FieldGroup>
         </FieldTab>
@@ -600,6 +608,7 @@ function initialDataFor(cfg: SceneConfig): Data<{}, Record<string, unknown>> {
   return {
   root: {
     props: {
+      design: structuredClone(cfg.design),
       startEnabled: cfg.start.enabled,
       startTitle: cfg.start.title,
       startDescription: cfg.start.description,
@@ -691,6 +700,7 @@ export default function SceneEditor({ project }: { project: string }) {
           ui: uiFromProps(p),
           scenario: p.scenario,
           start: startFromProps(p),
+          design: p.design,
     });
     setSave(
       result.ok

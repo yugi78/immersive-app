@@ -284,6 +284,45 @@ OBJECT_KEYS.start = {
   button: (v, n) => str(v, n),
 };
 
+// Design de l'interface : styles (couleurs, arrondis), composants, éléments.
+const DESIGN_ID = /^[\w-]{1,40}$/;
+const idList = <T>(v: unknown, n: string, max: number, item: (x: Record<string, unknown>, p: string) => T) => {
+  if (!Array.isArray(v) || v.length > max) throw new Error(`${n} : liste de ${max} au plus`);
+  const seen = new Set<string>();
+  return v.map((x, i) => {
+    const q = (x ?? {}) as Record<string, unknown>;
+    const p = `${n}[${i}]`;
+    const id = str(q.id, `${p}.id`, DESIGN_ID);
+    if (seen.has(id)) throw new Error(`${p}.id en double : ${id}`);
+    seen.add(id);
+    return { id, name: str(q.name ?? '', `${p}.name`), ...item(q, p) };
+  });
+};
+const idMap = <T>(v: unknown, n: string, max: number, item: (x: Record<string, unknown>, p: string) => T) => {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${n} doit être un objet`);
+  const entries = Object.entries(v as Record<string, unknown>);
+  if (entries.length > max) throw new Error(`${n} : ${max} au plus`);
+  return Object.fromEntries(entries.map(([k, x]) => [str(k, `${n} (clé)`, DESIGN_ID), item((x ?? {}) as Record<string, unknown>, `${n}.${k}`)]));
+};
+const refId = (v: unknown, n: string) => str(v ?? '', n, /^[\w-]{0,40}$/);
+OBJECT_KEYS.design = {
+  colors: (v, n) => idList(v, n, 32, (q, p) => ({ value: str(q.value, `${p}.value`, /^#[0-9a-f]{6}$/i) })),
+  radii: (v, n) => idList(v, n, 32, (q, p) => ({ value: Math.min(positive(q.value, `${p}.value`), 999) })),
+  components: (v, n) =>
+    idMap(v, n, 64, (q, p) => ({
+      name: str(q.name ?? '', `${p}.name`),
+      kind: str(q.kind, `${p}.kind`, /^(button|panel|thumb)$/),
+      bg: refId(q.bg, `${p}.bg`),
+      fg: refId(q.fg, `${p}.fg`),
+      radius: refId(q.radius, `${p}.radius`),
+    })),
+  elements: (v, n) =>
+    idMap(v, n, 64, (q, p) => ({
+      ...(q.component != null ? { component: refId(q.component, `${p}.component`) } : {}),
+      ...(q.label != null ? { label: str(q.label, `${p}.label`) } : {}),
+    })),
+};
+
 export type Patch = Record<string, Record<string, unknown>>;
 
 type Check = (v: unknown, name: string) => unknown;

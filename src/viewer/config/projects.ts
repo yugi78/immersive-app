@@ -1,4 +1,5 @@
 import { normalizeCutaway } from './cutaway';
+import { normalizeDesign } from './design';
 import { normalizeScenario } from './scenario';
 import type { SceneConfig } from './types';
 
@@ -19,7 +20,7 @@ function merge(scene: Json, content: Json | undefined) {
   const name = (scene.project as { title?: string; name?: string } | undefined) ?? {};
   // Écran de démarrage : désactivé par défaut, titre du projet.
   const start = { enabled: false, title: name.title ?? name.name ?? '', description: '', image: '', button: 'Entrer', ...(all.start as object | undefined) };
-  return { ...all, scenario: normalizeScenario(all), start, cutaway: normalizeCutaway(all.cutaway as Parameters<typeof normalizeCutaway>[0]) } as unknown as SceneConfig;
+  return { ...all, scenario: normalizeScenario(all), start, cutaway: normalizeCutaway(all.cutaway as Parameters<typeof normalizeCutaway>[0]), design: normalizeDesign(all.design as Parameters<typeof normalizeDesign>[0]) } as unknown as SceneConfig;
 }
 
 /** Configuration complète de chaque projet (structure + contenu), par identifiant (slug). */

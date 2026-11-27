@@ -1,4 +1,5 @@
 import type { MaterialDef, SceneObject } from './scene-model';
+import type { DesignConfig } from './design';
 
 /**
  * PROJETS : chaque dossier `projects/<slug>/` contient un projet (un bâtiment, un
@@ -266,7 +267,9 @@ export interface CutawayConfig {
   transitFade: number;
 }
 
-export type SceneConfig = Omit<Raw, 'tour' | 'ui' | 'objects' | 'materials' | 'scenario' | 'start' | 'cutaway'> & {
+export type SceneConfig = Omit<Raw, 'tour' | 'ui' | 'objects' | 'materials' | 'scenario' | 'start' | 'cutaway' | 'design'> & {
+  /** Design de l'interface publique (voir config/design.ts). */
+  design: DesignConfig;
   cutaway: CutawayConfig;
   start: StartConfig;
   objects: SceneObject[];

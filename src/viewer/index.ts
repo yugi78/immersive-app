@@ -12,6 +12,7 @@ import { createScanLod } from './loaders/scanLod';
 import { isMobile } from './scene/renderer';
 import { createScenario, homePose } from './scene/scenario';
 import { cutFor } from './config/cutaway';
+import { designCss, normalizeDesign, type DesignConfig } from './config/design';
 import { createCamera, createOrbit } from './scene/orbit';
 import { computeReference, type SceneReference } from './scene/reference';
 import { prepareAsset } from './scene/prepare';
@@ -60,6 +61,8 @@ export interface Viewer {
   setScanGrade(patch: Partial<ScanGradeSettings>): void;
   /** Modifie le flou de profondeur de champ à chaud (dont l'activation). */
   setDof(patch: Partial<DofSettings>): void;
+  /** Remplace le design de l'interface à chaud (back-office). */
+  setDesign(design: DesignConfig): void;
   /** Remplace les réglages de l'écran de démarrage à chaud (back-office). */
   setStart(start: StartConfig): void;
   /** Affiche l'écran de démarrage (aperçu du back-office) ; au clic, le scénario est rejoué. */
@@ -110,6 +113,12 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   container.style.background = cfg.mist.color;
   // Écran de démarrage (sauf ?direct, lien vers une œuvre #slug, back-office) : il
   // tient lieu de barre de chargement ; le scénario attend le clic sur « Entrer ».
+  // Design de l'interface : variables CSS des styles et composants, injectées dans la page.
+  let designCfg: DesignConfig = normalizeDesign(cfg.design);
+  const designStyle = document.createElement('style');
+  designStyle.dataset.pvDesign = '';
+  designStyle.textContent = designCss(designCfg);
+  container.appendChild(designStyle);
   let startCfg: StartConfig = structuredClone(cfg.start);
   const direct = new URLSearchParams(location.search).has('direct') || location.hash.length > 1;
   const start = startCfg?.enabled && !direct && !opts.skipIntro ? createStartScreen(container, startCfg) : null;
@@ -404,6 +413,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       map: mapView,
       cut: cutaway.uniforms,
       hash: opts.urlHash ?? true,
+      design: () => designCfg,
     });
     const i = tourUi!.initialIndex();
     if (i >= 0) tour.start(i);
@@ -580,6 +590,13 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     },
     setScanGrade(patch) {
       scanGrade.set(patch);
+    },
+    setDesign(next) {
+      const d = normalizeDesign(next);
+      if (JSON.stringify(d) === JSON.stringify(designCfg)) return;
+      designCfg = d;
+      designStyle.textContent = designCss(designCfg);
+      tourUi?.applyDesign();
     },
     setStart(next) {
       startCfg = structuredClone(next);

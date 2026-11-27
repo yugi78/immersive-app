@@ -9,6 +9,7 @@ import { ICONS } from './icons';
 import type { MinimapImage } from './minimap';
 import type { MapViewer } from '../map/mapView';
 import { createMapUi, type MapUi } from './mapUi';
+import { tagUi, type DesignConfig } from '../config/design';
 import './tourUi.css';
 
 gsap.registerPlugin(ScrollTrigger, SplitText);
@@ -34,6 +35,8 @@ export interface TourUiOptions {
   map: MapViewer | null;
   /** Hash d'URL par œuvre (#slug). */
   hash: boolean;
+  /** Design de l'interface (onglet Design UI) : composants et textes des éléments. */
+  design?: () => DesignConfig;
 }
 
 type Screen = 'exterior' | 'auto' | 'info';
@@ -641,6 +644,7 @@ export function createTourUi(o: TourUiOptions) {
       )
       .join('');
     markStrip();
+    applyDesign();
   }
   function markStrip() {
     el.strip.querySelectorAll<HTMLElement>('.pv-thumb').forEach((b) => {
@@ -990,6 +994,11 @@ export function createTourUi(o: TourUiOptions) {
   }
   const off = tour.onChange(onStatus);
 
+  /** Marque les éléments (composant, texte) selon le design ; après chaque reconstruction. */
+  function applyDesign() {
+    if (o.design) tagUi(root, o.design());
+  }
+
   let measureT = 0;
   function refresh() {
     mapUi?.refresh();
@@ -998,6 +1007,7 @@ export function createTourUi(o: TourUiOptions) {
     buildCollection();
     layoutMinimap();
     updateStripBar();
+    applyDesign();
     if (workIndex >= 0) {
       const w = o.works()[workIndex];
       if (w) {
@@ -1031,6 +1041,8 @@ export function createTourUi(o: TourUiOptions) {
     },
     /** Œuvres ou réglages d'interface modifiés (back-office). */
     refresh,
+    /** Design modifié (back-office) : composants et textes des éléments. */
+    applyDesign,
     /** Œuvre demandée par le hash au chargement, ou -1. */
     /** Carte interactive (back-office : aperçu d'une vue). */
     openMap: (view = 0) => mapUi?.open(view),

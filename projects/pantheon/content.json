@@ -720,5 +720,86 @@
         }
       ]
     }
+  },
+  "design": {
+    "colors": [
+      {
+        "id": "noir",
+        "name": "Noir",
+        "value": "#000000"
+      },
+      {
+        "id": "blanc",
+        "name": "Blanc",
+        "value": "#ffffff"
+      }
+    ],
+    "radii": [
+      {
+        "id": "bouton",
+        "name": "Bouton",
+        "value": 999
+      },
+      {
+        "id": "carte",
+        "name": "Carte",
+        "value": 14
+      },
+      {
+        "id": "bandeau",
+        "name": "Bandeau",
+        "value": 12
+      },
+      {
+        "id": "petit",
+        "name": "Petit",
+        "value": 9
+      }
+    ],
+    "components": {
+      "bouton-sombre": {
+        "name": "Bouton sombre",
+        "kind": "button",
+        "bg": "noir",
+        "fg": "blanc",
+        "radius": "bouton"
+      },
+      "bouton-clair": {
+        "name": "Bouton clair",
+        "kind": "button",
+        "bg": "blanc",
+        "fg": "noir",
+        "radius": "bouton"
+      },
+      "texte": {
+        "name": "Lien texte",
+        "kind": "button",
+        "bg": "",
+        "fg": "blanc",
+        "radius": "bouton"
+      },
+      "bandeau": {
+        "name": "Bandeau",
+        "kind": "panel",
+        "bg": "noir",
+        "fg": "blanc",
+        "radius": "bandeau"
+      },
+      "encart": {
+        "name": "Encart",
+        "kind": "panel",
+        "bg": "noir",
+        "fg": "blanc",
+        "radius": "carte"
+      },
+      "vignette": {
+        "name": "Vignette",
+        "kind": "thumb",
+        "bg": "",
+        "fg": "blanc",
+        "radius": "petit"
+      }
+    },
+    "elements": {}
   }
 }

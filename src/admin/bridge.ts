@@ -16,6 +16,9 @@ let activeWork: number | null = null;
 let device: 'desktop' | 'mobile' = 'desktop';
 /** Sous-onglet ouvert pour chaque œuvre (Infos, Parcours, Points, Contenu). */
 const workTabs = new Map<string, string>();
+/** Onglet Design UI : mode sélection dans l'aperçu, et élément de l'interface sélectionné. */
+let uiSelectMode = false;
+let uiSelected: string | null = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
 
@@ -75,6 +78,20 @@ export const bridge = {
     device = d;
     notify();
   },
+  get uiSelectMode() {
+    return uiSelectMode;
+  },
+  setUiSelectMode(on: boolean) {
+    uiSelectMode = on;
+    notify();
+  },
+  get uiSelected() {
+    return uiSelected;
+  },
+  setUiSelected(id: string | null) {
+    uiSelected = id;
+    notify();
+  },
   subscribe(l: () => void) {
     listeners.add(l);
     return () => {
@@ -95,3 +112,7 @@ export const useGizmoKey = () => useSyncExternalStore(bridge.subscribe, () => gi
 export const useDevice = () => useSyncExternalStore(bridge.subscribe, () => device);
 /** Sous-onglet ouvert pour une œuvre. */
 export const useWorkTab = (id: string) => useSyncExternalStore(bridge.subscribe, () => bridge.workTab(id));
+/** Mode sélection des éléments de l'interface dans l'aperçu (onglet Design UI). */
+export const useUiSelectMode = () => useSyncExternalStore(bridge.subscribe, () => uiSelectMode);
+/** Élément de l'interface sélectionné (data-ui), ou null. */
+export const useUiSelected = () => useSyncExternalStore(bridge.subscribe, () => uiSelected);

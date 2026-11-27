@@ -1592,3 +1592,94 @@ select.bo-input {
   border-left: 2px solid var(--bo-line);
   border-radius: 0;
 }
+
+/* ---- Design UI ---- */
+.bo-ds__select-bar {
+  margin-bottom: 12px;
+}
+.bo-ds__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+.bo-ds__row:has(> .bo-mini) {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+.bo-ds__colorpick {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--bo-line);
+  overflow: hidden;
+  cursor: pointer;
+}
+.bo-ds__colorpick input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.bo-ds__select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bo-ds__select select {
+  flex: 1;
+  min-width: 0;
+}
+.bo-ds__swatch {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--bo-line);
+}
+.bo-ds__preview {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--bo-line);
+  font-size: 12px;
+  font-weight: 650;
+}
+.bo-ds__comp {
+  display: grid;
+  gap: 10px;
+}
+.bo-ds__crumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--bo-muted);
+}
+.bo-ds__crumb b {
+  color: var(--bo-ink);
+}
+.bo-ds__back {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--bo-accent);
+  font: inherit;
+  cursor: pointer;
+}
+/* Mode sélection : les éléments de l'interface publique s'entourent au survol. */
+.bo-uiselect .pv-ui [data-ui] {
+  pointer-events: auto;
+  cursor: pointer !important;
+}
+.bo-uiselect .pv-ui [data-ui]:hover {
+  outline: 2px dashed #3b5bff !important;
+  outline-offset: 3px;
+}
+.bo-toolbar button.is-on {
+  background: #3b5bff;
+  color: #fff;
+}
