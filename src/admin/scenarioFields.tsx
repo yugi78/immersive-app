@@ -532,23 +532,44 @@ export const scenarioField: CustomField<S> = {
   render: ({ value, onChange, readOnly }) => <ScenarioUI value={value} onChange={onChange} readOnly={readOnly} />,
 };
 
-/** Découpe de la vue de contrôle (orbite, vol libre) : préférence d'édition de ce navigateur. */
-function ObserverCutUI({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+/**
+ * Vue de contrôle (orbite, vol libre) : outil de configuration de l'expérience, dans une
+ * boîte sombre repliée pour ne pas la confondre avec les réglages publiés. Découpe et
+ * vitesse : préférences d'édition de ce navigateur (jamais publiées).
+ */
+function ObserverPanel({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const dispatch = usePuck((st) => st.dispatch);
   const cutaway = usePuck((st) => st.appState.data.root?.props?.cutaway) as { presets?: CutPreset[] } | undefined;
+  const flySpeed = usePuck((st) => st.appState.data.root?.props?.flySpeed) as number | undefined;
   const presets = useMemo(() => cutaway?.presets ?? [], [cutaway]);
+  const setSpeed = (v: number) =>
+    dispatch({ type: 'setData', data: (prev) => ({ ...prev, root: { ...prev.root, props: { ...(prev.root?.props ?? {}), flySpeed: v } } }) });
   return (
-    <div className="bo-scn__wrap" style={{ gap: 8 }}>
-      <p className="bo-scn__help">
-        Dans la barre de l’aperçu, « Orbite » et « Vol libre » regardent l’expérience de l’extérieur : elle continue (sa caméra est dessinée en orange) et ses
-        boutons restent actifs. « Expérience » revient à la vue du visiteur.
-      </p>
-      <CutPicker label="Découpe autour de la caméra de contrôle" value={value ?? []} presets={presets} onChange={onChange} />
-    </div>
+    <section className={`bo-observer${open ? ' is-open' : ''}`}>
+      <button type="button" className="bo-observer__head" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span>
+          <b>Vue de contrôle</b>
+          <small>Outil de réglage : regarder l’expérience de l’extérieur (orbite, vol libre)</small>
+        </span>
+        {open ? <Icon.chevronUp size={16} /> : <Icon.chevronDown size={16} />}
+      </button>
+      {open && (
+        <div className="bo-observer__body">
+          <p>
+            Dans la barre de l’aperçu, « Orbite » et « Vol libre » regardent l’expérience de l’extérieur : elle continue (sa caméra est dessinée en orange) et ses
+            boutons restent actifs. « Expérience » revient à la vue du visiteur. Ces réglages restent dans ce navigateur et ne sont pas publiés.
+          </p>
+          <CutPicker label="Découpe autour de la caméra de contrôle" value={value ?? []} presets={presets} onChange={onChange} />
+          <Slider label="Vitesse du vol libre (aussi à la molette)" min={0.2} max={30} step={0.1} unit="m/s" value={flySpeed ?? 3} onChange={setSpeed} />
+        </div>
+      )}
+    </section>
   );
 }
 
 export const observerCutField: CustomField<string[]> = {
   type: 'custom',
-  label: 'Découpe de la vue de contrôle',
-  render: ({ value, onChange }) => <ObserverCutUI value={value} onChange={onChange} />,
+  label: 'Vue de contrôle',
+  render: ({ value, onChange }) => <ObserverPanel value={value} onChange={onChange} />,
 };

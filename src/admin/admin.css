@@ -1713,3 +1713,70 @@ select.bo-input {
   font: inherit;
   cursor: pointer;
 }
+
+/* ---- Vue de contrôle (outil de configuration, onglet Expérience) : boîte sombre ---- */
+.bo-observer {
+  margin-top: 18px;
+  border-radius: var(--bo-radius);
+  background: #141414;
+  color: #fff;
+}
+.bo-observer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.bo-observer__head span {
+  display: grid;
+  gap: 2px;
+}
+.bo-observer__head b {
+  font-size: 14px;
+}
+.bo-observer__head small,
+.bo-observer__body p {
+  color: rgb(255 255 255 / 0.65);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.bo-observer__body {
+  display: grid;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+.bo-observer__body p {
+  margin: 0;
+}
+.bo-observer .bo-cutpick > span,
+.bo-observer .bo-field__label {
+  color: #fff;
+}
+.bo-observer .bo-cutchip {
+  border-color: rgb(255 255 255 / 0.25);
+  background: transparent;
+  color: rgb(255 255 255 / 0.75);
+}
+.bo-observer .bo-cutchip.is-on {
+  border-color: #fff;
+  background: #fff;
+  color: #141414;
+}
+.bo-observer .bo-valuepill {
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+}
+.bo-observer .bo-valuepill input {
+  color: #fff;
+}
+.bo-observer input[type='range'] {
+  accent-color: #fff;
+}

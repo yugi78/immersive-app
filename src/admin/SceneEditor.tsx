@@ -493,6 +493,7 @@ const config: Config<{}, Record<string, unknown>> = {
           <FieldGroup label="Point de focus (centre de l’orbite)">
             {fields.focusOffset}
           </FieldGroup>
+          {fields.observerCut}
         </FieldTab>
         <FieldTab label="Œuvres">
           <FieldGroup label="Œuvres" defaultExpanded>
@@ -575,10 +576,6 @@ const config: Config<{}, Record<string, unknown>> = {
           </FieldGroup>
         </FieldTab>
         <FieldTab label="Outils">
-          <FieldGroup label="Vue de contrôle (orbite, vol libre)" defaultExpanded>
-            {fields.observerCut}
-            {fields.flySpeed}
-          </FieldGroup>
           <FieldGroup label="Repères" defaultExpanded>
             {fields.showTourHelpers}
           </FieldGroup>

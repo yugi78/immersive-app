@@ -31,7 +31,7 @@ const SUBTITLES: Record<string, string> = {
   Carte: 'Carte interactive, points de vue, mini-carte',
   Rendu: 'Découpes, brume, couleurs, flou',
   [DESIGN_TAB]: 'Couleurs, arrondis, composants et textes de l’interface',
-  [TOOLS_TAB]: isFull ? 'Objets 3D et matériaux (en local), vol libre, repères' : 'Vol libre et repères (outils d’édition)',
+  [TOOLS_TAB]: isFull ? 'Objets 3D et matériaux (en local), repères' : 'Repères (outils d’édition)',
 };
 
 export type SaveState = { kind: 'idle' | 'saving' | 'saved' | 'error'; message?: string };
