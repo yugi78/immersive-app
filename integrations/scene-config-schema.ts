@@ -254,7 +254,22 @@ OBJECT_KEYS.scenario = {
       workCut: cutIds(q.workCut, `${n}.workCut`),
       transitCut: cutIds(q.transitCut, `${n}.transitCut`),
       transitFade: fades(q.transitFade, `${n}.transitFade`),
-      edgeFade: fades(q.edgeFade, `${n}.edgeFade`),
+      edgeRange: (() => {
+        const v = q.edgeRange;
+        if (v == null) return {};
+        if (typeof v !== 'object' || Array.isArray(v)) throw new Error(`${n}.edgeRange doit être un objet`);
+        const entries = Object.entries(v as Record<string, unknown>);
+        if (entries.length > 16) throw new Error(`${n}.edgeRange : 16 formes au plus`);
+        return Object.fromEntries(
+          entries.map(([k, r]) => {
+            str(k, `${n}.edgeRange (clé)`, /^[\w-]{1,40}$/);
+            if (!Array.isArray(r) || r.length !== 2) throw new Error(`${n}.edgeRange.${k} doit être [début, fin]`);
+            const a = Math.min(Math.max(num(r[0], `${n}.edgeRange.${k}[0]`), 0), 1);
+            const b = Math.min(Math.max(num(r[1], `${n}.edgeRange.${k}[1]`), 0), 1);
+            return [k, [Math.min(a, b), Math.max(a, b)]];
+          }),
+        );
+      })(),
     };
   },
   passages: (v, n) => {

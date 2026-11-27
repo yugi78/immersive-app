@@ -221,10 +221,11 @@ export interface TourMode {
   transitCut: string[];
   transitFade: Record<string, number>;
   /**
-   * Entrée et sortie de la visite : la découpe de la vue extérieure s'éteint à la fin de
-   * l'entrée et se rallume au début de la sortie, sur cette part du trajet (par forme).
+   * Entrée et sortie de la visite : chaque découpe de la caméra de départ s'efface entre
+   * deux points du trajet d'entrée [début, fin] (0–1) ; à la sortie, elle réapparaît
+   * entre les mêmes points, dans l'autre sens.
    */
-  edgeFade: Record<string, number>;
+  edgeRange: Record<string, [number, number]>;
 }
 
 export interface ScenarioConfig {

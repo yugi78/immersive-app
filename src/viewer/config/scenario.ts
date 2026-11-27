@@ -18,8 +18,8 @@ export const newPassage = (): Passage => ({ kind: 'direct', durationMs: 4000, wa
 
 /** Fondu par défaut d'une forme sur un trajet (part du trajet). */
 export const DEFAULT_FADE = 0.2;
-/** Entrée / sortie de la visite : extinction de la découpe de la vue extérieure (part du trajet). */
-export const DEFAULT_EDGE_FADE = 0.04;
+/** Entrée / sortie de la visite : la découpe s'efface entre ces points du trajet d'entrée. */
+export const DEFAULT_EDGE_RANGE: [number, number] = [0.96, 1];
 
 export function defaultScenario(): ScenarioConfig {
   return {
@@ -48,7 +48,7 @@ export function defaultScenario(): ScenarioConfig {
       idle: { action: 'rotate', afterMs: 4000 },
       cut: [],
     },
-    tour: { startWork: 0, workCut: [], transitCut: [], transitFade: {}, edgeFade: {} },
+    tour: { startWork: 0, workCut: [], transitCut: [], transitFade: {}, edgeRange: {} },
     passages: { 'orbit>tour': newPassage(), 'tour>orbit': newPassage() },
     blend: { durationMs: 2500, cut: [], cutFade: {} },
   };
@@ -94,8 +94,10 @@ const fadeFor = (ids: string[], f: number) => Object.fromEntries(ids.map((id) =>
 function withCuts(s: ScenarioConfig, raw: Legacy): ScenarioConfig {
   const use = raw.cutaway?.use ?? {};
   const fade = raw.cutaway?.transitFade ?? DEFAULT_FADE;
-  const edge = raw.tour?.cutFadeStart !== undefined ? Math.max(0.01, 1 - raw.tour.cutFadeStart) : DEFAULT_EDGE_FADE;
-  const t = (raw.scenario?.tour ?? {}) as Partial<ScenarioConfig['tour']>;
+  const edgeStart = raw.tour?.cutFadeStart !== undefined ? Math.min(Math.max(raw.tour.cutFadeStart, 0), 0.99) : DEFAULT_EDGE_RANGE[0];
+  const t = (raw.scenario?.tour ?? {}) as Partial<ScenarioConfig['tour']> & { edgeFade?: Record<string, number> };
+  // Ancien réglage (part du trajet avant l'arrivée) → plage [1 - part, 1].
+  const oldEdge = Object.fromEntries(Object.entries(t.edgeFade ?? {}).map(([k, f]) => [k, [1 - f, 1] as [number, number]]));
   const transitCut = t.transitCut ?? ids(use.transit);
   const b = (raw.scenario?.blend ?? {}) as Partial<ScenarioConfig['blend']>;
   const passages = Object.fromEntries(
@@ -111,7 +113,7 @@ function withCuts(s: ScenarioConfig, raw: Legacy): ScenarioConfig {
       workCut: t.workCut ?? ids(use.work),
       transitCut,
       transitFade: { ...fadeFor(transitCut, fade), ...t.transitFade },
-      edgeFade: { ...fadeFor(s.orbit.cut, edge), ...t.edgeFade },
+      edgeRange: { ...Object.fromEntries(s.orbit.cut.map((id) => [id, [edgeStart, 1] as [number, number]])), ...oldEdge, ...t.edgeRange },
     },
     blend: { ...s.blend, cutFade: { ...fadeFor(s.blend.cut, fade), ...b.cutFade } },
     passages,

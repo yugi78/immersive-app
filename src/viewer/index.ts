@@ -11,7 +11,7 @@ import { withBase } from './url';
 import { createScanLod } from './loaders/scanLod';
 import { isMobile } from './scene/renderer';
 import { createScenario, homePose } from './scene/scenario';
-import { DEFAULT_EDGE_FADE, DEFAULT_FADE } from './config/scenario';
+import { DEFAULT_EDGE_RANGE, DEFAULT_FADE } from './config/scenario';
 import { easeInOut } from './tour/path';
 import { designCss, normalizeDesign, type DesignConfig } from './config/design';
 import { createCamera, createOrbit } from './scene/orbit';
@@ -541,13 +541,13 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       } else if (tour.state === 'loop') {
         moment = pick(tm.workCut, tour.lookTarget, () => 1);
       } else {
-        // Entrée / sortie : la découpe de la vue extérieure s'éteint à la fin de l'entrée et
-        // se rallume au début de la sortie, chaque forme sur sa part du trajet.
+        // Entrée / sortie : chaque découpe de la caméra de départ s'efface entre deux points
+        // du trajet d'entrée ; à la sortie (trajet inverse), elle réapparaît entre les mêmes.
         const e = easeInOut(tour.phaseProgress);
-        const entering = tour.state === 'enter';
+        const along = tour.state === 'enter' ? e : 1 - e;
         moment = pick(scenarioCfg.orbit.cut, tour.cutTarget, (x) => {
-          const f = Math.max(tm.edgeFade[x.id] ?? DEFAULT_EDGE_FADE, 1e-3);
-          return entering ? 1 - MathUtils.smoothstep(e, 1 - f, 1) : MathUtils.smoothstep(e, 0, f);
+          const [a, b] = tm.edgeRange[x.id] ?? DEFAULT_EDGE_RANGE;
+          return 1 - MathUtils.smoothstep(along, a, Math.max(b, a + 1e-3));
         });
       }
     } else {

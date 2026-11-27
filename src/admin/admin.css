@@ -1833,3 +1833,68 @@ select.bo-input {
   font-size: 12px;
   margin-top: 4px;
 }
+
+/* ---- Plage à deux poignées (début / fin d'effacement) ---- */
+.bo-range2__item {
+  display: grid;
+  gap: 4px;
+}
+.bo-range2 {
+  position: relative;
+  height: 22px;
+}
+.bo-range2__track,
+.bo-range2__fill {
+  position: absolute;
+  top: 9px;
+  height: 4px;
+  border-radius: 2px;
+}
+.bo-range2__track {
+  left: 0;
+  right: 0;
+  background: var(--bo-line);
+}
+.bo-range2__fill {
+  left: var(--a);
+  right: calc(100% - var(--b));
+  background: var(--bo-accent);
+}
+.bo-range2 input[type='range'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.bo-range2 input[type='range']::-webkit-slider-runnable-track {
+  background: none;
+}
+.bo-range2 input[type='range']::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: 0;
+  border: 2px solid var(--bo-accent);
+  border-radius: 50%;
+  background: #fff;
+  pointer-events: auto;
+  cursor: grab;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.bo-range2 input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--bo-accent);
+  border-radius: 50%;
+  background: #fff;
+  pointer-events: auto;
+  cursor: grab;
+}
+.bo-range2 input[type='range']::-moz-range-track {
+  background: none;
+}

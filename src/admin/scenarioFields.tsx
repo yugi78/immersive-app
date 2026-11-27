@@ -1,6 +1,6 @@
 import { createUsePuck, type CustomField } from '@puckeditor/core';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { DEFAULT_EDGE_FADE, DEFAULT_FADE, MODES, modeLabel, PASSAGES } from '../viewer/config/scenario';
+import { DEFAULT_EDGE_RANGE, DEFAULT_FADE, MODES, modeLabel, PASSAGES } from '../viewer/config/scenario';
 import type { CutPreset, ModeId, Passage, PassageId, ScenarioConfig, ScenarioPoint, Vec3 } from '../viewer/config/types';
 import { bridge, useViewer } from './bridge';
 import { Slider, Switch } from './fields';
@@ -103,38 +103,90 @@ function Link({ text }: { text: string }) {
  * Fondu de chaque forme sur un trajet : part du trajet (en %) sur laquelle elle apparaît
  * au départ et disparaît à l'arrivée (ou, `edge`, s'éteint / se rallume).
  */
-function FadeRows({ ids, fades, presets, onFades, readOnly, edge }: { ids: string[]; fades: Record<string, number>; presets: CutPreset[]; onFades: (f: Record<string, number>) => void; readOnly?: boolean; edge?: boolean }) {
+function FadeRows({ ids, fades, presets, onFades, readOnly }: { ids: string[]; fades: Record<string, number>; presets: CutPreset[]; onFades: (f: Record<string, number>) => void; readOnly?: boolean }) {
   const shown = ids.map((id) => presets.find((p) => p.id === id)).filter((p): p is CutPreset => !!p);
   if (!shown.length) return null;
   return (
     <div className="bo-fades">
       {shown.map((p) => {
-        const v = fades[p.id] ?? (edge ? DEFAULT_EDGE_FADE : DEFAULT_FADE);
-        // Entrée / sortie : affiché comme le point du trajet où la forme commence à
-        // s'effacer (96 % = elle disparaît sur les 4 derniers %), même valeur à la sortie.
-        const shown = edge ? Math.round((1 - v) * 100) : Math.round(v * 100);
+        const v = fades[p.id] ?? DEFAULT_FADE;
         return (
-          <label key={p.id} className="bo-fades__row" title={edge ? 'La forme s’efface à partir de ce point du trajet d’entrée, et réapparaît symétriquement pendant la sortie' : 'La forme apparaît sur cette part du trajet au départ et disparaît sur la même part à l’arrivée'}>
+          <label key={p.id} className="bo-fades__row" title="La forme apparaît sur cette part du trajet au départ et disparaît sur la même part à l’arrivée">
             <span className={`bo-cutdot bo-cutdot--${p.kind}`} aria-hidden="true" />
             <span className="bo-fades__name">{p.name}</span>
-            <span className="bo-fades__hint">{edge ? 's’efface à partir de' : 'fondu sur'}</span>
+            <span className="bo-fades__hint">fondu sur</span>
             <input
               type="number"
-              min={edge ? 50 : 1}
-              max={edge ? 99 : 50}
+              min={1}
+              max={50}
               step={1}
-              value={shown}
+              value={Math.round(v * 100)}
               disabled={readOnly}
-              aria-label={edge ? `${p.name} : s’efface à partir de (% du trajet)` : `Fondu de ${p.name} (% du trajet)`}
+              aria-label={`Fondu de ${p.name} (% du trajet)`}
               onChange={(e) => {
                 const n = Number(e.currentTarget.value);
-                if (!Number.isFinite(n)) return;
-                const f = edge ? 1 - Math.min(Math.max(n, 50), 99) / 100 : Math.min(Math.max(n, 1), 50) / 100;
-                onFades({ ...fades, [p.id]: Math.round(f * 100) / 100 });
+                if (Number.isFinite(n)) onFades({ ...fades, [p.id]: Math.min(Math.max(n, 1), 50) / 100 });
               }}
             />
             <span className="bo-fades__unit">% du trajet</span>
           </label>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Entrée / sortie de la visite : pour chaque découpe de la caméra de départ, la plage du
+ * trajet d'entrée (début → fin, en %) sur laquelle elle s'efface. À la sortie, elle
+ * réapparaît sur la même plage, dans l'autre sens. Curseur à deux poignées.
+ */
+function RangeRows({ ids, ranges, presets, onRanges, readOnly }: { ids: string[]; ranges: Record<string, [number, number]>; presets: CutPreset[]; onRanges: (r: Record<string, [number, number]>) => void; readOnly?: boolean }) {
+  const shown = ids.map((id) => presets.find((p) => p.id === id)).filter((p): p is CutPreset => !!p);
+  if (!shown.length) return null;
+  const pct = (x: number) => Math.round(x * 100);
+  return (
+    <div className="bo-fades">
+      {shown.map((p) => {
+        const [a, b] = ranges[p.id] ?? DEFAULT_EDGE_RANGE;
+        const set = (na: number, nb: number) => {
+          const lo = Math.min(Math.max(na, 0), 100);
+          const hi = Math.min(Math.max(nb, 0), 100);
+          onRanges({ ...ranges, [p.id]: [Math.min(lo, hi) / 100, Math.max(lo, hi) / 100] });
+        };
+        const num = (v: number, onV: (n: number) => void, label: string) => (
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            value={pct(v)}
+            disabled={readOnly}
+            aria-label={label}
+            onChange={(e) => {
+              const n = Number(e.currentTarget.value);
+              if (Number.isFinite(n)) onV(n);
+            }}
+          />
+        );
+        return (
+          <div key={p.id} className="bo-range2__item">
+            <div className="bo-fades__row">
+              <span className={`bo-cutdot bo-cutdot--${p.kind}`} aria-hidden="true" />
+              <span className="bo-fades__name">{p.name}</span>
+              <span className="bo-fades__hint">s’efface de</span>
+              {num(a, (n) => set(n, pct(b)), `${p.name} : début de l’effacement (% du trajet)`)}
+              <span className="bo-fades__unit">à</span>
+              {num(b, (n) => set(pct(a), n), `${p.name} : fin de l’effacement (% du trajet)`)}
+              <span className="bo-fades__unit">%</span>
+            </div>
+            <div className="bo-range2" style={{ ['--a' as string]: `${pct(a)}%`, ['--b' as string]: `${pct(b)}%` }}>
+              <span className="bo-range2__track" aria-hidden="true" />
+              <span className="bo-range2__fill" aria-hidden="true" />
+              <input type="range" min={0} max={100} step={1} value={pct(a)} disabled={readOnly} aria-label={`${p.name} : début`} onChange={(e) => set(Number(e.currentTarget.value), pct(b))} />
+              <input type="range" min={0} max={100} step={1} value={pct(b)} disabled={readOnly} aria-label={`${p.name} : fin`} onChange={(e) => set(pct(a), Number(e.currentTarget.value))} />
+            </div>
+          </div>
         );
       })}
     </div>
@@ -526,12 +578,12 @@ function ScenarioUI({ value, onChange, readOnly }: { value: S; onChange: (v: S) 
           <div className="bo-cutpick">
             <span>Arrivée dans la visite (et sortie)</span>
             <small className="bo-scn__hint">
-              Les découpes de la caméra de départ s’effacent en approchant de l’œuvre, à partir du point du trajet indiqué ; à la sortie, elles réapparaissent
-              au même point, dans l’autre sens.
+              Chaque découpe de la caméra de départ s’efface entre deux points du trajet d’entrée (0 % : départ, 100 % : arrivée sur l’œuvre). À la sortie, elle
+              réapparaît sur la même plage, dans l’autre sens.
             </small>
             <b className="bo-fades__from">Depuis la vue extérieure</b>
             {o.cut.length ? (
-              <FadeRows edge ids={o.cut} fades={s.tour.edgeFade} presets={presets} readOnly={readOnly} onFades={(edgeFade) => patch('tour', { edgeFade })} />
+              <RangeRows ids={o.cut} ranges={s.tour.edgeRange} presets={presets} readOnly={readOnly} onRanges={(edgeRange) => patch('tour', { edgeRange })} />
             ) : (
               <small className="bo-scn__hint">La vue extérieure n’a pas de découpe.</small>
             )}

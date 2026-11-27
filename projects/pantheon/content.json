@@ -76,9 +76,15 @@
       "transitFade": {
         "transition": 0.2
       },
-      "edgeFade": {
-        "exterieur": 0.04,
-        "d-0tcwuz": 0.04
+      "edgeRange": {
+        "exterieur": [
+          0.96,
+          1
+        ],
+        "d-0tcwuz": [
+          0.96,
+          1
+        ]
       }
     },
     "passages": {
