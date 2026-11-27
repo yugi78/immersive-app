@@ -1516,7 +1516,7 @@ select.bo-input {
   flex-wrap: wrap;
   gap: 6px;
 }
-.bo-chip {
+.bo-cutchip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1531,10 +1531,10 @@ select.bo-input {
   font-weight: 550;
   cursor: pointer;
 }
-.bo-chip .bo-cutdot {
+.bo-cutchip .bo-cutdot {
   border-color: currentColor;
 }
-.bo-chip.is-on {
+.bo-cutchip.is-on {
   border-color: var(--bo-ink);
   background: var(--bo-ink);
   color: #fff;

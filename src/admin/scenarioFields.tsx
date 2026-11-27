@@ -111,7 +111,7 @@ function CutPicker({ label, value, presets, onChange, readOnly }: { label: strin
             <button
               key={p.id}
               type="button"
-              className={`bo-chip${on ? ' is-on' : ''}`}
+              className={`bo-cutchip${on ? ' is-on' : ''}`}
               aria-pressed={on}
               disabled={readOnly}
               onClick={() => onChange(on ? value.filter((x) => x !== p.id) : [...value.filter((x) => presets.find((q) => q.id === x)?.kind !== p.kind), p.id])}
