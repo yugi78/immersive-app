@@ -558,15 +558,29 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       );
     }
     cutaway.update(camera.position, moment.target, moment.cyl, moment.cylScale);
-    let target = { s: 0, r: sphere.r, f: sphere.f };
-    if (moment.sph) {
-      target = { s: moment.sphScale, r: moment.sph.radius, f: moment.sph.feather };
-      sphere.id = moment.sph.id;
+    // Sphère : une seule à la fois dans le shader. Quand une autre sphère prend le relais
+    // (ex. fin de l'entrée → sphère de l'œuvre), l'actuelle finit d'abord de s'effacer
+    // (même rayon, mêmes matériaux), puis la nouvelle apparaît directement à sa taille :
+    // jamais de grande sphère qui réapparaît en rétrécissant. Pour une même sphère,
+    // l'intensité suit de près son réglage (fondu, plage du trajet), sans à-coup.
+    const want = moment.sph;
+    const kFade = 1 - Math.exp(-12 * delta);
+    const kFollow = 1 - Math.exp(-25 * delta);
+    if (want && want.id !== sphere.id && sphere.s > 0.01) {
+      sphere.s += (0 - sphere.s) * kFade;
+    } else if (want) {
+      if (want.id !== sphere.id) {
+        sphere.id = want.id;
+        sphere.r = want.radius;
+        sphere.f = want.feather;
+        sphere.s = 0;
+      }
+      sphere.s += (moment.sphScale - sphere.s) * kFollow;
+      sphere.r += (want.radius - sphere.r) * kFollow;
+      sphere.f += (want.feather - sphere.f) * kFollow;
+    } else {
+      sphere.s += (0 - sphere.s) * kFade;
     }
-    const ks = 1 - Math.exp(-8 * delta);
-    sphere.s += (target.s - sphere.s) * ks;
-    sphere.r += (target.r - sphere.r) * ks;
-    sphere.f += (target.f - sphere.f) * ks;
     // La forme qui s'éteint garde ses matériaux abonnés jusqu'à la fin de son fondu.
     cutaway.setTransit(sphere.s < 0.002 ? 0 : sphere.s, sphere.r, sphere.f, sphere.id);
     camera.updateMatrixWorld();
