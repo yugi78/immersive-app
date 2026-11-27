@@ -179,6 +179,19 @@ const waypoints = (v: unknown, n: string) => {
   return w.map((p, i) => vec3(p, `${n}[${i}]`));
 };
 const lookOf = (v: unknown, n: string) => (v == null ? null : vec3(v, n));
+/** Fondu de chaque forme sur un trajet : { id: part du trajet (0,01–0,5) }. */
+const fades = (v: unknown, n: string) => {
+  if (v == null) return {};
+  if (typeof v !== 'object' || Array.isArray(v)) throw new Error(`${n} doit être un objet`);
+  const entries = Object.entries(v as Record<string, unknown>);
+  if (entries.length > 16) throw new Error(`${n} : 16 formes au plus`);
+  return Object.fromEntries(
+    entries.map(([k, x]) => {
+      str(k, `${n} (clé)`, /^[\w-]{1,40}$/);
+      return [k, Math.min(Math.max(num(x, `${n}.${k}`), 0.01), 0.5)];
+    }),
+  );
+};
 const passage = (v: unknown, n: string) => {
   const q = (v ?? {}) as Record<string, unknown>;
   return {
@@ -187,6 +200,7 @@ const passage = (v: unknown, n: string) => {
     waypoints: waypoints(q.waypoints, `${n}.waypoints`),
     look: lookOf(q.look, `${n}.look`),
     cut: cutIds(q.cut, `${n}.cut`),
+    cutFade: fades(q.cutFade, `${n}.cutFade`),
   };
 };
 OBJECT_KEYS.scenario = {
@@ -233,14 +247,23 @@ OBJECT_KEYS.scenario = {
       cut: cutIds(q.cut, `${n}.cut`),
     };
   },
-  tour: (v, n) => ({ startWork: Math.max(0, Math.floor(num((v as { startWork?: unknown })?.startWork ?? 0, `${n}.startWork`))) }),
+  tour: (v, n) => {
+    const q = (v ?? {}) as Record<string, unknown>;
+    return {
+      startWork: Math.max(0, Math.floor(num(q.startWork ?? 0, `${n}.startWork`))),
+      workCut: cutIds(q.workCut, `${n}.workCut`),
+      transitCut: cutIds(q.transitCut, `${n}.transitCut`),
+      transitFade: fades(q.transitFade, `${n}.transitFade`),
+      edgeFade: fades(q.edgeFade, `${n}.edgeFade`),
+    };
+  },
   passages: (v, n) => {
     const q = (v ?? {}) as Record<string, unknown>;
     return { 'orbit>tour': passage(q['orbit>tour'], `${n}.orbit>tour`), 'tour>orbit': passage(q['tour>orbit'], `${n}.tour>orbit`) };
   },
   blend: (v, n) => {
     const q = (v ?? {}) as Record<string, unknown>;
-    return { durationMs: positive(q.durationMs, `${n}.durationMs`), cut: cutIds(q.cut, `${n}.cut`) };
+    return { durationMs: positive(q.durationMs, `${n}.durationMs`), cut: cutIds(q.cut, `${n}.cut`), cutFade: fades(q.cutFade, `${n}.cutFade`) };
   },
 };
 

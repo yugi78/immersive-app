@@ -14,7 +14,12 @@ export const PASSAGES: { id: PassageId; from: ModeId; to: ModeId; hint: string }
   { id: 'tour>orbit', from: 'tour', to: 'orbit', hint: 'Bouton du monument (sortie de la visite)' },
 ];
 
-export const newPassage = (): Passage => ({ kind: 'direct', durationMs: 4000, waypoints: [], look: null, cut: [] });
+export const newPassage = (): Passage => ({ kind: 'direct', durationMs: 4000, waypoints: [], look: null, cut: [], cutFade: {} });
+
+/** Fondu par défaut d'une forme sur un trajet (part du trajet). */
+export const DEFAULT_FADE = 0.2;
+/** Entrée / sortie de la visite : extinction de la découpe de la vue extérieure (part du trajet). */
+export const DEFAULT_EDGE_FADE = 0.04;
 
 export function defaultScenario(): ScenarioConfig {
   return {
@@ -43,9 +48,9 @@ export function defaultScenario(): ScenarioConfig {
       idle: { action: 'rotate', afterMs: 4000 },
       cut: [],
     },
-    tour: { startWork: 0 },
+    tour: { startWork: 0, workCut: [], transitCut: [], transitFade: {}, edgeFade: {} },
     passages: { 'orbit>tour': newPassage(), 'tour>orbit': newPassage() },
-    blend: { durationMs: 2500, cut: [] },
+    blend: { durationMs: 2500, cut: [], cutFade: {} },
   };
 }
 
@@ -74,8 +79,44 @@ type Legacy = {
   intro?: { durationMs: number; startHeightAboveGround: number; startDistance: number; sweepDeg: number };
   orbit?: { minDistance: number; maxDistance: number; dampingFactor: number; autoRotateSpeed: number; autoRotateResumeDelayMs: number; groundMargin: number };
   camera?: { start?: OrbitMode['start'] };
-  cutaway?: { use?: Use };
+  cutaway?: { use?: Use & { work?: string }; transitFade?: number };
+  /** Ancien réglage de la visite : début de l'extinction de la découpe à l'entrée (0–1). */
+  tour?: { cutFadeStart?: number };
 };
+
+/** Fondu de chaque forme d'une liste (valeur commune). */
+const fadeFor = (ids: string[], f: number) => Object.fromEntries(ids.map((id) => [id, f]));
+
+/**
+ * Découpes de la visite et fondus : repris de l'ancien format (cutaway.use, transitFade,
+ * tour.cutFadeStart) quand le scénario ne les décrit pas encore.
+ */
+function withCuts(s: ScenarioConfig, raw: Legacy): ScenarioConfig {
+  const use = raw.cutaway?.use ?? {};
+  const fade = raw.cutaway?.transitFade ?? DEFAULT_FADE;
+  const edge = raw.tour?.cutFadeStart !== undefined ? Math.max(0.01, 1 - raw.tour.cutFadeStart) : DEFAULT_EDGE_FADE;
+  const t = (raw.scenario?.tour ?? {}) as Partial<ScenarioConfig['tour']>;
+  const transitCut = t.transitCut ?? ids(use.transit);
+  const b = (raw.scenario?.blend ?? {}) as Partial<ScenarioConfig['blend']>;
+  const passages = Object.fromEntries(
+    (Object.keys(s.passages) as (keyof ScenarioConfig['passages'])[]).map((k) => {
+      const p = s.passages[k];
+      return [k, { ...p, cutFade: { ...fadeFor(p.cut, fade), ...p.cutFade } }];
+    }),
+  ) as ScenarioConfig['passages'];
+  return {
+    ...s,
+    tour: {
+      startWork: s.tour.startWork ?? 0,
+      workCut: t.workCut ?? ids(use.work),
+      transitCut,
+      transitFade: { ...fadeFor(transitCut, fade), ...t.transitFade },
+      edgeFade: { ...fadeFor(s.orbit.cut, edge), ...t.edgeFade },
+    },
+    blend: { ...s.blend, cutFade: { ...fadeFor(s.blend.cut, fade), ...b.cutFade } },
+    passages,
+  };
+}
 
 const pickOrbit = (o: Partial<OrbitMode> | Record<string, unknown>, d: OrbitMode): Omit<OrbitMode, 'idle' | 'cut'> => {
   const x = o as Partial<OrbitMode>;
@@ -120,9 +161,9 @@ function fromV2(v: V2): ScenarioConfig {
           cut: control.cut ?? [],
         }
       : d.orbit,
-    tour: { startWork: (tour?.startWork as number | undefined) ?? 0 },
+    tour: { ...defaultScenario().tour, startWork: (tour?.startWork as number | undefined) ?? 0 },
     passages: { 'orbit>tour': newPassage(), 'tour>orbit': newPassage() },
-    blend: { durationMs: v.blendMs ?? 2500, cut: control?.arriveCut ?? [] },
+    blend: { durationMs: v.blendMs ?? 2500, cut: control?.arriveCut ?? [], cutFade: {} },
   };
 }
 
@@ -153,14 +194,18 @@ function fromV1(v1: V1, use: Use): ScenarioConfig {
       idle: { action: v1.idle?.action === 'loop' ? (loopOk ? 'loop' : 'none') : (v1.idle?.action ?? 'rotate'), afterMs: v1.idle?.afterMs ?? 4000 },
       cut: ids(use.orbit),
     },
-    tour: { startWork: 0 },
+    tour: defaultScenario().tour,
     passages: { 'orbit>tour': newPassage(), 'tour>orbit': newPassage() },
-    blend: { durationMs: v1.blendMs ?? 2500, cut: ids(use.transit) },
+    blend: { durationMs: v1.blendMs ?? 2500, cut: ids(use.transit), cutFade: {} },
   };
 }
 
 /** Scénario complet d'un projet : le sien (converti des anciens formats au besoin), sinon par défaut. */
 export function normalizeScenario(raw: Legacy): ScenarioConfig {
+  return withCuts(normalizeBase(raw), raw);
+}
+
+function normalizeBase(raw: Legacy): ScenarioConfig {
   const d = defaultScenario();
   const s = raw.scenario;
   if (s && s.orbit && s.passages) {

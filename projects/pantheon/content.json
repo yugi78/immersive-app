@@ -66,7 +66,20 @@
       ]
     },
     "tour": {
-      "startWork": 0
+      "startWork": 0,
+      "workCut": [
+        "oeuvre"
+      ],
+      "transitCut": [
+        "transition"
+      ],
+      "transitFade": {
+        "transition": 0.2
+      },
+      "edgeFade": {
+        "exterieur": 0.04,
+        "d-0tcwuz": 0.04
+      }
     },
     "passages": {
       "orbit>tour": {
@@ -74,21 +87,26 @@
         "durationMs": 4000,
         "waypoints": [],
         "look": null,
-        "cut": []
+        "cut": [],
+        "cutFade": {}
       },
       "tour>orbit": {
         "kind": "direct",
         "durationMs": 4000,
         "waypoints": [],
         "look": null,
-        "cut": []
+        "cut": [],
+        "cutFade": {}
       }
     },
     "blend": {
       "durationMs": 2500,
       "cut": [
         "transition"
-      ]
+      ],
+      "cutFade": {
+        "transition": 0.2
+      }
     }
   },
   "focus": {

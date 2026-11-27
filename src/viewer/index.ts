@@ -11,7 +11,8 @@ import { withBase } from './url';
 import { createScanLod } from './loaders/scanLod';
 import { isMobile } from './scene/renderer';
 import { createScenario, homePose } from './scene/scenario';
-import { cutFor } from './config/cutaway';
+import { DEFAULT_EDGE_FADE, DEFAULT_FADE } from './config/scenario';
+import { easeInOut } from './tour/path';
 import { designCss, normalizeDesign, type DesignConfig } from './config/design';
 import { createCamera, createOrbit } from './scene/orbit';
 import { computeReference, type SceneReference } from './scene/reference';
@@ -520,28 +521,46 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     // œuvres). Un cylindre (vers le point regardé) et une sphère (autour de la caméra)
     // au plus ; la sphère est lissée d'une image à l'autre, sans saut.
     const cc = cutaway.settings;
-    const pick = (ids: string[] | undefined, target: Vector3, scale: number) => {
+    /**
+     * Formes actives (un cylindre, une sphère) et intensité de chacune : `scaleOf` donne
+     * l'intensité d'une forme (fondu propre à chaque forme sur un trajet).
+     */
+    const pick = (ids: string[] | undefined, target: Vector3, scaleOf: (p: CutPreset) => number) => {
       const list = (ids ?? []).map((id) => cc.presets.find((p) => p.id === id)).filter((p): p is CutPreset => !!p);
-      return { cyl: list.find((p) => p.kind === 'cylinder') ?? null, sph: list.find((p) => p.kind === 'sphere') ?? null, target, scale };
+      const cyl = list.find((p) => p.kind === 'cylinder') ?? null;
+      const sph = list.find((p) => p.kind === 'sphere') ?? null;
+      return { cyl, sph, target, cylScale: cyl ? scaleOf(cyl) : 0, sphScale: sph ? scaleOf(sph) : 0 };
     };
-    const one = (pr: CutPreset | null, target: Vector3, scale: number) => pick(pr ? [pr.id] : [], target, scale);
+    const tm = scenarioCfg.tour;
     let moment: ReturnType<typeof pick>;
     if (tour.active) {
-      if (tour.state === 'transit') moment = one(cutFor(cc, 'transit'), tour.lookTarget, transitCurve(tour.phaseProgress, cc.transitFade));
-      else if (tour.state === 'loop') moment = one(cutFor(cc, 'work'), tour.lookTarget, 1);
-      // Entrée / sortie standard de la visite : la découpe de la vue extérieure s'éteint / se rallume.
-      else moment = pick(scenarioCfg.orbit.cut, tour.cutTarget, tour.cutScale);
+      if (tour.state === 'transit') {
+        // Entre deux œuvres : chaque forme apparaît au départ et disparaît à l'arrivée, sur sa part du trajet.
+        const p = tour.phaseProgress;
+        moment = pick(tm.transitCut, tour.lookTarget, (x) => transitCurve(p, tm.transitFade[x.id] ?? DEFAULT_FADE));
+      } else if (tour.state === 'loop') {
+        moment = pick(tm.workCut, tour.lookTarget, () => 1);
+      } else {
+        // Entrée / sortie : la découpe de la vue extérieure s'éteint à la fin de l'entrée et
+        // se rallume au début de la sortie, chaque forme sur sa part du trajet.
+        const e = easeInOut(tour.phaseProgress);
+        const entering = tour.state === 'enter';
+        moment = pick(scenarioCfg.orbit.cut, tour.cutTarget, (x) => {
+          const f = Math.max(tm.edgeFade[x.id] ?? DEFAULT_EDGE_FADE, 1e-3);
+          return entering ? 1 - MathUtils.smoothstep(e, 1 - f, 1) : MathUtils.smoothstep(e, 0, f);
+        });
+      }
     } else {
-      // Partie du scénario en cours ; raccords et passages : fondu au début et à la fin.
+      // Partie du scénario en cours ; raccords et passages : fondu propre à chaque forme.
       const c = scenario.cutNow();
-      const scale = c.progress === null ? 1 : transitCurve(c.progress, cc.transitFade);
-      moment = pick(c.ids, scenario.driving ? scenario.lookTarget : orbit.controls.target, scale);
+      moment = pick(c.ids, scenario.driving ? scenario.lookTarget : orbit.controls.target, (x) =>
+        c.progress === null ? 1 : transitCurve(c.progress, c.fades?.[x.id] ?? DEFAULT_FADE),
+      );
     }
-    const moment2 = { preset: moment.cyl, target: moment.target, scale: moment.scale };
-    cutaway.update(camera.position, moment2.target, moment2.preset, moment2.scale);
+    cutaway.update(camera.position, moment.target, moment.cyl, moment.cylScale);
     let target = { s: 0, r: sphere.r, f: sphere.f };
     if (moment.sph) {
-      target = { s: moment.scale, r: moment.sph.radius, f: moment.sph.feather };
+      target = { s: moment.sphScale, r: moment.sph.radius, f: moment.sph.feather };
       sphere.id = moment.sph.id;
     }
     const ks = 1 - Math.exp(-8 * delta);

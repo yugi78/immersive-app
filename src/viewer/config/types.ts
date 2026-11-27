@@ -207,6 +207,24 @@ export interface Passage {
   waypoints: Vec3[];
   look: Vec3 | null;
   cut: string[];
+  /** Fondu de chaque forme (id → part du trajet, 0–0.5) : apparition au départ, disparition à l'arrivée. */
+  cutFade: Record<string, number>;
+}
+
+/** Visite guidée : œuvre de départ et découpes. */
+export interface TourMode {
+  /** Œuvre de départ quand on y arrive par l'accueil. */
+  startWork: number;
+  /** Découpe sur une œuvre. */
+  workCut: string[];
+  /** Découpe entre deux œuvres, et fondu de chaque forme (part du trajet). */
+  transitCut: string[];
+  transitFade: Record<string, number>;
+  /**
+   * Entrée et sortie de la visite : la découpe de la vue extérieure s'éteint à la fin de
+   * l'entrée et se rallume au début de la sortie, sur cette part du trajet (par forme).
+   */
+  edgeFade: Record<string, number>;
 }
 
 export interface ScenarioConfig {
@@ -216,11 +234,10 @@ export interface ScenarioConfig {
   /** Mode où arrive le visiteur après l'accueil. */
   firstMode: ModeId;
   orbit: OrbitMode;
-  /** Visite guidée : œuvre de départ quand on y arrive par l'accueil. */
-  tour: { startWork: number };
+  tour: TourMode;
   passages: Record<PassageId, Passage>;
-  /** Raccords de l'accueil (intro → boucle → premier mode). */
-  blend: { durationMs: number; cut: string[] };
+  /** Raccords de l'accueil (intro → boucle → premier mode), et fondu de chaque forme. */
+  blend: { durationMs: number; cut: string[]; cutFade: Record<string, number> };
 }
 
 /** Écran de démarrage : titre, description, image de fond, bouton (« Entrer »). */

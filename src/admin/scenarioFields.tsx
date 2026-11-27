@@ -1,6 +1,6 @@
 import { createUsePuck, type CustomField } from '@puckeditor/core';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { MODES, modeLabel, PASSAGES } from '../viewer/config/scenario';
+import { DEFAULT_EDGE_FADE, DEFAULT_FADE, MODES, modeLabel, PASSAGES } from '../viewer/config/scenario';
 import type { CutPreset, ModeId, Passage, PassageId, ScenarioConfig, ScenarioPoint, Vec3 } from '../viewer/config/types';
 import { bridge, useViewer } from './bridge';
 import { Slider, Switch } from './fields';
@@ -99,7 +99,44 @@ function Link({ text }: { text: string }) {
 }
 
 /** Formes de découpe à cocher (bibliothèque de l'onglet Rendu) ; un cylindre et une sphère au plus. */
-function CutPicker({ label, value, presets, onChange, readOnly }: { label: string; value: string[]; presets: CutPreset[]; onChange: (ids: string[]) => void; readOnly?: boolean }) {
+/**
+ * Fondu de chaque forme sur un trajet : part du trajet (en %) sur laquelle elle apparaît
+ * au départ et disparaît à l'arrivée (ou, `edge`, s'éteint / se rallume).
+ */
+function FadeRows({ ids, fades, presets, onFades, readOnly, edge }: { ids: string[]; fades: Record<string, number>; presets: CutPreset[]; onFades: (f: Record<string, number>) => void; readOnly?: boolean; edge?: boolean }) {
+  const shown = ids.map((id) => presets.find((p) => p.id === id)).filter((p): p is CutPreset => !!p);
+  if (!shown.length) return null;
+  return (
+    <div className="bo-fades">
+      {shown.map((p) => {
+        const v = fades[p.id] ?? (edge ? DEFAULT_EDGE_FADE : DEFAULT_FADE);
+        return (
+          <label key={p.id} className="bo-fades__row" title={edge ? 'Part du trajet sur laquelle la forme s’éteint (entrée) et se rallume (sortie)' : 'Part du trajet sur laquelle la forme apparaît au départ et disparaît à l’arrivée'}>
+            <span className={`bo-cutdot bo-cutdot--${p.kind}`} aria-hidden="true" />
+            <span className="bo-fades__name">{p.name}</span>
+            <span className="bo-fades__hint">{edge ? 'extinction sur' : 'fondu sur'}</span>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              step={1}
+              value={Math.round(v * 100)}
+              disabled={readOnly}
+              aria-label={`Fondu de ${p.name} (% du trajet)`}
+              onChange={(e) => {
+                const n = Number(e.currentTarget.value);
+                if (Number.isFinite(n)) onFades({ ...fades, [p.id]: Math.min(Math.max(n, 1), 50) / 100 });
+              }}
+            />
+            <span className="bo-fades__unit">% du trajet</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+function CutPicker({ label, value, presets, onChange, readOnly, fades, onFades }: { label: string; value: string[]; presets: CutPreset[]; onChange: (ids: string[]) => void; readOnly?: boolean; fades?: Record<string, number>; onFades?: (f: Record<string, number>) => void }) {
   return (
     <div className="bo-cutpick">
       <span>{label}</span>
@@ -123,6 +160,7 @@ function CutPicker({ label, value, presets, onChange, readOnly }: { label: strin
           );
         })}
       </div>
+      {fades && onFades && <FadeRows ids={value} fades={fades} presets={presets} onFades={onFades} readOnly={readOnly} />}
     </div>
   );
 }
@@ -414,7 +452,7 @@ function ScenarioUI({ value, onChange, readOnly }: { value: S; onChange: (v: S) 
         </label>
         <div className="bo-scn__raccords">
           <Slider label="Durée des raccords" min={0} max={10} step={0.1} unit="s" value={sec(s.blend.durationMs)} readOnly={readOnly} onChange={(v) => patch('blend', { durationMs: ms(v) })} />
-          <CutPicker label="Découpe pendant les raccords" value={s.blend.cut} presets={presets} readOnly={readOnly} onChange={(cut) => patch('blend', { cut })} />
+          <CutPicker label="Découpe pendant les raccords" value={s.blend.cut} presets={presets} readOnly={readOnly} onChange={(cut) => patch('blend', { cut })} fades={s.blend.cutFade} onFades={(cutFade) => patch('blend', { cutFade })} />
         </div>
       </Section>
 
@@ -470,7 +508,26 @@ function ScenarioUI({ value, onChange, readOnly }: { value: S; onChange: (v: S) 
               ))}
             </select>
           </label>
-          <p className="bo-scn__help">Les œuvres, leurs parcours et les découpes de la visite se règlent dans l’onglet Œuvres.</p>
+          <CutPicker label="Découpe sur une œuvre" value={s.tour.workCut} presets={presets} readOnly={readOnly} onChange={(workCut) => patch('tour', { workCut })} />
+          <CutPicker
+            label="Découpe entre deux œuvres"
+            value={s.tour.transitCut}
+            presets={presets}
+            readOnly={readOnly}
+            onChange={(transitCut) => patch('tour', { transitCut })}
+            fades={s.tour.transitFade}
+            onFades={(transitFade) => patch('tour', { transitFade })}
+          />
+          <div className="bo-cutpick">
+            <span>Entrée et sortie de la visite</span>
+            <small className="bo-scn__hint">La découpe de la vue extérieure s’éteint à la fin de l’entrée et se rallume au début de la sortie.</small>
+            {o.cut.length ? (
+              <FadeRows edge ids={o.cut} fades={s.tour.edgeFade} presets={presets} readOnly={readOnly} onFades={(edgeFade) => patch('tour', { edgeFade })} />
+            ) : (
+              <small className="bo-scn__hint">La vue extérieure n’a pas de découpe.</small>
+            )}
+          </div>
+          <p className="bo-scn__help">Les œuvres et leurs parcours se règlent dans l’onglet Œuvres.</p>
         </Card>
         {MODES.filter((m) => m.soon).map((m) => (
           <Card key={m.id} icon={<Icon.fly size={15} />} tone="soon" title={m.label} summary="Bientôt" soon enabled={false} />
@@ -510,7 +567,7 @@ function ScenarioUI({ value, onChange, readOnly }: { value: S; onChange: (v: S) 
                     {toOrbit ? ' et arrive sur la vue de départ (repère D).' : ', puis la visite enchaîne vers l’œuvre choisie.'}
                   </p>
                   <Waypoints id={ps.id} waypoints={v.waypoints} look={v.look} endsOnNext={toOrbit} readOnly={readOnly} onChange={(x) => setPassage(ps.id, x)} />
-                  <CutPicker label="Découpe pendant le trajet" value={v.cut} presets={presets} readOnly={readOnly} onChange={(cut) => setPassage(ps.id, { cut })} />
+                  <CutPicker label="Découpe pendant le trajet" value={v.cut} presets={presets} readOnly={readOnly} onChange={(cut) => setPassage(ps.id, { cut })} fades={v.cutFade} onFades={(cutFade) => setPassage(ps.id, { cutFade })} />
                 </>
               )}
               <div className="bo-scn__bar">

@@ -403,7 +403,7 @@ export function createScenario(o: Options) {
   }
 
   /** Découpe de la partie en cours (formes) et, pour un raccord ou un trajet de passage, son avancement (fondu). */
-  function cutNow(): { ids: string[]; progress: number | null } {
+  function cutNow(): { ids: string[]; progress: number | null; fades?: Record<string, number> } {
     const c = cfg();
     switch (part) {
       case 'intro':
@@ -413,10 +413,10 @@ export function createScenario(o: Options) {
       case 'orbit':
         return { ids: c.orbit.cut, progress: null };
       case 'blend':
-        return { ids: c.blend.cut, progress: blend ? Math.min(blend.time / blend.duration, 1) : 1 };
+        return { ids: c.blend.cut, progress: blend ? Math.min(blend.time / blend.duration, 1) : 1, fades: c.blend.cutFade };
       case 'orbit>tour':
       case 'tour>orbit':
-        return { ids: c.passages[part].cut, progress: way && way.duration > 0 ? Math.min(way.time / way.duration, 1) : 1 };
+        return { ids: c.passages[part].cut, progress: way && way.duration > 0 ? Math.min(way.time / way.duration, 1) : 1, fades: c.passages[part].cutFade };
       default:
         return { ids: [], progress: null };
     }

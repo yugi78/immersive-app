@@ -513,10 +513,6 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.tourEnterS}
             {fields.tourBetweenS}
             {fields.tourExitS}
-            {fields.tourCutFadeStart}
-          </FieldGroup>
-          <FieldGroup label="Découpes de la visite">
-            {fields.tourCuts}
           </FieldGroup>
           <FieldGroup label="Point central">
             {fields.tourViaHub}
