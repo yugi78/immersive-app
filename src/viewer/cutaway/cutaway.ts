@@ -46,6 +46,8 @@ export function createCutaway(initial: CutawayConfig) {
     uniform float uTransitFeather;
     uniform float uTransitStrength;
     uniform float uCutStrength;
+    uniform float uCutMaskCyl;
+    uniform float uCutMaskSph;
     uniform vec3 uCutColor;
 
     float cutBayer4(vec2 p) {
@@ -61,28 +63,31 @@ export function createCutaway(initial: CutawayConfig) {
     float cutLen = max(length(cutAxis), 1e-3);
     float cutT = dot(vCutWorld - uCutCam, cutAxis) / (cutLen * cutLen);
     float cutD = distance(vCutWorld, uCutCam + cutAxis * cutT);
-    bool cutInFront = uCutStrength > 0.0 && cutT > 0.0 && cutT < 1.0;
+    // Ce matériau réagit-il aux formes actives ? (abonnement du matériau, 0 ou 1)
+    float cutS = uCutStrength * uCutMaskCyl;
+    float trS = uTransitStrength * uCutMaskSph;
+    bool cutInFront = cutS > 0.0 && cutT > 0.0 && cutT < 1.0;
     if (cutInFront) {
       // 1 au cœur du cylindre, 0 au-delà du rayon, dégradé sur uCutFeather mètres.
       float radial = 1.0 - smoothstep(uCutRadius - uCutFeather, uCutRadius, cutD);
       // Fondu à l'approche de la cible, pour éviter un fond de cylindre net.
       float cap = 1.0 - smoothstep(1.0 - uCutFeather / cutLen, 1.0, cutT);
-      if (radial * cap * uCutStrength > cutBayer4(gl_FragCoord.xy)) discard;
+      if (radial * cap * cutS > cutBayer4(gl_FragCoord.xy)) discard;
     }
     // Sphère autour de la caméra : rien ne s'interpose de près, quel que soit l'angle
     // (passage des murs à l'entrée et à la sortie de la visite). Même intensité que
     // le cylindre, donc éteinte avec lui.
     // Sphère des transitions : tout ce qui entoure la caméra en mouvement s'efface
     // (piliers, murs), avec un dégradé sur uTransitFeather mètres.
-    if (uTransitStrength > 0.0 && uTransitRadius > 0.0) {
+    if (trS > 0.0 && uTransitRadius > 0.0) {
       float trFeather = min(uTransitFeather, uTransitRadius);
       float tr = 1.0 - smoothstep(uTransitRadius - trFeather, uTransitRadius, distance(vCutWorld, uCutCam));
-      if (tr * uTransitStrength > cutBayer4(gl_FragCoord.xy)) discard;
+      if (tr * trS > cutBayer4(gl_FragCoord.xy)) discard;
     }
-    if (uCutStrength > 0.0 && uCutSphere > 0.0) {
+    if (cutS > 0.0 && uCutSphere > 0.0) {
       float sphFeather = min(uCutFeather, uCutSphere * 0.5);
       float sph = 1.0 - smoothstep(uCutSphere - sphFeather, uCutSphere, distance(vCutWorld, uCutCam));
-      if (sph * uCutStrength > cutBayer4(gl_FragCoord.xy)) discard;
+      if (sph * cutS > cutBayer4(gl_FragCoord.xy)) discard;
     }`;
   const fragmentTint = /* glsl */ `
     #include <color_fragment>
@@ -91,13 +96,31 @@ export function createCutaway(initial: CutawayConfig) {
     if (!gl_FrontFacing) diffuseColor = vec4(uCutColor, 1.0);`;
 
   /**
+   * Abonnements : chaque matériau découpable ne réagit qu'à certaines formes (ids), ou
+   * à toutes (null). Ses deux interrupteurs (cylindre, sphère) sont des uniforms propres
+   * au matériau, mis à jour à chaque image selon les formes actives.
+   */
+  const subscribers: { only: string[] | null; cyl: { value: number }; sph: { value: number } }[] = [];
+  let active: { cyl: string | null; sph: string | null } = { cyl: null, sph: null };
+  /** '*' : forme du vol libre (back-office), sur tous les matériaux découpables. */
+  const reacts = (only: string[] | null, id: string | null) => (only === null || id === '*' || (id !== null && only.includes(id)) ? 1 : 0);
+  function refreshMasks() {
+    for (const sub of subscribers) {
+      sub.cyl.value = reacts(sub.only, active.cyl);
+      sub.sph.value = reacts(sub.only, active.sph);
+    }
+  }
+
+  /**
    * Injecte la découpe et le remplissage des faces arrière dans un matériau
    * (MeshBasicMaterial, donc sans éclairage) et le passe en DoubleSide.
    */
-  function applyToMaterial(material: Material) {
+  function applyToMaterial(material: Material, only: string[] | null) {
+    const sub = { only, cyl: { value: reacts(only, active.cyl) }, sph: { value: reacts(only, active.sph) } };
+    subscribers.push(sub);
     material.side = DoubleSide;
     material.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, uniforms);
+      Object.assign(shader.uniforms, uniforms, { uCutMaskCyl: sub.cyl, uCutMaskSph: sub.sph });
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>
 ${vertexPars}`)
@@ -112,14 +135,15 @@ ${fragmentPars}`)
     material.needsUpdate = true;
   }
 
-  function apply(root: Object3D) {
+  /** Rend découpables les matériaux de `root` ; `only` : ids des formes auxquelles ils réagissent (null : toutes). */
+  function apply(root: Object3D, only: string[] | null = null) {
     const done = new Set<Material>();
     root.traverse((o) => {
       if (!(o instanceof Mesh)) return;
       for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
         if (done.has(m)) continue;
         done.add(m);
-        applyToMaterial(m);
+        applyToMaterial(m, only);
       }
     });
   }
@@ -132,6 +156,11 @@ ${fragmentPars}`)
   function update(camera: Vector3, target: Vector3, preset: CutPreset | null, scale = 1) {
     uniforms.uCutCam.value.copy(camera);
     uniforms.uCutTarget.value.copy(target);
+    const cylId = preset?.kind === 'cylinder' ? preset.id : null;
+    if (cylId !== active.cyl) {
+      active = { ...active, cyl: cylId };
+      refreshMasks();
+    }
     if (!preset || preset.kind !== 'cylinder') {
       uniforms.uCutStrength.value = 0;
       return;
@@ -153,7 +182,11 @@ ${fragmentPars}`)
   }
 
   /** Sphère autour de la caméra : intensité (0 : éteinte, 1 : pleine), rayon, dégradé. */
-  function setTransit(strength: number, radius: number, feather: number) {
+  function setTransit(strength: number, radius: number, feather: number, id: string | null = active.sph) {
+    if (id !== active.sph) {
+      active = { ...active, sph: id };
+      refreshMasks();
+    }
     uniforms.uTransitStrength.value = MathUtils.clamp(strength, 0, 1);
     uniforms.uTransitRadius.value = radius;
     uniforms.uTransitFeather.value = feather;
@@ -165,6 +198,8 @@ ${fragmentPars}`)
       return cfg;
     },
     apply,
+    /** Diagnostic : abonnement et interrupteurs (cylindre, sphère) de chaque matériau découpable. */
+    masks: () => subscribers.map((x) => ({ only: x.only, cyl: x.cyl.value, sph: x.sph.value })),
     update,
     set,
     setTransit,

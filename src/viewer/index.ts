@@ -216,7 +216,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   // Découpe + faces arrière en couleur de coupe (matériaux « cutaway »).
   const cutaway = createCutaway(cfg.cutaway);
   for (const a of assets) {
-    if (matOf(objOf(a)).cutaway) cutaway.apply(a.root);
+    if (matOf(objOf(a)).cutaway) cutaway.apply(a.root, matOf(objOf(a)).cuts ?? null);
   }
 
   // Remplissage de coupe : matériau uni qui partage l'objet Color de la coupe,
@@ -287,7 +287,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   if (scan && tiled) {
     // Mêmes effets que les GLB, dans le même ordre.
     const m = matOf(tiled);
-    if (m.cutaway) cutaway.apply(scan.root);
+    if (m.cutaway) cutaway.apply(scan.root, m.cuts ?? null);
     applyMapLayers(scan.root, tiled);
     applyGrade(scan.root, m);
     if (m.mist !== false) mist.apply(scan.root);
@@ -297,7 +297,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   /** Vol libre : sphère de découpe autour de la caméra (traverser murs et piliers). */
   let flySphere = { enabled: true, radius: 4, feather: 2 };
   /** Sphère de découpe affichée (intensité, rayon, dégradé), lissée d'une image à l'autre. */
-  const sphere = { s: 0, r: 4, f: 2 };
+  const sphere: { s: number; r: number; f: number; id: string | null } = { s: 0, r: 4, f: 2, id: null };
   /** Racine 3D de chaque objet, par identifiant (outliner). */
   const objectRoots = new Map<string, Object3D>(assets.map((a) => [objOf(a).id, a.root]));
   if (scan && tiled) objectRoots.set(tiled.id, scan.root);
@@ -525,15 +525,18 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     let target = { s: 0, r: sphere.r, f: sphere.f };
     if (moment.sph) {
       target = { s: moment.scale, r: moment.sph.radius, f: moment.sph.feather };
+      sphere.id = moment.sph.id;
     } else if (editorTools?.flying && flySphere.enabled) {
-      // Vol libre du back-office : ses propres réglages.
+      // Vol libre du back-office : ses propres réglages, sur tous les matériaux découpables.
       target = { s: 1, r: flySphere.radius, f: flySphere.feather };
+      sphere.id = '*';
     }
     const ks = 1 - Math.exp(-8 * delta);
     sphere.s += (target.s - sphere.s) * ks;
     sphere.r += (target.r - sphere.r) * ks;
     sphere.f += (target.f - sphere.f) * ks;
-    cutaway.setTransit(sphere.s < 0.002 ? 0 : sphere.s, sphere.r, sphere.f);
+    // La forme qui s'éteint garde ses matériaux abonnés jusqu'à la fin de son fondu.
+    cutaway.setTransit(sphere.s < 0.002 ? 0 : sphere.s, sphere.r, sphere.f, sphere.id);
     camera.updateMatrixWorld();
     // En transition, la destination est préchargée en haute définition.
     scan?.update(camera, tour.active ? tour.lookahead() : null);

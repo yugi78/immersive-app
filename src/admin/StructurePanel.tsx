@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { IDENTITY, isTiled, normalizeScene, type MaterialDef, type ObjectTransform, type SceneObject } from '../viewer/config/scene-model';
-import type { Vec3 } from '../viewer/config/types';
+import type { CutPreset, Vec3 } from '../viewer/config/types';
+import { createUsePuck } from '@puckeditor/core';
 import { activeProject } from './project';
 import { useViewer } from './bridge';
 import { Icon } from './icons';
@@ -17,6 +18,8 @@ import { Button, XYZ } from './tourFields';
  */
 
 type Materials = Record<string, MaterialDef>;
+const usePuck = createUsePuck();
+
 const initial = () => {
   const m = normalizeScene(activeProject().cfg as unknown as Parameters<typeof normalizeScene>[0]);
   return { objects: structuredClone(m.objects), materials: structuredClone(m.materials) };
@@ -32,6 +35,35 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint?: stri
       <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.currentTarget.checked)} />
       <span className="bo-switch__track" aria-hidden="true" />
     </label>
+  );
+}
+
+/**
+ * Formes de découpe auxquelles réagit un matériau (bibliothèque de l'onglet Rendu) :
+ * toutes, ou une sélection (ex. la ville réagit à la sphère mais pas au cylindre).
+ */
+function CutSubscription({ value, onChange }: { value: string[] | undefined; onChange: (v: string[] | undefined) => void }) {
+  const cutaway = usePuck((st) => st.appState.data.root?.props?.cutaway) as { presets?: CutPreset[] } | undefined;
+  const presets = cutaway?.presets ?? [];
+  const all = value === undefined;
+  return (
+    <div className="bo-cutpick bo-cutpick--material">
+      <Toggle label="Réagit à toutes les formes de découpe" hint="Sinon, choisissez lesquelles" checked={all} onChange={(v) => onChange(v ? undefined : presets.map((p) => p.id))} />
+      {!all && (
+        <div>
+          {presets.map((p) => {
+            const on = value.includes(p.id);
+            return (
+              <button key={p.id} type="button" className={`bo-cutchip${on ? ' is-on' : ''}`} aria-pressed={on} onClick={() => onChange(on ? value.filter((x) => x !== p.id) : [...value, p.id])}>
+                <span className={`bo-cutdot bo-cutdot--${p.kind}`} aria-hidden="true" />
+                {p.name}
+              </button>
+            );
+          })}
+          {value.length === 0 && <small className="bo-scn__hint">Aucune : ce matériau n’est jamais découpé.</small>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -323,8 +355,9 @@ export function StructurePanel() {
               label="Découpe"
               hint="Voir à travers les murs ; faces arrière remplies de la couleur de coupe"
               checked={!!m.cutaway}
-              onChange={(v) => patchMaterial(mat, { cutaway: v || undefined })}
+              onChange={(v) => patchMaterial(mat, { cutaway: v || undefined, ...(v ? {} : { cuts: undefined }) })}
             />
+            {m.cutaway && <CutSubscription value={m.cuts} onChange={(cuts) => patchMaterial(mat, { cuts })} />}
             <Toggle label="Remplissage de coupe" hint="Couleur de coupe unie, sans texture (tranche)" checked={m.fill === 'coupe'} onChange={(v) => patchMaterial(mat, { fill: v ? 'coupe' : undefined })} />
             <Toggle label="Brume" hint="Se fond dans la brume au loin" checked={m.mist !== false} onChange={(v) => patchMaterial(mat, { mist: v })} />
             <label className="bo-field">

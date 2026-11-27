@@ -36,6 +36,16 @@ function material(v: unknown, n: string) {
     unlit: bool(v.unlit, `${n}.unlit`),
     doubleSided: bool(v.doubleSided, `${n}.doubleSided`),
     cutaway: bool(v.cutaway, `${n}.cutaway`),
+    cuts:
+      v.cuts === undefined
+        ? undefined
+        : (() => {
+            if (!Array.isArray(v.cuts) || v.cuts.length > 32) throw new Error(`${n}.cuts : liste d'identifiants`);
+            return v.cuts.map((x, i) => {
+              if (typeof x !== 'string' || !/^[\w-]{1,40}$/.test(x)) throw new Error(`${n}.cuts[${i}] invalide`);
+              return x;
+            });
+          })(),
     fill: v.fill as 'coupe' | undefined,
     grade: grade ?? undefined,
     mist: bool(v.mist, `${n}.mist`),

@@ -19,6 +19,11 @@ export interface MaterialDef {
    * caméra) ; les faces arrière ainsi révélées sont remplies de la couleur de coupe.
    */
   cutaway?: boolean;
+  /**
+   * Formes de découpe auxquelles le matériau réagit (ids de la bibliothèque, onglet
+   * Rendu) ; absent : toutes. Ex. la ville réagit à la sphère mais pas au cylindre.
+   */
+  cuts?: string[];
   /** Remplace la texture par la couleur de coupe unie (tranche de coupe). */
   fill?: 'coupe';
   /** Réglage colorimétrique appliqué (réglé par le client dans content.json). */
