@@ -148,54 +148,84 @@ export interface ScenarioPoint {
 }
 
 /**
- * Scénario d'ouverture de l'expérience : étapes optionnelles enchaînées par des
- * raccords doux, puis prise en main par le visiteur.
- *   intro (une fois) → boucle d'attente (en boucle) → prise en main (orbite)
- * Toute interaction pendant la boucle (ou l'intro si elle est interruptible) donne la
- * main sur place. Après une inactivité en prise en main : rien, rotation automatique
- * ou retour à la boucle.
+ * Scénario de l'expérience : des ÉTAPES reliées entre elles (après l'écran de
+ * démarrage, on entre dans l'étape `first`). Chaque étape dit où aller ensuite :
+ * à la fin, si le visiteur touche, après une inactivité. Les raccords entre étapes
+ * sont des transitions douces (durée `blendMs`).
+ *
+ *   path    : trajet joué une fois (arrivée du ciel ou point par point)
+ *   loop    : boucle d'attente (points), jusqu'à ce que le visiteur touche
+ *   control : prise en main (orbite ; 1re personne plus tard)
+ *   tour    : visite guidée ; le bouton de sortie (icône du monument) mène à `exit`
+ *
+ * Chaque étape porte aussi sa découpe (formes de la bibliothèque, onglet Rendu) :
+ * pendant l'étape (`cut`) et pendant le raccord qui y mène (`arriveCut`).
  */
+interface StepBase {
+  id: string;
+  name: string;
+  /** Formes de découpe actives pendant l'étape (ids ; un cylindre et une sphère au plus servent). */
+  cut: string[];
+  /** Formes de découpe pendant le raccord qui mène à cette étape. */
+  arriveCut: string[];
+}
+
+export interface PathStep extends StepBase {
+  kind: 'path';
+  /** sky : arrivée du ciel en arc vers le départ de l'étape suivante ; points : points de passage. */
+  style: 'sky' | 'points';
+  /** Durée totale (ajouter des points ne l'allonge pas). */
+  durationMs: number;
+  startHeightAboveGround: number;
+  startDistance: number;
+  sweepDeg: number;
+  waypoints: Vec3[];
+  /** Point regardé (points) ; null : le point de focus. */
+  look: Vec3 | null;
+  /** Points : le trajet se termine sur le départ de l'étape suivante (pas de raccord). */
+  endAtNext: boolean;
+  /** Le visiteur peut l'interrompre (→ onTouch). */
+  interruptible: boolean;
+  onEnd: string;
+  onTouch: string;
+}
+
+export interface LoopStep extends StepBase {
+  kind: 'loop';
+  points: ScenarioPoint[];
+  /** Interaction : vers cette étape (une prise en main démarre sur place). */
+  onTouch: string;
+}
+
+export interface ControlStep extends StepBase {
+  kind: 'control';
+  mode: 'orbit';
+  /** Vue de départ autour du point de focus. */
+  start: { distance: number; azimuthDeg: number; elevationDeg: number };
+  minDistance: number;
+  maxDistance: number;
+  dampingFactor: number;
+  groundMargin: number;
+  autoRotateSpeed: number;
+  /** Inactivité : rien, rotation automatique, ou aller à une étape. */
+  idle: { action: 'none' | 'rotate' | 'goto'; afterMs: number; step: string };
+}
+
+export interface TourStep extends StepBase {
+  kind: 'tour';
+  /** Œuvre de départ quand on y arrive par le scénario (0 : la première). */
+  startWork: number;
+  /** Sortie de la visite (bouton à l'icône du monument) : vers cette étape. */
+  exit: string;
+}
+
+export type ScenarioStep = PathStep | LoopStep | ControlStep | TourStep;
+export type StepKind = ScenarioStep['kind'];
+
 export interface ScenarioConfig {
-  intro: {
-    enabled: boolean;
-    /** sky : arrivée du ciel en arc vers la vue de départ (paramétrique) ; points : trajet point par point. */
-    kind: 'sky' | 'points';
-    /** L'utilisateur peut l'interrompre (sinon commandes inactives jusqu'à la fin). */
-    interruptible: boolean;
-    /** Durée totale de l'intro (les deux types) : ajouter des points ne l'allonge pas. */
-    durationMs: number;
-    /** « sky » : hauteur de départ au-dessus du sol, distance horizontale, arc parcouru (degrés). */
-    startHeightAboveGround: number;
-    startDistance: number;
-    sweepDeg: number;
-    /** « points » : points de passage de la caméra (le premier = départ), comme le parcours d'une œuvre. */
-    waypoints: Vec3[];
-    /** « points » : point regardé pendant le trajet ; null : le point de focus. */
-    look: Vec3 | null;
-    /** « points » : le trajet se termine sur la vue de départ de la prise en main (pas de raccord). */
-    endAtHome: boolean;
-  };
-  loop: {
-    enabled: boolean;
-    points: ScenarioPoint[];
-  };
-  /** Prise en main. */
-  control: {
-    mode: 'orbit';
-    /** Vue de départ (et de retour en fin de visite) autour du point de focus. */
-    start: { distance: number; azimuthDeg: number; elevationDeg: number };
-    minDistance: number;
-    maxDistance: number;
-    dampingFactor: number;
-    groundMargin: number;
-    /** Vitesse de la rotation automatique (inactivité « rotate »). */
-    autoRotateSpeed: number;
-  };
-  idle: {
-    /** none : rien ; rotate : rotation automatique autour du focus ; loop : retour à la boucle d'attente. */
-    action: 'none' | 'rotate' | 'loop';
-    afterMs: number;
-  };
+  /** Première étape (après l'écran de démarrage). */
+  first: string;
+  steps: ScenarioStep[];
   /** Durée des raccords entre étapes (ms). */
   blendMs: number;
 }
@@ -231,14 +261,14 @@ export interface CutPreset {
   cameraRadius: number;
 }
 
-/** Moments de l'expérience auxquels on attribue une découpe. */
-export type CutMoment = 'intro' | 'loop' | 'orbit' | 'work' | 'transit';
+/** Moments de la visite guidée auxquels on attribue une découpe (les étapes du scénario portent la leur). */
+export type CutMoment = 'work' | 'transit';
 
 export interface CutawayConfig {
   /** Couleur de l'épaisseur des murs coupés. */
   cutColor: string;
   presets: CutPreset[];
-  /** Découpe de chaque moment (id d'une découpe, ou '' : aucune). */
+  /** Visite guidée : découpe sur une œuvre et entre deux œuvres (id, ou '' : aucune). */
   use: Record<CutMoment, string>;
   /** Transitions : part du trajet (début et fin) sur laquelle la découpe apparaît / disparaît. */
   transitFade: number;

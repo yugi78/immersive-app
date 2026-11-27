@@ -1,6 +1,6 @@
 import { PerspectiveCamera } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { ScenarioConfig, SceneConfig } from '../config/types';
+import type { ControlStep, SceneConfig } from '../config/types';
 import type { SceneReference } from './reference';
 
 /** Caméra (objectif) ; sa position de départ est posée par le scénario. */
@@ -16,7 +16,7 @@ export function createCamera(cfg: SceneConfig['camera'], aspect: number) {
 export function createOrbit(
   camera: PerspectiveCamera,
   dom: HTMLElement,
-  cfg: ScenarioConfig['control'],
+  cfg: Pick<ControlStep, 'dampingFactor' | 'minDistance' | 'maxDistance' | 'autoRotateSpeed' | 'groundMargin'>,
   ref: SceneReference,
 ) {
   const controls = new OrbitControls(camera, dom);
@@ -34,7 +34,7 @@ export function createOrbit(
   let minY = ref.groundY + cfg.groundMargin;
 
   /** Réglages modifiés à chaud (back-office). */
-  function set(next: ScenarioConfig['control']) {
+  function set(next: Pick<ControlStep, 'dampingFactor' | 'minDistance' | 'maxDistance' | 'autoRotateSpeed' | 'groundMargin'>) {
     controls.dampingFactor = next.dampingFactor;
     controls.minDistance = next.minDistance;
     controls.maxDistance = next.maxDistance;

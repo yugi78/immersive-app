@@ -1,7 +1,7 @@
-import type { CustomField } from '@puckeditor/core';
+import { createUsePuck, type CustomField } from '@puckeditor/core';
 import { useState } from 'react';
 import { CUT_MOMENTS, newCutPreset } from '../viewer/config/cutaway';
-import type { CutawayConfig, CutMoment, CutPreset } from '../viewer/config/types';
+import type { CutawayConfig, CutPreset, ScenarioConfig } from '../viewer/config/types';
 import { Slider } from './fields';
 import { Icon } from './icons';
 import { Button } from './tourFields';
@@ -14,6 +14,7 @@ import { Button } from './tourFields';
 
 type C = CutawayConfig;
 
+const usePuck = createUsePuck();
 const newId = () => `d-${Math.random().toString(36).slice(2, 8)}`;
 
 function KindSeg({ value, onChange, readOnly }: { value: CutPreset['kind']; onChange: (v: CutPreset['kind']) => void; readOnly?: boolean }) {
@@ -76,7 +77,12 @@ function PresetCard({ preset, usedBy, onChange, onRemove, readOnly }: { preset: 
 
 function CutawayUI({ value, onChange, readOnly }: { value: C; onChange: (v: C) => void; readOnly?: boolean }) {
   const c = value;
-  const usedBy = (id: string) => CUT_MOMENTS.filter((m) => c.use[m.id] === id).map((m) => m.label);
+  const scenario = usePuck((st) => st.appState.data.root?.props?.scenario as ScenarioConfig | undefined);
+  // Où chaque forme est utilisée : étapes du scénario et visite guidée.
+  const usedBy = (id: string) => [
+    ...(scenario?.steps ?? []).filter((x) => x.cut?.includes(id) || x.arriveCut?.includes(id)).map((x) => x.name),
+    ...CUT_MOMENTS.filter((m) => c.use[m.id] === id).map((m) => `visite (${m.label.toLowerCase()})`),
+  ];
   const setPreset = (i: number, p: CutPreset) => onChange({ ...c, presets: c.presets.map((x, j) => (j === i ? p : x)) });
   const remove = (i: number) => {
     const id = c.presets[i].id;
@@ -87,48 +93,12 @@ function CutawayUI({ value, onChange, readOnly }: { value: C; onChange: (v: C) =
     const n = c.presets.filter((p) => p.kind === kind).length + 1;
     onChange({ ...c, presets: [...c.presets, newCutPreset(kind, `${kind === 'cylinder' ? 'Cylindre' : 'Sphère'} ${n}`, newId())] });
   };
-  const setUse = (m: CutMoment, id: string) => onChange({ ...c, use: { ...c.use, [m]: id } });
 
   return (
     <div className="bo-scn__wrap">
-      <section className="bo-scn">
-        <header className="bo-scn__head">
-          <span>
-            <b>Découpe de chaque moment</b>
-            <small>Choisissez la forme utilisée à chaque moment de l’expérience</small>
-          </span>
-        </header>
-        <div className="bo-scn__body">
-          {CUT_MOMENTS.map((m) => (
-            <label key={m.id} className="bo-cut__row">
-              <span>{m.label}</span>
-              <select className="bo-input" value={c.use[m.id] ?? ''} disabled={readOnly} onChange={(e) => setUse(m.id, e.currentTarget.value)}>
-                <option value="">Aucune</option>
-                {c.presets.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
-          <Slider
-            label="Transitions : apparition et disparition (part du trajet)"
-            min={0.02}
-            max={0.5}
-            step={0.01}
-            unit={null}
-            value={c.transitFade}
-            readOnly={readOnly}
-            onChange={(transitFade) => onChange({ ...c, transitFade })}
-          />
-        </div>
-      </section>
-
-      <div className="bo-scn__sub" style={{ margin: '16px 0 8px' }}>
-        <b>Formes de découpe</b>
-        <small>Le cylindre efface les murs vers le point regardé, la sphère autour de la caméra.</small>
-      </div>
+      <p className="bo-scn__help">
+        Bibliothèque des formes de découpe. Chaque étape du scénario (onglet Expérience) et la visite guidée (onglet Œuvres) choisissent les leurs.
+      </p>
       <div className="bo-scn__points">
         {c.presets.map((p, i) => (
           <PresetCard key={p.id} preset={p} usedBy={usedBy(p.id)} readOnly={readOnly} onChange={(np) => setPreset(i, np)} onRemove={() => remove(i)} />
@@ -155,6 +125,48 @@ function CutawayUI({ value, onChange, readOnly }: { value: C; onChange: (v: C) =
     </div>
   );
 }
+
+/** Découpes de la visite guidée (onglet Œuvres) : sur une œuvre, entre deux œuvres. */
+export type TourCuts = Pick<C, 'use' | 'transitFade'>;
+
+function TourCutsUI({ value, onChange, readOnly }: { value: TourCuts; onChange: (v: TourCuts) => void; readOnly?: boolean }) {
+  const cutaway = usePuck((st) => st.appState.data.root?.props?.cutaway) as C | undefined;
+  const presets = cutaway?.presets ?? [];
+  return (
+    <div className="bo-scn__wrap" style={{ gap: 10 }}>
+      {CUT_MOMENTS.map((m) => (
+        <label key={m.id} className="bo-cut__row">
+          <span>{m.label}</span>
+          <select className="bo-input" value={value.use[m.id] ?? ''} disabled={readOnly} onChange={(e) => onChange({ ...value, use: { ...value.use, [m.id]: e.currentTarget.value } })}>
+            <option value="">Aucune</option>
+            {presets.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ))}
+      <Slider
+        label="Entre deux œuvres : apparition et disparition (part du trajet)"
+        min={0.02}
+        max={0.5}
+        step={0.01}
+        unit={null}
+        value={value.transitFade}
+        readOnly={readOnly}
+        onChange={(transitFade) => onChange({ ...value, transitFade })}
+      />
+      <p className="bo-scn__help">Les formes se règlent dans Rendu → Découpes. Le même réglage d’apparition s’applique aux raccords du scénario.</p>
+    </div>
+  );
+}
+
+export const tourCutsField: CustomField<TourCuts> = {
+  type: 'custom',
+  label: 'Découpes de la visite',
+  render: ({ value, onChange, readOnly }) => <TourCutsUI value={value} onChange={onChange} readOnly={readOnly} />,
+};
 
 export const cutawayField: CustomField<C> = {
   type: 'custom',

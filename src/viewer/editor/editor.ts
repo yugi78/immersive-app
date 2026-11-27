@@ -60,16 +60,14 @@ export const TAB_ORBIT = 'Expérience';
 export const TAB_TOUR = 'Œuvres';
 export const TAB_SCENARIO = 'Expérience';
 
-/** Repères du scénario : intro point par point, point regardé, vue de départ, boucle d'attente. */
+/** Repères du scénario, étape par étape : trajets (points, regard), boucles, vues de départ. */
 export interface ScenarioHelpers {
-  /** Intro point par point affichée (sinon masquée). */
-  intro: boolean;
-  waypoints: Vec3[];
-  look: Vec3;
-  endAtHome: boolean;
-  home: Vec3;
-  loop: boolean;
-  loopPoints: Vec3[];
+  /** Trajets point par point : points de passage, point regardé, arrivée sur l'étape suivante. */
+  paths: { id: string; waypoints: Vec3[]; look: Vec3; end: Vec3 | null }[];
+  /** Boucles d'attente : positions des points. */
+  loops: { id: string; points: Vec3[] }[];
+  /** Prises en main : vue de départ. */
+  homes: { id: string; position: Vec3 }[];
 }
 
 const COLORS = { hotspot: '#ffffff', hub: '#f59f00', focus: '#e03131', point: '#1c7ed6', bounds: '#2f9e44', orbit: '#e8590c', path: '#1c7ed6', intro: '#7048e8', loop: '#0c8599' };
@@ -259,13 +257,19 @@ export function createEditorTools(ctx: EditorContext) {
   const introLineMat = new LineBasicMaterial({ color: COLORS.intro, depthTest: false, transparent: true, opacity: 0.9 });
   const loopLineMat = new LineBasicMaterial({ color: COLORS.loop, depthTest: false, transparent: true, opacity: 0.9 });
   let scnKeys = '';
-  const introPts = (h: ScenarioHelpers) => [...h.waypoints, ...(h.endAtHome ? [h.home] : [])];
   const lineGeo = (pts: Vec3[], closed: boolean) =>
     new BufferGeometry().setFromPoints(new Path(pts.map((p) => new Vector3(...p)), closed).sample(160));
 
-  /** Met à jour les repères du scénario (en place si la structure n'a pas changé). */
+  /**
+   * Met à jour les repères du scénario (en place si la structure n'a pas changé).
+   * Clés : scn:<étape>:<n° de point>, scn:<étape>:look, scn:<étape>:home.
+   */
   function setScenarioHelpers(h: ScenarioHelpers) {
-    const keys = `${h.intro}|${h.waypoints.length}|${h.endAtHome}|${h.loop}|${h.loopPoints.length}`;
+    const keys = JSON.stringify([
+      h.paths.map((p) => [p.id, p.waypoints.length, !!p.end]),
+      h.loops.map((l) => [l.id, l.points.length]),
+      h.homes.map((x) => x.id),
+    ]);
     if (keys !== scnKeys) {
       scnKeys = keys;
       for (const o of [...scnGroup.children]) {
@@ -273,19 +277,19 @@ export function createEditorTools(ctx: EditorContext) {
         if (o instanceof Line) o.geometry.dispose();
       }
       for (const k of [...markers.keys()]) if (k.startsWith('scn:')) markers.delete(k);
-      sprite('scn:home', COLORS.orbit, 'D', SIZE.orbit, scnGroup, h.home);
-      if (h.intro) {
-        sprite('scn:look', COLORS.focus, 'R', SIZE.focus, scnGroup, h.look);
-        h.waypoints.forEach((p, j) => sprite(`scn:intro:${j}`, COLORS.intro, String(j + 1), SIZE.point, scnGroup, p));
+      for (const x of h.homes) sprite(`scn:${x.id}:home`, COLORS.orbit, 'D', SIZE.orbit, scnGroup, x.position);
+      for (const p of h.paths) {
+        sprite(`scn:${p.id}:look`, COLORS.focus, 'R', SIZE.focus, scnGroup, p.look);
+        p.waypoints.forEach((w, j) => sprite(`scn:${p.id}:${j}`, COLORS.intro, String(j + 1), SIZE.point, scnGroup, w));
         const line = new Line(new BufferGeometry(), introLineMat);
-        line.name = 'scn:intro-path';
+        line.name = `scn:${p.id}:path`;
         line.renderOrder = 999;
         scnGroup.add(line);
       }
-      if (h.loop) {
-        h.loopPoints.forEach((p, j) => sprite(`scn:loop:${j}`, COLORS.loop, String(j + 1), SIZE.point, scnGroup, p));
+      for (const l of h.loops) {
+        l.points.forEach((w, j) => sprite(`scn:${l.id}:${j}`, COLORS.loop, String(j + 1), SIZE.point, scnGroup, w));
         const line = new Line(new BufferGeometry(), loopLineMat);
-        line.name = 'scn:loop-path';
+        line.name = `scn:${l.id}:path`;
         line.renderOrder = 999;
         scnGroup.add(line);
       }
@@ -301,24 +305,21 @@ export function createEditorTools(ctx: EditorContext) {
       const m = markers.get(key);
       if (m && !(gizmo.dragging && gizmoKey === key)) m.position.set(...p);
     };
-    put('scn:home', h.home);
-    if (h.intro) {
-      put('scn:look', h.look);
-      h.waypoints.forEach((p, j) => put(`scn:intro:${j}`, p));
-      const line = scnGroup.getObjectByName('scn:intro-path') as Line | undefined;
-      const pts = introPts(h);
-      if (line) {
-        line.geometry.dispose();
-        line.geometry = pts.length >= 2 ? lineGeo(pts, false) : new BufferGeometry();
-      }
+    const setLine = (name: string, pts: Vec3[], closed: boolean) => {
+      const line = scnGroup.getObjectByName(name) as Line | undefined;
+      if (!line) return;
+      line.geometry.dispose();
+      line.geometry = pts.length >= (closed ? 3 : 2) ? lineGeo(pts, closed) : new BufferGeometry();
+    };
+    for (const x of h.homes) put(`scn:${x.id}:home`, x.position);
+    for (const p of h.paths) {
+      put(`scn:${p.id}:look`, p.look);
+      p.waypoints.forEach((w, j) => put(`scn:${p.id}:${j}`, w));
+      setLine(`scn:${p.id}:path`, [...p.waypoints, ...(p.end ? [p.end] : [])], false);
     }
-    if (h.loop) {
-      h.loopPoints.forEach((p, j) => put(`scn:loop:${j}`, p));
-      const line = scnGroup.getObjectByName('scn:loop-path') as Line | undefined;
-      if (line) {
-        line.geometry.dispose();
-        line.geometry = h.loopPoints.length >= 3 ? lineGeo(h.loopPoints, true) : new BufferGeometry();
-      }
+    for (const l of h.loops) {
+      l.points.forEach((w, j) => put(`scn:${l.id}:${j}`, w));
+      setLine(`scn:${l.id}:path`, l.points, true);
     }
   }
 

@@ -1,18 +1,16 @@
 import type { CutawayConfig, CutMoment, CutPreset } from './types';
 
+/** Moments de la visite guidée (les étapes du scénario portent leur propre découpe). */
 export const CUT_MOMENTS: { id: CutMoment; label: string }[] = [
-  { id: 'intro', label: 'Intro' },
-  { id: 'loop', label: 'Boucle d’attente' },
-  { id: 'orbit', label: 'Prise en main (orbite)' },
   { id: 'work', label: 'Sur une œuvre' },
-  { id: 'transit', label: 'Transitions' },
+  { id: 'transit', label: 'Entre deux œuvres' },
 ];
 
 /** Découpe par défaut d'un projet qui n'en décrit pas : aucune. */
 export const DEFAULT_CUTAWAY: CutawayConfig = {
   cutColor: '#000000',
   presets: [],
-  use: { intro: '', loop: '', orbit: '', work: '', transit: '' },
+  use: { work: '', transit: '' },
   transitFade: 0.2,
 };
 
@@ -50,7 +48,7 @@ export function normalizeCutaway(raw: Legacy | undefined): CutawayConfig {
     return {
       cutColor: raw.cutColor ?? d.cutColor,
       presets: raw.presets,
-      use: { ...d.use, ...raw.use },
+      use: { work: raw.use?.work ?? '', transit: raw.use?.transit ?? '' },
       transitFade: raw.transitFade ?? d.transitFade,
     };
   }
@@ -72,7 +70,7 @@ export function normalizeCutaway(raw: Legacy | undefined): CutawayConfig {
   return {
     cutColor: raw.cutColor ?? d.cutColor,
     presets,
-    use: { intro: 'exterieur', loop: 'exterieur', orbit: 'exterieur', work: workRadius > 0 ? 'oeuvre' : '', transit: 'transition' },
+    use: { work: workRadius > 0 ? 'oeuvre' : '', transit: 'transition' },
     transitFade: raw.transitFade ?? d.transitFade,
   };
 }

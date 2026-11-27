@@ -1,5 +1,5 @@
 import { Box3Helper, Color, DoubleSide, MathUtils, Mesh, MeshBasicMaterial, SphereGeometry, Timer, Vector3, type Object3D } from 'three';
-import type { SceneConfig, TourConfig, UiConfig, Vec3, ScenarioConfig, StartConfig, CutPreset } from './config/types';
+import type { SceneConfig, TourConfig, UiConfig, Vec3, ScenarioConfig, StartConfig, CutPreset, ControlStep, PathStep, LoopStep } from './config/types';
 import { isTiled, normalizeScene, type GlbObject, type MaterialDef, type ObjectTransform, type SceneObject } from './config/scene-model';
 import { loadAssets } from './loaders/assets';
 import { createCutaway } from './cutaway/cutaway';
@@ -11,6 +11,7 @@ import { withBase } from './url';
 import { createScanLod } from './loaders/scanLod';
 import { isMobile } from './scene/renderer';
 import { createScenario, homePose } from './scene/scenario';
+import { firstControl, newStep } from './config/scenario';
 import { cutFor } from './config/cutaway';
 import { createCamera, createOrbit } from './scene/orbit';
 import { computeReference, type SceneReference } from './scene/reference';
@@ -66,8 +67,8 @@ export interface Viewer {
   previewStart(): void;
   /** Remplace le scénario d'ouverture à chaud (back-office). */
   setScenario(scenario: ScenarioConfig): void;
-  /** Scénario : rejouer l'ouverture (aperçu) ou revenir à la vue de départ. */
-  scenario: { replay(): void; goHome(): void; readonly state: string };
+  /** Scénario : rejouer depuis le début, jouer une étape (aperçu), revenir à la vue de départ. */
+  scenario: { replay(): void; playStep(id: string): void; goHome(): void; readonly state: string; readonly stepId: string | null };
   /** Caméra (back-office) : pose courante, placement, vue de départ depuis la caméra. */
   view: {
     pose(): { position: Vec3; target: Vec3 };
@@ -264,15 +265,17 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   };
   if (debug && new URLSearchParams(location.search).has('leaks')) setLeakBackground(true);
 
-  // Caméra posée à la vue de départ (le scénario la déplace ensuite : intro, boucle…).
+  // Caméra posée à la vue de départ (le scénario la place ensuite au début de sa
+  // première étape).
   let scenarioCfg: ScenarioConfig = structuredClone(cfg.scenario);
   const camera = createCamera(cfg.camera, container.clientWidth / container.clientHeight);
+  const control0 = firstControl(scenarioCfg) ?? (newStep('control') as ControlStep);
   {
-    const h = homePose(scenarioCfg.control, reference.focus);
+    const h = homePose(control0, reference.focus);
     camera.position.copy(h.position);
     camera.lookAt(h.target);
   }
-  const orbit = createOrbit(camera, renderer.domElement, scenarioCfg.control, reference);
+  const orbit = createOrbit(camera, renderer.domElement, control0, reference);
 
   let scan: Awaited<typeof scanPromise>;
   try {
@@ -317,11 +320,11 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     }, 500);
   }
 
-  // Visite guidée. Retour en fin de visite : la vue de départ du scénario (suit le
-  // point de focus réglé dans le back-office).
+  // Visite guidée. Sortie de visite : le départ de l'étape de sortie du scénario
+  // (bouton du monument), par défaut la vue de départ de la prise en main.
   const focusOffset = new Vector3(focusCfg.x, focusCfg.y, focusCfg.z);
   let tourCfg: TourConfig = structuredClone(cfg.tour);
-  const home = () => homePose(scenarioCfg.control, reference.focus);
+  const home = () => scenario.exitPose();
   const tour = createTour({
     camera,
     dom: renderer.domElement,
@@ -372,6 +375,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     busy: () => tour.active || !!editorTools?.flying || mapView.active,
     skip: opts.skipIntro,
     flying: () => !!editorTools?.flying,
+    startTour: (i) => tour.start(i),
+    applyControl: (st) => orbit.set(st),
     onReady,
   });
   // Interface créée à la fin de l'intro (pas de visite pendant l'ouverture).
@@ -415,19 +420,20 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   const ro = new ResizeObserver(resize);
   ro.observe(container);
 
-  /** Repères 3D du scénario dans le back-office (onglet Scénario). */
+  /** Repères 3D du scénario dans le back-office (onglet Expérience), étape par étape. */
   function scenarioHelpers() {
     if (!editorTools) return;
-    const s = scenarioCfg;
     const r = (v: Vector3) => v.toArray() as Vec3;
+    const steps = scenarioCfg.steps;
     editorTools.setScenarioHelpers({
-      intro: s.intro.enabled && s.intro.kind === 'points',
-      waypoints: s.intro.waypoints,
-      look: s.intro.look ?? r(reference.focus),
-      endAtHome: s.intro.endAtHome,
-      home: r(homePose(s.control, reference.focus).position),
-      loop: s.loop.enabled,
-      loopPoints: s.loop.points.map((p) => p.position),
+      paths: steps
+        .filter((st): st is PathStep => st.kind === 'path' && st.style === 'points')
+        .map((st) => {
+          const next = st.endAtNext ? scenario.startPose(st.onEnd) : null;
+          return { id: st.id, waypoints: st.waypoints, look: st.look ?? r(reference.focus), end: next ? r(next.position) : null };
+        }),
+      loops: steps.filter((st): st is LoopStep => st.kind === 'loop').map((st) => ({ id: st.id, points: st.points.map((p) => p.position) })),
+      homes: steps.filter((st): st is ControlStep => st.kind === 'control').map((st) => ({ id: st.id, position: r(homePose(st, reference.focus).position) })),
     });
   }
   scenarioHelpers();
@@ -473,35 +479,38 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     editorTools?.update(delta);
     // Interface : points d'intérêt projetés avec la caméra de cette image.
     tourUi?.update(delta);
-    // Découpe du moment (onglet Découpe : une forme attribuée à chaque moment).
-    //   cylindre : de la caméra vers le point regardé ; sphère : autour de la caméra.
-    // La sphère est lissée d'une image à l'autre : on passe d'un moment à l'autre sans saut.
+    // Découpe du moment : celle de l'étape du scénario en cours (pendant l'étape, ou
+    // pendant le raccord qui y mène), ou celle de la visite (sur l'œuvre, entre deux
+    // œuvres). Un cylindre (vers le point regardé) et une sphère (autour de la caméra)
+    // au plus ; la sphère est lissée d'une image à l'autre, sans saut.
     const cc = cutaway.settings;
     const blendP = scenario.blendProgress;
-    /** Forme, point regardé, intensité (0–1) du moment courant. */
-    let moment: { preset: CutPreset | null; target: Vector3; scale: number };
+    const st = scenario.step;
+    const pick = (ids: string[] | undefined, target: Vector3, scale: number) => {
+      const list = (ids ?? []).map((id) => cc.presets.find((p) => p.id === id)).filter((p): p is CutPreset => !!p);
+      return { cyl: list.find((p) => p.kind === 'cylinder') ?? null, sph: list.find((p) => p.kind === 'sphere') ?? null, target, scale };
+    };
+    const one = (pr: CutPreset | null, target: Vector3, scale: number) => pick(pr ? [pr.id] : [], target, scale);
+    let moment: ReturnType<typeof pick>;
     if (tour.active) {
-      if (tour.state === 'transit') {
-        moment = { preset: cutFor(cc, 'transit'), target: tour.lookTarget, scale: transitCurve(tour.phaseProgress, cc.transitFade) };
-      } else if (tour.state === 'loop') {
-        moment = { preset: cutFor(cc, 'work'), target: tour.lookTarget, scale: 1 };
-      } else {
-        // Entrée / sortie de la visite : la découpe de l'orbite s'éteint / se rallume.
-        moment = { preset: cutFor(cc, 'orbit'), target: tour.cutTarget, scale: tour.cutScale };
-      }
+      if (tour.state === 'transit') moment = one(cutFor(cc, 'transit'), tour.lookTarget, transitCurve(tour.phaseProgress, cc.transitFade));
+      else if (tour.state === 'loop') moment = one(cutFor(cc, 'work'), tour.lookTarget, 1);
+      // Entrée / sortie de la visite : la découpe de l'étape de sortie s'éteint / se rallume.
+      else moment = pick(scenario.exitStep()?.cut, tour.cutTarget, tour.cutScale);
     } else if (blendP >= 0) {
-      moment = { preset: cutFor(cc, 'transit'), target: scenario.lookTarget, scale: transitCurve(blendP, cc.transitFade) };
+      moment = pick(st?.arriveCut, scenario.lookTarget, transitCurve(blendP, cc.transitFade));
     } else if (scenario.driving) {
-      moment = { preset: cutFor(cc, scenario.state === 'loop' ? 'loop' : 'intro'), target: scenario.lookTarget, scale: 1 };
+      moment = pick(st?.cut, scenario.lookTarget, 1);
     } else if (editorTools?.flying) {
-      moment = { preset: null, target: orbit.controls.target, scale: 0 };
+      moment = pick([], orbit.controls.target, 0);
     } else {
-      moment = { preset: cutFor(cc, 'orbit'), target: orbit.controls.target, scale: 1 };
+      moment = pick(st?.cut, orbit.controls.target, 1);
     }
-    cutaway.update(camera.position, moment.target, moment.preset, moment.scale);
+    const moment2 = { preset: moment.cyl, target: moment.target, scale: moment.scale };
+    cutaway.update(camera.position, moment2.target, moment2.preset, moment2.scale);
     let target = { s: 0, r: sphere.r, f: sphere.f };
-    if (moment.preset?.kind === 'sphere') {
-      target = { s: moment.scale, r: moment.preset.radius, f: moment.preset.feather };
+    if (moment.sph) {
+      target = { s: moment.scale, r: moment.sph.radius, f: moment.sph.feather };
     } else if (editorTools?.flying && flySphere.enabled) {
       // Vol libre du back-office : ses propres réglages.
       target = { s: 1, r: flySphere.radius, f: flySphere.feather };
@@ -570,7 +579,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     setScenario(next) {
       if (JSON.stringify(next) === JSON.stringify(scenarioCfg)) return;
       scenarioCfg = structuredClone(next);
-      orbit.set(scenarioCfg.control);
+      const st = scenario.step;
+      if (st?.kind === 'control') orbit.set(scenarioCfg.steps.find((x) => x.id === st.id) as ControlStep ?? st);
       scenarioHelpers();
     },
     view: {
@@ -607,12 +617,19 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
         tour.cancel();
         scenario.replay();
       },
+      playStep: (id) => {
+        tour.cancel();
+        scenario.playStep(id);
+      },
       goHome: () => {
         tour.cancel();
         scenario.goHome();
       },
       get state() {
         return scenario.state;
+      },
+      get stepId() {
+        return scenario.step?.id ?? null;
       },
     },
     // Réglages identiques (le back-office renvoie tout à chaque interaction) : rien à

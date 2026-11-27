@@ -11,7 +11,7 @@ import { Icon } from './icons';
 import { blocksField, hotspotsField, imageField, thumbnailField, workTabsField, WorkSummary } from './workFields';
 import { mapViewsField } from './mapFields';
 import { scenarioField } from './scenarioFields';
-import { cutawayField } from './cutawayFields';
+import { cutawayField, tourCutsField, type TourCuts } from './cutawayFields';
 import { AdminLayout, type SaveState } from './AdminLayout';
 import { isFull, publishContent } from './backend';
 import { activeProject, setActiveProject } from './project';
@@ -56,8 +56,10 @@ type SceneProps = {
   scenario: ScenarioConfig;
   /** [x, hauteur, z] : décalage du focus depuis le centre de la bbox. */
   focusOffset: Vec3;
-  /** Découpes (formes nommées) et découpe de chaque moment, telles quelles. */
+  /** Découpes : bibliothèque des formes et couleur (onglet Rendu). */
   cutaway: CutawayConfig;
+  /** Découpes de la visite (onglet Œuvres) : réunies à `cutaway` pour l'aperçu et la publication. */
+  tourCuts: TourCuts;
   mistStart: number;
   mistEnd: number;
   mistColor: string;
@@ -130,6 +132,7 @@ const SCENE_KEYS = [
   'scenario',
   'focusOffset',
   'cutaway',
+  'tourCuts',
   'mistStart',
   'mistEnd',
   'mistColor',
@@ -247,6 +250,11 @@ function tourFromProps(p: SceneProps): TourConfig {
   };
 }
 
+/** Découpes au format de content.json : bibliothèque (Rendu) + découpes de la visite (Œuvres). */
+function cutawayFromProps(p: SceneProps): CutawayConfig {
+  return { ...p.cutaway, use: { ...p.cutaway.use, ...p.tourCuts?.use }, transitFade: p.tourCuts?.transitFade ?? p.cutaway.transitFade };
+}
+
 /** Écran de démarrage au format de content.json. */
 function startFromProps(p: SceneProps): StartConfig {
   return {
@@ -293,7 +301,7 @@ function ViewerPreview(props: SceneProps) {
     v.setFocusOffset(p.focusOffset);
     if (p.scenario) v.setScenario(p.scenario);
     v.setStart(startFromProps(p));
-    if (p.cutaway) v.setCutaway(p.cutaway);
+    if (p.cutaway) v.setCutaway(cutawayFromProps(p));
     v.setMist({ startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor });
     v.setClay(clayPatch(p));
     v.setScanGrade(scanGradePatch(p));
@@ -366,6 +374,7 @@ const config: Config<{}, Record<string, unknown>> = {
       scenario: scenarioField,
       focusOffset: focusOffsetField,
       cutaway: cutawayField,
+      tourCuts: tourCutsField,
       tourViaHub: checkbox('Passer par le point central', 'Sinon trajet direct d’une œuvre à l’autre, la sphère de découpe traverse les obstacles'),
       mistStart: slider('Brume — début (distance au Panthéon)', 0, 3000, 10),
       mistEnd: slider('Brume — fin (distance au Panthéon)', 0, 3000, 10),
@@ -502,6 +511,9 @@ const config: Config<{}, Record<string, unknown>> = {
             {fields.tourExitS}
             {fields.tourCutFadeStart}
           </FieldGroup>
+          <FieldGroup label="Découpes de la visite">
+            {fields.tourCuts}
+          </FieldGroup>
           <FieldGroup label="Point central">
             {fields.tourViaHub}
             {fields.tourHub}
@@ -596,6 +608,7 @@ function initialDataFor(cfg: SceneConfig): Data<{}, Record<string, unknown>> {
       scenario: structuredClone(scenario),
       focusOffset: [focus.offsetX ?? 0, focus.heightOffset, focus.offsetZ ?? 0] as Vec3,
       cutaway: structuredClone(cutaway),
+      tourCuts: { use: { ...cutaway.use }, transitFade: cutaway.transitFade },
       mistStart: mist.startDistance,
       mistEnd: mist.endDistance,
       mistColor: mist.color,
@@ -669,7 +682,7 @@ export default function SceneEditor({ project }: { project: string }) {
     // Seul le CONTENU est publié (content.json) : jamais la structure de la scène.
     const result = await publishContent({
           focus: { offsetX: p.focusOffset[0], heightOffset: p.focusOffset[1], offsetZ: p.focusOffset[2] },
-          cutaway: p.cutaway,
+          cutaway: cutawayFromProps(p),
           mist: { startDistance: p.mistStart, endDistance: p.mistEnd, color: p.mistColor },
           clay: clayPatch(p),
           scanGrade: scanGradePatch(p),

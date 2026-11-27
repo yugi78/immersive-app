@@ -1,37 +1,33 @@
-import { CatmullRomCurve3, MathUtils, Matrix4, Quaternion, Vector3, type PerspectiveCamera } from 'three';
+import { CatmullRomCurve3, MathUtils, Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { ScenarioConfig, ScenarioPoint } from '../config/types';
+import type { ControlStep, PathStep, ScenarioConfig, ScenarioPoint, ScenarioStep } from '../config/types';
+import { firstControl, stepById, tourStepOf } from '../config/scenario';
 import { easeInOut, Path } from '../tour/path';
 import { createIntro } from './intro';
 import type { SceneReference } from './reference';
 
 /**
- * Scénario d'ouverture : enchaîne les étapes décrites dans content.json → scenario.
+ * Scénario : enchaîne les ÉTAPES décrites dans content.json → scenario.
  *
- *   intro (une fois) ─raccord→ boucle d'attente (en boucle) ─raccord→ prise en main (orbite)
- *
- * - Chaque étape est optionnelle ; les raccords sont des transitions douces (position
- *   interpolée, regard qui pivote), comme entre deux œuvres.
- * - Toute interaction pendant la boucle (ou l'intro si elle est interruptible) donne la
- *   main SUR PLACE : l'orbite repart de la position courante, sa cible glisse vers le
- *   point de focus.
- * - Inactivité en prise en main (idle) : rien, rotation automatique ou retour à la boucle.
- * - La visite guidée (et la carte, le vol libre du back-office) suspend le scénario ;
- *   en fin de visite, on revient en prise en main.
+ * - Trajet (une fois), boucle d'attente (en boucle), prise en main (orbite), visite
+ *   guidée. Chaque étape dit où aller à la fin, si le visiteur touche, après une
+ *   inactivité ; la visite, où mène son bouton de sortie.
+ * - Entre deux étapes : raccord doux (position interpolée, regard qui pivote), sauf si
+ *   la caméra est déjà au départ de l'étape suivante.
+ * - Toucher pendant une boucle (ou un trajet interruptible) mène à l'étape prévue ; si
+ *   c'est une prise en main, elle démarre SUR PLACE (sa cible glisse vers le focus).
+ * - La visite guidée suspend le scénario ; à sa sortie, la caméra rejoint le départ de
+ *   l'étape de sortie et le scénario reprend.
  */
 
 export type ScenarioState = 'intro' | 'blend' | 'loop' | 'control' | 'paused';
 
 const v3 = (p: readonly number[]) => new Vector3(p[0], p[1], p[2]);
-/** Départ doux, vitesse 1 à l'arrivée (raccord avec le segment suivant). */
-const easeIn = (u: number) => u * u * (2 - u);
-/** Vitesse 1 au départ, arrivée douce. */
-const easeOut = (u: number) => 1 - easeIn(1 - u);
 const lookQuat = (from: Vector3, target: Vector3, up: Vector3) =>
   new Quaternion().setFromRotationMatrix(new Matrix4().lookAt(from, target, up));
 
-/** Vue de départ de la prise en main (et de retour en fin de visite), autour du focus. */
-export function homePose(control: ScenarioConfig['control'], focus: Vector3) {
+/** Vue de départ d'une prise en main, autour du focus. */
+export function homePose(control: Pick<ControlStep, 'start'>, focus: Vector3) {
   const az = MathUtils.degToRad(control.start.azimuthDeg);
   const el = MathUtils.degToRad(control.start.elevationDeg);
   const position = new Vector3(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az))
@@ -40,46 +36,38 @@ export function homePose(control: ScenarioConfig['control'], focus: Vector3) {
   return { position, target: focus.clone() };
 }
 
+/** Vue de départ par défaut (scénario sans prise en main). */
+const FALLBACK_START = { start: { distance: 120, azimuthDeg: 200, elevationDeg: 25 } };
+
 /**
- * Trajet de caméra point par point : positions et points regardés sur deux splines
- * Catmull-Rom (centripètes), chaque segment parcouru dans la durée de son point
- * d'arrivée. Ouvert : départ et arrivée en douceur. Fermé : boucle sans arrêt.
+ * Boucle de points : positions et points regardés sur deux splines Catmull-Rom
+ * fermées, chaque segment parcouru dans la durée de son point d'arrivée.
  */
-function createPointsPath(points: ScenarioPoint[], closed: boolean) {
+function createLoopPath(points: ScenarioPoint[]) {
   const n = points.length;
   const pos = points.map((p) => v3(p.position));
   const tgt = points.map((p) => v3(p.target));
-  const usable = n >= (closed ? 3 : 2);
-  const posCurve = usable ? new CatmullRomCurve3(pos, closed, 'centripetal') : null;
-  const tgtCurve = usable ? new CatmullRomCurve3(tgt, closed, 'centripetal') : null;
-  const segs = usable ? (closed ? n : n - 1) : 0;
-  const durations = Array.from({ length: segs }, (_, i) => Math.max(points[(i + 1) % n].durationMs, 1) / 1000);
+  const usable = n >= 3;
+  const posCurve = usable ? new CatmullRomCurve3(pos, true, 'centripetal') : null;
+  const tgtCurve = usable ? new CatmullRomCurve3(tgt, true, 'centripetal') : null;
+  const durations = Array.from({ length: usable ? n : 0 }, (_, i) => Math.max(points[(i + 1) % n].durationMs, 1) / 1000);
   const total = durations.reduce((a, b) => a + b, 0);
-
-  /** Pose au temps `time` (s) ; renvoie false une fois l'extrémité atteinte (trajet ouvert). */
-  function at(time: number, outPos: Vector3, outTgt: Vector3): boolean {
+  function at(time: number, outPos: Vector3, outTgt: Vector3) {
     if (!posCurve || !tgtCurve) {
       if (n) {
         outPos.copy(pos[0]);
         outTgt.copy(tgt[0]);
       }
-      return false;
+      return;
     }
-    let t = closed ? ((time % total) + total) % total : Math.min(Math.max(time, 0), total);
+    let t = ((time % total) + total) % total;
     let i = 0;
-    while (i < segs - 1 && t > durations[i]) t -= durations[i++];
-    let u = Math.min(t / durations[i], 1);
-    if (!closed) {
-      if (segs === 1) u = easeInOut(u);
-      else if (i === 0) u = easeIn(u);
-      else if (i === segs - 1) u = easeOut(u);
-    }
-    const g = (i + u) / segs;
+    while (i < n - 1 && t > durations[i]) t -= durations[i++];
+    const g = (i + Math.min(t / durations[i], 1)) / n;
     posCurve.getPoint(g, outPos);
     tgtCurve.getPoint(g, outTgt);
-    return closed || time < total;
   }
-  return { at, usable: n > 0, first: () => ({ position: pos[0]?.clone(), target: tgt[0]?.clone() }) };
+  return { at };
 }
 
 interface Options {
@@ -90,11 +78,15 @@ interface Options {
   config: () => ScenarioConfig;
   /** Visite, carte ou vol libre en cours : l'inactivité ne déclenche rien. */
   busy: () => boolean;
-  /** Sans intro ni boucle (back-office) : prise en main immédiate. */
+  /** Back-office : prise en main immédiate (pas d'ouverture), pas d'enchaînement sur inactivité hors aperçu. */
   skip?: boolean;
   /** Vol libre du back-office en cours (l'orbite reste alors coupée). */
   flying?: () => boolean;
-  /** Appelé une fois, à la fin de l'ouverture (fin ou interruption de l'intro). */
+  /** Lance la visite guidée sur une œuvre. */
+  startTour: (work: number) => void;
+  /** Réglages de l'orbite d'une prise en main (distances, rotation…). */
+  applyControl: (step: ControlStep) => void;
+  /** Appelé une fois, quand le visiteur peut agir (fin ou interruption de l'ouverture). */
   onReady: () => void;
 }
 
@@ -102,32 +94,72 @@ export function createScenario(o: Options) {
   const { camera, controls, reference } = o;
   let state: ScenarioState = 'control';
   let ready = false;
-  /** Point regardé pendant l'intro, la boucle et les raccords (découpe, mise au point). */
+  /** Étape courante (celle en cours, ou visée par le raccord). */
+  let current: ScenarioStep | null = null;
+  /** Point regardé pendant un trajet, une boucle ou un raccord (découpe, mise au point). */
   const lookTarget = reference.focus.clone();
+  /** Back-office : les enchaînements sur inactivité n'ont lieu que pendant un aperçu. */
+  let previewing = !o.skip;
 
   let sky: ReturnType<typeof createIntro> | null = null;
-  /** Intro point par point : tracé (points de passage), regard, fin sur la vue de départ. */
-  let wayIntro: { path: Path; look: Vector3; endAtHome: boolean; duration: number; time: number } | null = null;
-  let path: ReturnType<typeof createPointsPath> | null = null;
-  let pathTime = 0;
+  let way: { path: Path; look: Vector3; nextLook: Vector3 | null; duration: number; time: number } | null = null;
+  let loop: { path: ReturnType<typeof createLoopPath>; time: number } | null = null;
   let blend: { fromPos: Vector3; toPos: Vector3; fromQ: Quaternion; toQ: Quaternion; fromTgt: Vector3; toTgt: Vector3; time: number; duration: number; then: () => void } | null = null;
   /** Après une prise en main sur place : la cible d'orbite glisse vers le focus. */
   let retarget = false;
   let idleTimer: number | undefined;
-  /**
-   * Back-office (skip) : la boucle d'attente sur inactivité ne se déclenche que pendant
-   * un aperçu (« Jouer le scénario »), pas pendant l'édition.
-   */
-  let previewing = !o.skip;
 
   const cfg = () => o.config();
-  const loopUsable = () => cfg().loop.enabled && cfg().loop.points.length >= 3;
+  const step = (id: string) => stepById(cfg(), id);
 
   function markReady() {
     if (ready) return;
     ready = true;
     o.onReady();
   }
+  function stopMotion() {
+    blend = null;
+    sky = null;
+    way = null;
+    loop = null;
+    retarget = false;
+  }
+
+  // ---- Poses de départ des étapes ------------------------------------------------
+
+  /** Départ d'une prise en main (ou de la vue par défaut). */
+  const controlPose = (s: ControlStep | null) => homePose(s ?? firstControl(cfg()) ?? FALLBACK_START, reference.focus);
+
+  /** Pose d'arrivée d'un trajet « du ciel » : le départ de l'étape suivante si c'est une prise en main. */
+  function skyEnd(s: PathStep) {
+    const next = step(s.onEnd);
+    return next?.kind === 'control' ? controlPose(next) : controlPose(null);
+  }
+
+  /** Position et point regardé au début d'une étape (null : pas de pose propre, ex. visite). */
+  function startPose(s: ScenarioStep | null, depth = 0): { position: Vector3; target: Vector3 } | null {
+    if (!s) return controlPose(null);
+    switch (s.kind) {
+      case 'control':
+        return controlPose(s);
+      case 'loop':
+        return s.points.length ? { position: v3(s.points[0].position), target: v3(s.points[0].target) } : null;
+      case 'path': {
+        if (s.style === 'sky') {
+          const tmp = new PerspectiveCamera();
+          createIntro(tmp, s, reference, skyEnd(s).position);
+          return { position: tmp.position.clone(), target: reference.focus.clone() };
+        }
+        if (s.waypoints.length) return { position: v3(s.waypoints[0]), target: s.look ? v3(s.look) : reference.focus.clone() };
+        // Trajet vide : le départ de la suite.
+        return depth < 4 ? startPose(step(s.onEnd), depth + 1) : null;
+      }
+      case 'tour':
+        return null;
+    }
+  }
+
+  // ---- Raccords ---------------------------------------------------------------------
 
   /** Raccord doux de la pose courante vers une pose (position + point regardé). */
   function blendTo(toPos: Vector3, toTgt: Vector3, then: () => void) {
@@ -147,58 +179,135 @@ export function createScenario(o: Options) {
     state = 'blend';
   }
 
-  function startLoop() {
+  // ---- Entrée dans une étape ------------------------------------------------------------
+
+  /**
+   * Va à l'étape `id`. `onSpot` : une prise en main démarre là où est la caméra.
+   * `placed` : la caméra est déjà au départ de l'étape (pas de raccord).
+   */
+  function goTo(id: string, opts: { onSpot?: boolean; placed?: boolean } = {}): void {
     clearIdle();
+    stopMotion();
+    const s = step(id) ?? firstControl(cfg());
+    current = s;
+    if (!s) {
+      // Aucun scénario utilisable : prise en main par défaut.
+      const h = controlPose(null);
+      camera.position.copy(h.position);
+      camera.lookAt(h.target);
+      return enterControl(null, h.target);
+    }
+    if (s.kind === 'tour') {
+      markReady();
+      state = 'paused';
+      o.startTour(Math.max(0, s.startWork));
+      return;
+    }
+    if (s.kind === 'control' && opts.onSpot) return takeOver(s);
+    const pose = startPose(s);
+    const run = (): void => runStep(s);
+    if (!pose || opts.placed) return run();
     controls.enabled = false;
     controls.autoRotate = false;
-    path = createPointsPath(cfg().loop.points, true);
-    const first = path.first();
-    blendTo(first.position!, first.target!, () => {
-      pathTime = 0;
-      state = 'loop';
-    });
+    blendTo(pose.position, pose.target, run);
   }
 
-  /** Prise en main à la vue de départ (fin de l'ouverture, fin de visite). */
-  function goHome() {
-    const home = homePose(cfg().control, reference.focus);
+  /** Lance une étape, la caméra étant à son départ. */
+  function runStep(s: ScenarioStep): void {
+    blend = null;
+    current = s;
+    switch (s.kind) {
+      case 'control':
+        return enterControl(s, reference.focus);
+      case 'loop': {
+        markReady();
+        controls.enabled = false;
+        controls.autoRotate = false;
+        if (s.points.length < 3) return goTo(s.onTouch, { onSpot: true });
+        loop = { path: createLoopPath(s.points), time: 0 };
+        state = 'loop';
+        loop.path.at(0, camera.position, lookTarget);
+        camera.lookAt(lookTarget);
+        return;
+      }
+      case 'path':
+        return runPath(s);
+      case 'tour':
+        return goTo(s.id);
+    }
+  }
+
+  function runPath(s: PathStep): void {
     controls.enabled = false;
-    blendTo(home.position, home.target, () => enterControl(home.target));
+    controls.autoRotate = false;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    state = 'intro';
+    if (s.style === 'sky') {
+      sky = createIntro(camera, reduced ? { ...s, durationMs: 0 } : s, reference, skyEnd(s).position);
+      lookTarget.copy(reference.focus);
+      return;
+    }
+    const pts = s.waypoints.map((p) => v3(p));
+    const next = s.endAtNext ? startPose(step(s.onEnd)) : null;
+    if (next) pts.push(next.position);
+    if (!pts.length) return endPath(s);
+    way = {
+      path: new Path(pts),
+      look: s.look ? v3(s.look) : reference.focus.clone(),
+      nextLook: next?.target ?? null,
+      duration: reduced ? 0 : Math.max(s.durationMs, 1) / 1000,
+      time: 0,
+    };
+    placeWay(0);
+  }
+
+  /**
+   * Pose du trajet point par point à l'avancement e (0–1, déjà lissé) : position le
+   * long du tracé à vitesse constante ; regard sur le point visé, qui glisse vers celui
+   * de l'étape suivante en fin de trajet quand on y arrive directement.
+   */
+  function placeWay(e: number) {
+    if (!way) return;
+    way.path.at(e, camera.position);
+    lookTarget.copy(way.look);
+    if (way.nextLook) lookTarget.lerp(way.nextLook, MathUtils.smoothstep(e, 0.6, 1));
+    camera.lookAt(lookTarget);
+  }
+
+  /** Fin d'un trajet : la suite (sans raccord si on y est déjà). */
+  function endPath(s: PathStep): void {
+    sky = null;
+    way = null;
+    markReady();
+    const next = step(s.onEnd);
+    const placed = s.style === 'sky' ? !next || next.kind === 'control' : s.endAtNext;
+    goTo(s.onEnd, { placed });
   }
 
   /** Prise en main : l'orbite démarre, l'inactivité est surveillée. */
-  function enterControl(target = reference.focus) {
-    blend = null;
-    path = null;
-    sky = null;
-    wayIntro = null;
+  function enterControl(s: ControlStep | null, target: Vector3): void {
+    stopMotion();
     state = 'control';
+    if (s) o.applyControl(s);
     controls.target.copy(target);
     controls.enabled = !o.flying?.();
     controls.autoRotate = false;
     controls.update();
     markReady();
     clearIdle();
-    const idle = cfg().idle;
-    if (idle.action === 'rotate') controls.autoRotate = true;
-    else if (idle.action === 'loop') scheduleIdle();
+    if (s?.idle.action === 'rotate') controls.autoRotate = true;
+    else if (s?.idle.action === 'goto') scheduleIdle();
   }
 
-  /** Interaction pendant la boucle (ou une intro interruptible) : la main est donnée sur place. */
-  function takeOver() {
+  /** Prise en main sur place (interaction pendant une boucle ou un trajet). */
+  function takeOver(s: ControlStep) {
     const d = camera.position.distanceTo(reference.focus);
     const target = camera.position.clone().add(camera.getWorldDirection(new Vector3()).multiplyScalar(d));
-    blend = null;
-    path = null;
-    sky = null;
-    wayIntro = null;
-    state = 'control';
-    controls.target.copy(target);
-    controls.enabled = true;
+    current = s;
+    enterControl(s, target);
     controls.autoRotate = false;
-    retarget = true;
-    markReady();
     clearIdle();
+    retarget = true;
   }
 
   function clearIdle() {
@@ -207,14 +316,14 @@ export function createScenario(o: Options) {
   }
   function scheduleIdle() {
     clearIdle();
-    const idle = cfg().idle;
-    if (idle.action === 'none') return;
+    const s = current;
+    if (state !== 'control' || s?.kind !== 'control' || s.idle.action === 'none') return;
     idleTimer = window.setTimeout(() => {
-      if (state !== 'control') return;
+      if (state !== 'control' || current !== s) return;
       if (o.busy()) return scheduleIdle();
-      if (idle.action === 'rotate') controls.autoRotate = true;
-      else if (idle.action === 'loop' && loopUsable() && previewing) startLoop();
-    }, Math.max(idle.afterMs, 0));
+      if (s.idle.action === 'rotate') controls.autoRotate = true;
+      else if (s.idle.action === 'goto' && previewing && s.idle.step) goTo(s.idle.step);
+    }, Math.max(s.idle.afterMs, 0));
   }
 
   // Inactivité : l'utilisateur manipule l'orbite → on attend la fin pour décompter.
@@ -226,92 +335,59 @@ export function createScenario(o: Options) {
   controls.addEventListener('start', onStart);
   controls.addEventListener('end', onEnd);
 
-  // Interaction pendant l'ouverture : écoutée en phase de capture, avant l'orbite, pour
-  // que le même geste fasse déjà tourner la vue.
+  // Interaction : écoutée en phase de capture, avant l'orbite, pour que le même geste
+  // fasse déjà tourner la vue quand il donne la main.
   const onInput = () => {
-    if (state === 'loop' || (state === 'blend' && ready) || (state === 'intro' && cfg().intro.interruptible)) takeOver();
+    const s = current;
+    if (!s) return;
+    if (state === 'loop' && s.kind === 'loop') goTo(s.onTouch, { onSpot: true });
+    else if (state === 'intro' && s.kind === 'path' && s.interruptible) goTo(s.onTouch, { onSpot: true });
+    else if (state === 'blend' && ready) {
+      // Raccord en cours : la main est donnée sur place (prise en main visée, ou la première).
+      const c = s.kind === 'control' ? s : firstControl(cfg());
+      if (c) takeOver(c);
+    }
   };
   o.dom.addEventListener('pointerdown', onInput, { capture: true });
   o.dom.addEventListener('wheel', onInput, { capture: true, passive: true });
 
-  /** Lance l'ouverture (ou la prise en main directe). */
+  /** Place la caméra au départ de la première étape, sans la lancer. */
+  function placeAtFirst() {
+    const pose = startPose(step(cfg().first));
+    if (!pose) return;
+    camera.position.copy(pose.position);
+    camera.lookAt(pose.target);
+    lookTarget.copy(pose.target);
+  }
+
+  /** Lance le scénario (ou, en back-office, la première prise en main). */
   function begin() {
-    const c = cfg();
-    const home = homePose(c.control, reference.focus);
-    controls.enabled = false;
-    if (o.skip || !c.intro.enabled) {
-      camera.position.copy(home.position);
-      camera.lookAt(home.target);
-      if (!o.skip && loopUsable()) {
-        markReady();
-        startLoop();
-      } else enterControl(home.target);
-      return;
+    if (o.skip) {
+      const c = firstControl(cfg());
+      const h = controlPose(c);
+      camera.position.copy(h.position);
+      camera.lookAt(h.target);
+      current = c;
+      return enterControl(c, h.target);
     }
-    if (c.intro.kind === 'sky') {
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      sky = createIntro(camera, reduced ? { ...c.intro, durationMs: 0 } : c.intro, reference, home.position);
-      lookTarget.copy(reference.focus);
-    } else {
-      const pts = c.intro.waypoints.map((p) => v3(p));
-      if (c.intro.endAtHome) pts.push(home.position.clone());
-      if (!pts.length) return afterIntroAt(home);
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      wayIntro = {
-        path: new Path(pts),
-        look: c.intro.look ? v3(c.intro.look) : reference.focus.clone(),
-        endAtHome: c.intro.endAtHome,
-        duration: reduced ? 0 : Math.max(c.intro.durationMs, 1) / 1000,
-        time: 0,
-      };
-      placeWay(0);
-    }
-    state = 'intro';
-  }
-
-  /** Intro sans point : on démarre directement à la vue de départ. */
-  function afterIntroAt(home: { position: Vector3; target: Vector3 }) {
-    camera.position.copy(home.position);
-    camera.lookAt(home.target);
-    state = 'intro';
-    afterIntro();
-  }
-
-  /**
-   * Pose de l'intro point par point à l'avancement e (0–1, déjà lissé) : position le
-   * long du tracé à vitesse constante ; regard sur le point visé, qui glisse vers le
-   * focus en fin de trajet quand l'intro se termine sur la vue de départ.
-   */
-  function placeWay(e: number) {
-    if (!wayIntro) return;
-    wayIntro.path.at(e, camera.position);
-    lookTarget.copy(wayIntro.look);
-    if (wayIntro.endAtHome) lookTarget.lerp(reference.focus, MathUtils.smoothstep(e, 0.6, 1));
-    camera.lookAt(lookTarget);
-  }
-
-  function afterIntro() {
-    markReady();
-    if (loopUsable()) startLoop();
-    else goHome();
+    placeAtFirst();
+    goTo(cfg().first, { placed: true });
   }
 
   function update(delta: number) {
-    if (state === 'intro') {
+    if (state === 'intro' && current?.kind === 'path') {
+      const s = current;
       if (sky) {
-        if (sky.update(delta)) afterIntro();
-      } else if (wayIntro) {
-        wayIntro.time += delta;
-        const t = wayIntro.duration > 0 ? Math.min(wayIntro.time / wayIntro.duration, 1) : 1;
+        if (sky.update(delta)) endPath(s);
+      } else if (way) {
+        way.time += delta;
+        const t = way.duration > 0 ? Math.min(way.time / way.duration, 1) : 1;
         placeWay(easeInOut(t));
-        if (t >= 1) {
-          wayIntro = null;
-          afterIntro();
-        }
-      } else afterIntro();
-    } else if (state === 'loop' && path) {
-      pathTime += delta;
-      path.at(pathTime, camera.position, lookTarget);
+        if (t >= 1) endPath(s);
+      } else endPath(s);
+    } else if (state === 'loop' && loop) {
+      loop.time += delta;
+      loop.path.at(loop.time, camera.position, lookTarget);
       camera.lookAt(lookTarget);
     } else if (state === 'blend' && blend) {
       blend.time += delta;
@@ -332,11 +408,21 @@ export function createScenario(o: Options) {
     }
   }
 
+  /** Étape de sortie de la visite guidée (bouton du monument). */
+  const exitStep = () => {
+    const t = tourStepOf(cfg());
+    return (t && step(t.exit)) ?? firstControl(cfg());
+  };
+
   return {
     get state() {
       return state;
     },
-    /** Intro, boucle ou raccord en cours : le scénario pilote la caméra. */
+    /** Étape courante (découpe, back-office). */
+    get step() {
+      return current;
+    },
+    /** Trajet, boucle ou raccord en cours : le scénario pilote la caméra. */
     get driving() {
       return state === 'intro' || state === 'loop' || state === 'blend';
     },
@@ -347,55 +433,55 @@ export function createScenario(o: Options) {
     lookTarget,
     begin,
     update,
+    /** Pose où la visite guidée ramène la caméra à sa sortie (départ de l'étape de sortie). */
+    exitPose() {
+      return startPose(exitStep()) ?? controlPose(null);
+    },
+    /** Étape de sortie de la visite (découpe pendant l'entrée et la sortie de la visite). */
+    exitStep,
     /** Visite guidée, carte… : le scénario s'efface (plus de minuterie, plus de pilotage). */
     pause() {
       clearIdle();
-      blend = null;
-      path = null;
-      sky = null;
-      wayIntro = null;
-      retarget = false;
+      stopMotion();
       controls.autoRotate = false;
-      if (state !== 'paused') state = 'paused';
+      state = 'paused';
     },
-    /** Fin de visite : prise en main à la position courante (déjà à la vue de départ). */
+    /** Fin de la visite : on reprend à l'étape de sortie, la caméra étant à son départ. */
     resume() {
-      enterControl(reference.focus);
+      const s = exitStep();
+      if (s) goTo(s.id, { placed: true });
+      else enterControl(null, reference.focus);
     },
-    /** Rejoue l'ouverture depuis le début (aperçu du back-office). */
+    /** Rejoue le scénario depuis la première étape (aperçu du back-office). */
     replay() {
       clearIdle();
-      ready = true;
       previewing = true;
-      const c = cfg();
-      if (c.intro.enabled) {
-        const prevSkip = o.skip;
-        o.skip = false;
-        begin();
-        o.skip = prevSkip;
-      } else if (loopUsable()) startLoop();
-      else goHome();
+      placeAtFirst();
+      goTo(cfg().first, { placed: true });
     },
-    /** Retour à la vue de départ (fin de l'aperçu). */
+    /** Joue une étape seule (aperçu du back-office). */
+    playStep(id: string) {
+      previewing = true;
+      goTo(id);
+    },
+    /** Retour à la première prise en main (fin de l'aperçu). */
     goHome() {
       if (o.skip) previewing = false;
-      goHome();
+      goTo(firstControl(cfg())?.id ?? '');
     },
     /** Caméra placée à la main (back-office) : prise en main immédiate, sans rotation ni minuterie. */
     placeAt(target: Vector3) {
       if (o.skip) previewing = false;
-      blend = null;
-      path = null;
-      sky = null;
-      wayIntro = null;
-      retarget = false;
-      state = 'control';
+      stopMotion();
       clearIdle();
+      state = 'control';
       controls.autoRotate = false;
       controls.target.copy(target);
       controls.enabled = !o.flying?.();
       markReady();
     },
+    /** Départ d'une étape (repères du back-office). */
+    startPose: (id: string) => startPose(step(id)),
     dispose() {
       clearIdle();
       controls.removeEventListener('start', onStart);
