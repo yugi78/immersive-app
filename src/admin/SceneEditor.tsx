@@ -23,7 +23,7 @@ const usePuckState = createUsePuck();
 
 /** Réglages du vol libre : préférences d'édition de ce navigateur (jamais publiées). */
 const FLY_KEY = 'immersive-app:fly';
-type FlyPrefs = Partial<Pick<SceneProps, 'flySpeed' | 'observerCut'>>;
+type FlyPrefs = Partial<Pick<SceneProps, 'flySpeed' | 'observerCut' | 'observerCutFly'>>;
 function loadFlyPrefs(): FlyPrefs {
   try {
     return JSON.parse(localStorage.getItem(FLY_KEY) ?? '{}') as FlyPrefs;
@@ -33,7 +33,7 @@ function loadFlyPrefs(): FlyPrefs {
 }
 function saveFlyPrefs(p: SceneProps) {
   try {
-    const prefs: FlyPrefs = { flySpeed: p.flySpeed, observerCut: p.observerCut };
+    const prefs: FlyPrefs = { flySpeed: p.flySpeed, observerCut: p.observerCut, observerCutFly: p.observerCutFly };
     localStorage.setItem(FLY_KEY, JSON.stringify(prefs));
   } catch {
     // Stockage indisponible (navigation privée) : réglages non mémorisés, sans gravité.
@@ -108,7 +108,10 @@ type SceneProps = {
   // Debug (non enregistré).
   // Vue de contrôle (préférences d'édition de ce navigateur, jamais publiées).
   flySpeed: number;
+  /** Découpe de la vue de contrôle en orbite. */
   observerCut: string[];
+  /** Découpe de la vue de contrôle en vol libre. */
+  observerCutFly: string[];
   showTourHelpers: boolean;
 };
 
@@ -177,6 +180,7 @@ const SCENE_KEYS = [
   'tourWorks',
   'flySpeed',
   'observerCut',
+  'observerCutFly',
   'showTourHelpers',
 ] as const satisfies readonly (keyof SceneProps)[];
 
@@ -312,7 +316,7 @@ function ViewerPreview(props: SceneProps) {
     v.setUi(uiFromProps(p));
     v.editor?.setHelpers(tour);
     v.editor?.setFlySpeed(p.flySpeed);
-    v.setObserverCut(p.observerCut ?? []);
+    v.setObserverCut({ orbit: p.observerCut ?? [], fly: p.observerCutFly ?? [] });
     saveFlyPrefs(p);
   };
 
@@ -479,6 +483,7 @@ const config: Config<{}, Record<string, unknown>> = {
         {/* Un onglet = une partie de ce que voit le visiteur, dans l'ordre où il la
             découvre, puis l'apparence, puis les outils d'édition. */}
         <FieldTab label="Expérience">
+          {fields.observerCut}
           <FieldGroup label="Écran de démarrage" defaultExpanded>
             {fields.startEnabled}
             {fields.startTitle}
@@ -493,7 +498,6 @@ const config: Config<{}, Record<string, unknown>> = {
           <FieldGroup label="Point de focus (centre de l’orbite)">
             {fields.focusOffset}
           </FieldGroup>
-          {fields.observerCut}
         </FieldTab>
         <FieldTab label="Œuvres">
           <FieldGroup label="Œuvres" defaultExpanded>
@@ -655,6 +659,7 @@ function initialDataFor(cfg: SceneConfig): Data<{}, Record<string, unknown>> {
       mapViews: ui.map.views,
       flySpeed: flyPrefs.flySpeed ?? 3,
       observerCut: flyPrefs.observerCut ?? [],
+      observerCutFly: flyPrefs.observerCutFly ?? [],
       showTourHelpers: true,
     },
   },

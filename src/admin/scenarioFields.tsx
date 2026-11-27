@@ -542,9 +542,10 @@ function ObserverPanel({ value, onChange }: { value: string[]; onChange: (v: str
   const dispatch = usePuck((st) => st.dispatch);
   const cutaway = usePuck((st) => st.appState.data.root?.props?.cutaway) as { presets?: CutPreset[] } | undefined;
   const flySpeed = usePuck((st) => st.appState.data.root?.props?.flySpeed) as number | undefined;
+  const flyCut = usePuck((st) => st.appState.data.root?.props?.observerCutFly) as string[] | undefined;
   const presets = useMemo(() => cutaway?.presets ?? [], [cutaway]);
-  const setSpeed = (v: number) =>
-    dispatch({ type: 'setData', data: (prev) => ({ ...prev, root: { ...prev.root, props: { ...(prev.root?.props ?? {}), flySpeed: v } } }) });
+  const setProp = (key: string, v: unknown) =>
+    dispatch({ type: 'setData', data: (prev) => ({ ...prev, root: { ...prev.root, props: { ...(prev.root?.props ?? {}), [key]: v } } }) });
   return (
     <section className={`bo-observer${open ? ' is-open' : ''}`}>
       <button type="button" className="bo-observer__head" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -560,8 +561,17 @@ function ObserverPanel({ value, onChange }: { value: string[]; onChange: (v: str
             Dans la barre de l’aperçu, « Orbite » et « Vol libre » regardent l’expérience de l’extérieur : elle continue (sa caméra est dessinée en orange) et ses
             boutons restent actifs. « Expérience » revient à la vue du visiteur. Ces réglages restent dans ce navigateur et ne sont pas publiés.
           </p>
-          <CutPicker label="Découpe autour de la caméra de contrôle" value={value ?? []} presets={presets} onChange={onChange} />
-          <Slider label="Vitesse du vol libre (aussi à la molette)" min={0.2} max={30} step={0.1} unit="m/s" value={flySpeed ?? 3} onChange={setSpeed} />
+          <div className="bo-observer__mode">
+            <b>Orbite</b>
+            <small>On tourne autour d’un point : un cylindre ouvre les murs entre la caméra et ce point.</small>
+            <CutPicker label="Découpe" value={value ?? []} presets={presets} onChange={onChange} />
+          </div>
+          <div className="bo-observer__mode">
+            <b>Vol libre</b>
+            <small>On traverse la scène : une sphère autour de la caméra efface murs et piliers.</small>
+            <CutPicker label="Découpe" value={flyCut ?? []} presets={presets} onChange={(ids) => setProp('observerCutFly', ids)} />
+            <Slider label="Vitesse (aussi à la molette)" min={0.2} max={30} step={0.1} unit="m/s" value={flySpeed ?? 3} onChange={(v) => setProp('flySpeed', v)} />
+          </div>
         </div>
       )}
     </section>

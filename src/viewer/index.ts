@@ -87,8 +87,8 @@ export interface Viewer {
   /** Carte interactive : ouvrir une vue (0 : plan, 1–4 : murs), fermer, cadrer une vue depuis la caméra. */
   map: { open(view?: number): void; close(): void; frameFromCamera(): { center: Vec3; yaw: number } };
   /** Sphère de découpe autour de la caméra en vol libre (back-office). */
-  /** Découpe de la vue de contrôle du back-office (formes de la bibliothèque). */
-  setObserverCut(ids: string[]): void;
+  /** Découpe de la vue de contrôle du back-office (formes de la bibliothèque), en orbite et en vol libre. */
+  setObserverCut(cut: { orbit: string[]; fly: string[] }): void;
   /** Objets de la scène (outliner) : racines 3D, visibilité, placement. */
   objects: {
     root(id: string): Object3D | null;
@@ -306,7 +306,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
   }
   /** Vol libre : sphère de découpe autour de la caméra (traverser murs et piliers). */
   /** Vue de contrôle du back-office : formes de découpe autour de sa caméra. */
-  let observerCut: string[] = [];
+  let observerCut: { orbit: string[]; fly: string[] } = { orbit: [], fly: [] };
   /** Sphère de découpe affichée (intensité, rayon, dégradé), lissée d'une image à l'autre. */
   const sphere: { s: number; r: number; f: number; id: string | null } = { s: 0, r: 4, f: 2, id: null };
   /** Racine 3D de chaque objet, par identifiant (outliner). */
@@ -558,7 +558,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     const observing = !!editorTools?.observing;
     const viewCam = editorTools?.viewCamera ?? camera;
     if (observing) {
-      const list = observerCut.map((id) => cc.presets.find((x) => x.id === id)).filter((x): x is CutPreset => !!x);
+      const ids = editorTools!.viewMode === 'fly' ? observerCut.fly : observerCut.orbit;
+      const list = ids.map((id) => cc.presets.find((x) => x.id === id)).filter((x): x is CutPreset => !!x);
       const obsTarget = editorTools!.observerTarget();
       cutaway.setObserver(viewCam.position, obsTarget, list.find((x) => x.kind === 'cylinder') ?? null, list.find((x) => x.kind === 'sphere') ?? null);
       editorTools!.setExperienceLook(lookPoint);
@@ -702,8 +703,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       close: () => tourUi?.closeMap(),
       frameFromCamera: () => mapView.frameFromCamera(camera),
     },
-    setObserverCut(ids) {
-      observerCut = [...ids];
+    setObserverCut(cut) {
+      observerCut = { orbit: [...cut.orbit], fly: [...cut.fly] };
     },
     objects: {
       root: (id) => objectRoots.get(id) ?? null,
