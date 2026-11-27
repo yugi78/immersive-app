@@ -104,7 +104,12 @@ export function createTour(opts: TourOptions) {
   // tap (point d'intérêt, bouton sur mobile) ne masque pas l'interface.
   const DRAG_PX = 6;
   let press: { x: number; y: number } | null = null;
+  /** Gestes acceptés (faux en vue de contrôle du back-office : la souris pilote une autre caméra). */
+  let inputOn = true;
+  /** Prise en main voulue par la visite (l'orbite n'est active que si les gestes le sont). */
+  let orbitWanted = false;
   const onPress = (e: PointerEvent) => {
+    if (!inputOn) return;
     press = { x: e.clientX, y: e.clientY };
   };
   const onMove = (e: PointerEvent) => {
@@ -176,7 +181,8 @@ export function createTour(opts: TourOptions) {
   }
 
   function setUserOrbit(on: boolean) {
-    userOrbit.enabled = on;
+    orbitWanted = on;
+    userOrbit.enabled = on && inputOn;
     user = null;
     dragging = false;
     cubeMode = false;
@@ -443,6 +449,12 @@ export function createTour(opts: TourOptions) {
     onChange(l: (s: TourStatus) => void) {
       listeners.add(l);
       return () => listeners.delete(l);
+    },
+    /** Gestes de l'utilisateur acceptés ou non (vue de contrôle du back-office). */
+    setInput(on: boolean) {
+      inputOn = on;
+      userOrbit.enabled = orbitWanted && on;
+      if (!on) press = null;
     },
     /** Fin de visite immédiate (sans animation), ex. avant un aperçu dans l'éditeur. */
     cancel() {

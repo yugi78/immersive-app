@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BRAND } from '../config/brand';
 import { projectName } from './project';
 import { isFull, LOCAL } from './backend';
-import { bridge, useDevice, useUiSelected, useUiSelectMode, useViewer } from './bridge';
+import { bridge, useDevice, useUiSelected, useUiSelectMode, useViewer, useViewMode } from './bridge';
 import { Icon } from './icons';
 import { StructurePanel } from './StructurePanel';
 import { AddressesDialog } from './Addresses';
@@ -48,6 +48,7 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
   const fieldTab = usePuck((s) => s.appState.ui.fieldTab);
   const tab = String(fieldTab ?? TABS[0].tab);
   const device = useDevice();
+  const viewMode = useViewMode();
 
   // Modifié depuis le dernier enregistrement : comparaison des réglages (JSON).
   const props = data.root?.props ?? {};
@@ -188,7 +189,15 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
         </aside>
 
         <main className="bo-stage">
-          <div className={`bo-stage__frame${device === 'mobile' ? ' is-mobile' : ''}`}>
+          <div className={`bo-stage__frame${device === 'mobile' ? ' is-mobile' : ''}${viewMode !== 'experience' ? ' is-observing' : ''}`}>
+            {viewMode !== 'experience' && (
+              <div className="bo-observing-badge" role="status">
+                Vue de contrôle : l’expérience continue (caméra en orange)
+                <button type="button" onClick={() => bridge.setViewMode('experience')}>
+                  Revenir à l’expérience
+                </button>
+              </div>
+            )}
             <div className="bo-preview">
               <Puck.Preview />
             </div>
@@ -206,7 +215,7 @@ export function AdminLayout({ onPublish, save }: { onPublish: (data: Data) => vo
 function PreviewToolbar() {
   const dispatch = usePuck((s) => s.dispatch);
   const uiSelect = useUiSelectMode();
-  const fly = usePuck((s) => Boolean(s.appState.data.root?.props?.flyEnabled));
+  const view = useViewMode();
   const helpers = usePuck((s) => s.appState.data.root?.props?.showTourHelpers !== false);
   const viewer = useViewer();
   const [mapOpen, setMapOpen] = useState(false);
@@ -217,16 +226,35 @@ function PreviewToolbar() {
     });
   return (
     <div className="bo-toolbar" role="toolbar" aria-label="Aperçu">
-      <button type="button" className={!fly ? 'is-on' : ''} aria-pressed={!fly} onClick={() => setProp('flyEnabled', false)}>
+      <button
+        type="button"
+        className={view === 'experience' ? 'is-on' : ''}
+        aria-pressed={view === 'experience'}
+        title="Voir l’expérience comme le visiteur (et la piloter)"
+        disabled={!viewer}
+        onClick={() => bridge.setViewMode('experience')}
+      >
+        <Icon.eye size={16} />
+        Expérience
+      </button>
+      <button
+        type="button"
+        className={view === 'orbit' ? 'is-on' : ''}
+        aria-pressed={view === 'orbit'}
+        title="Vue de contrôle : tourner autour de la scène ; l’expérience continue (caméra en orange)"
+        disabled={!viewer}
+        onClick={() => bridge.setViewMode('orbit')}
+      >
         <Icon.rotate size={16} />
         Orbite
       </button>
       <button
         type="button"
-        className={fly ? 'is-on' : ''}
-        aria-pressed={fly}
-        title="ZQSD pour avancer, glisser au clic gauche pour regarder, A / E : bas / haut, Maj : vite"
-        onClick={() => setProp('flyEnabled', true)}
+        className={view === 'fly' ? 'is-on' : ''}
+        aria-pressed={view === 'fly'}
+        title="Vue de contrôle en vol libre : ZQSD pour avancer, glisser pour regarder, A / E : bas / haut, Maj : vite ; l’expérience continue"
+        disabled={!viewer}
+        onClick={() => bridge.setViewMode('fly')}
       >
         <Icon.fly size={16} />
         Vol libre
@@ -260,7 +288,7 @@ function PreviewToolbar() {
       <span className="bo-toolbar__sep" />
       <button
         type="button"
-        className={`is-icon${uiSelect ? ' is-on' : ''}`}
+        className={`is-icon${uiSelect ? ' is-select' : ''}`}
         aria-pressed={uiSelect}
         aria-label="Sélectionner un élément de l’interface"
         title="Sélectionner un élément de l’interface (onglet Design UI)"

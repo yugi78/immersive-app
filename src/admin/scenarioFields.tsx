@@ -531,3 +531,24 @@ export const scenarioField: CustomField<S> = {
   label: 'Scénario',
   render: ({ value, onChange, readOnly }) => <ScenarioUI value={value} onChange={onChange} readOnly={readOnly} />,
 };
+
+/** Découpe de la vue de contrôle (orbite, vol libre) : préférence d'édition de ce navigateur. */
+function ObserverCutUI({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const cutaway = usePuck((st) => st.appState.data.root?.props?.cutaway) as { presets?: CutPreset[] } | undefined;
+  const presets = useMemo(() => cutaway?.presets ?? [], [cutaway]);
+  return (
+    <div className="bo-scn__wrap" style={{ gap: 8 }}>
+      <p className="bo-scn__help">
+        Dans la barre de l’aperçu, « Orbite » et « Vol libre » regardent l’expérience de l’extérieur : elle continue (sa caméra est dessinée en orange) et ses
+        boutons restent actifs. « Expérience » revient à la vue du visiteur.
+      </p>
+      <CutPicker label="Découpe autour de la caméra de contrôle" value={value ?? []} presets={presets} onChange={onChange} />
+    </div>
+  );
+}
+
+export const observerCutField: CustomField<string[]> = {
+  type: 'custom',
+  label: 'Découpe de la vue de contrôle',
+  render: ({ value, onChange }) => <ObserverCutUI value={value} onChange={onChange} />,
+};

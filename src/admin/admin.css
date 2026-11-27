@@ -1679,7 +1679,37 @@ select.bo-input {
   outline: 2px dashed #3b5bff !important;
   outline-offset: 3px;
 }
-.bo-toolbar button.is-on {
+.bo-toolbar button.is-select {
   background: #3b5bff;
   color: #fff;
+}
+/* Vue de contrôle : l'aperçu est entouré, pour ne pas la confondre avec l'expérience. */
+.bo-stage__frame.is-observing .bo-preview {
+  box-shadow: inset 0 0 0 3px #ff8a1f;
+}
+.bo-observing-badge {
+  position: absolute;
+  left: 50%;
+  top: 60px;
+  z-index: 21;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 999px;
+  background: #ff8a1f;
+  color: #141414;
+  font-size: 12px;
+  font-weight: 600;
+}
+.bo-observing-badge button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #141414;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
 }

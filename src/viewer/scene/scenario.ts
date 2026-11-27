@@ -340,6 +340,7 @@ export function createScenario(o: Options) {
   // Geste : écouté en phase de capture, avant l'orbite, pour que le même geste fasse
   // déjà tourner la vue quand il donne la main.
   const onInput = () => {
+    if (o.flying?.()) return;
     if (state === 'loop') {
       if (loopFromIdle) takeOver();
       else goFirstMode(true);

@@ -22,21 +22,26 @@ import {
   Vector2,
   Vector3,
   Object3D,
-  type PerspectiveCamera,
+  PerspectiveCamera,
   type Scene,
   type WebGLRenderer,
 } from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { TourBounds, TourConfig, Vec3 } from '../config/types';
 import type { SceneReference } from '../scene/reference';
 import { Path } from '../tour/path';
 import type { Tour } from '../tour/tour';
 import { createFly } from './fly';
 
+/** Vue de l'aperçu : la caméra de l'expérience, ou une caméra de contrôle (orbite, vol libre). */
+export type ViewMode = 'experience' | 'orbit' | 'fly';
+
 export interface EditorContext {
   scene: Scene;
   camera: PerspectiveCamera;
+  /** Changement de vue : l'expérience ne doit plus recevoir les gestes en vue de contrôle. */
+  onViewMode?: (mode: ViewMode) => void;
   renderer: WebGLRenderer;
   controls: OrbitControls;
   tour: Tour;
@@ -346,7 +351,8 @@ export function createEditorTools(ctx: EditorContext) {
   let gizmoRotate: ((deg: number) => void) | null = null;
   const yaw = new Euler();
   gizmo.addEventListener('dragging-changed', (e) => {
-    controls.enabled = !e.value && !fly.enabled && !tour.active;
+    gizmoDragging = !!e.value;
+    restoreControls();
   });
   gizmo.addEventListener('objectChange', () => {
     const o = gizmo.object;
@@ -434,7 +440,7 @@ export function createEditorTools(ctx: EditorContext) {
   const onPick = (e: PointerEvent) => {
     if (!pickResolve || e.button !== 0) return;
     e.stopPropagation();
-    raycaster.setFromCamera(ndcOf(e), camera);
+    raycaster.setFromCamera(ndcOf(e), viewCam);
     const hit = raycaster.intersectObjects(ctx.pickTargets, true)[0];
     finishPick(hit ? (hit.point.toArray().map(r2) as Vec3) : null);
   };
@@ -477,7 +483,7 @@ export function createEditorTools(ctx: EditorContext) {
   // Glisser une poignée : point de l'axe de la face le plus proche du rayon souris.
   let faceDrag: { k: number; origin: Vector3; dir: Vector3; start: number; bounds: TourBounds } | null = null;
   function axisParam(e: PointerEvent, origin: Vector3, dir: Vector3) {
-    raycaster.setFromCamera(ndcOf(e), camera);
+    raycaster.setFromCamera(ndcOf(e), viewCam);
     const o = raycaster.ray.origin;
     const d = raycaster.ray.direction;
     const w0 = origin.clone().sub(o);
@@ -489,7 +495,7 @@ export function createEditorTools(ctx: EditorContext) {
   const onHandleDown = (e: PointerEvent) => {
     const b = editedBounds();
     if (!b || !handles.visible || e.button !== 0 || pickResolve) return;
-    raycaster.setFromCamera(ndcOf(e), camera);
+    raycaster.setFromCamera(ndcOf(e), viewCam);
     const hit = raycaster.intersectObjects(handleSprites, false)[0];
     if (!hit) return;
     e.stopImmediatePropagation();
@@ -498,6 +504,7 @@ export function createEditorTools(ctx: EditorContext) {
     const origin = handleSprites[k].position.clone();
     faceDrag = { k, origin, dir, start: axisParam(e, origin, dir), bounds: structuredClone(b) };
     controls.enabled = false;
+    obsOrbit.enabled = false;
     try {
       dom.setPointerCapture(e.pointerId);
     } catch {
@@ -520,38 +527,106 @@ export function createEditorTools(ctx: EditorContext) {
   const onHandleUp = () => {
     if (!faceDrag) return;
     faceDrag = null;
-    controls.enabled = !fly.enabled && !tour.active;
+    restoreControls();
   };
   dom.addEventListener('pointerdown', onHandleDown, { capture: true });
   dom.addEventListener('pointermove', onHandleMove);
   dom.addEventListener('pointerup', onHandleUp);
 
-  // ---- Vol libre --------------------------------------------------------------
-  // Clic gauche : regard, sauf sur le gizmo ou pendant un pointage sur le scan.
-  const fly = createFly(camera, dom, undefined, () => !!pickResolve || !!gizmo.axis || gizmo.dragging);
-  const ahead = new Vector3();
-  function setFly(on: boolean, speed: number) {
-    fly.setSpeed(speed);
-    if (on === fly.enabled) return;
-    fly.setEnabled(on);
-    if (on) {
-      tour.cancel();
-      controls.enabled = false;
-      controls.autoRotate = false;
+  // ---- Vue de contrôle -----------------------------------------------------------
+  // Une caméra à part (orbite ou vol libre) regarde l'expérience de l'extérieur :
+  // l'expérience continue avec sa propre caméra (dessinée en filaire), ses commandes
+  // restent pilotables depuis l'interface.
+  let mode: ViewMode = 'experience';
+  const obsCam = new PerspectiveCamera(camera.fov, camera.aspect, camera.near, camera.far);
+  let viewCam: PerspectiveCamera = camera;
+  const obsOrbit = new OrbitControls(obsCam, dom);
+  obsOrbit.enabled = false;
+  obsOrbit.enableDamping = true;
+  obsOrbit.dampingFactor = 0.1;
+  obsOrbit.screenSpacePanning = true;
+  let gizmoDragging = false;
+  /** Commandes après un glisser (gizmo, poignée) : celles de la vue en cours. */
+  function restoreControls() {
+    if (mode === 'experience') {
+      obsOrbit.enabled = false;
+      controls.enabled = !gizmoDragging && !tour.active;
     } else {
-      // Retour à l'orbite autour d'un point situé devant la caméra.
-      camera.getWorldDirection(ahead);
-      controls.target.copy(camera.position).addScaledVector(ahead, 20);
-      controls.enabled = true;
-      controls.update();
+      controls.enabled = false;
+      obsOrbit.enabled = mode === 'orbit' && !gizmoDragging;
     }
+  }
+  // Clic gauche : regard, sauf sur le gizmo ou pendant un pointage sur le scan.
+  const fly = createFly(obsCam, dom, undefined, () => !!pickResolve || !!gizmo.axis || gizmo.dragging);
+  const ahead = new Vector3();
+
+  // Caméra de l'expérience en filaire (façon Blender) : pyramide, cadre, triangle « haut ».
+  const camGizmo = new Group();
+  camGizmo.name = 'experience-camera';
+  camGizmo.matrixAutoUpdate = false;
+  camGizmo.visible = false;
+  const camLineMat = new LineBasicMaterial({ color: '#ff8a1f', depthTest: false, transparent: true });
+  const camLines = new LineSegments(new BufferGeometry(), camLineMat);
+  camLines.renderOrder = 1001;
+  camGizmo.add(camLines);
+  const camTarget = new Line(new BufferGeometry(), new LineBasicMaterial({ color: '#ff8a1f', depthTest: false, transparent: true, opacity: 0.35 }));
+  camTarget.renderOrder = 1001;
+  scene.add(camGizmo, camTarget);
+  let camKey = '';
+  function drawCamera() {
+    const key = `${camera.fov}|${camera.aspect}`;
+    if (key !== camKey) {
+      camKey = key;
+      const d = 3;
+      const h = Math.tan(MathUtils.degToRad(camera.fov / 2)) * d;
+      const w = h * camera.aspect;
+      const c = [new Vector3(-w, -h, -d), new Vector3(w, -h, -d), new Vector3(w, h, -d), new Vector3(-w, h, -d)];
+      const o = new Vector3();
+      const up = [new Vector3(-w * 0.6, h * 1.15, -d), new Vector3(w * 0.6, h * 1.15, -d), new Vector3(0, h * 1.6, -d)];
+      const pts = [o, c[0], o, c[1], o, c[2], o, c[3], c[0], c[1], c[1], c[2], c[2], c[3], c[3], c[0], up[0], up[1], up[1], up[2], up[2], up[0]];
+      camLines.geometry.dispose();
+      camLines.geometry = new BufferGeometry().setFromPoints(pts);
+    }
+    camera.updateMatrixWorld();
+    camGizmo.matrix.copy(camera.matrixWorld);
+    camGizmo.matrixWorldNeedsUpdate = true;
+  }
+  /** Ligne caméra → point regardé (fourni par le viewer). */
+  function drawLook(target: Vector3 | null) {
+    camTarget.visible = !!target && camGizmo.visible;
+    if (!target) return;
+    camTarget.geometry.dispose();
+    camTarget.geometry = new BufferGeometry().setFromPoints([camera.position.clone(), target.clone()]);
+  }
+
+  /** Passe d'une vue à l'autre ; la caméra de contrôle part de derrière celle de l'expérience. */
+  function setViewMode(next: ViewMode) {
+    if (next === mode) return;
+    const was = mode;
+    mode = next;
+    if (was === 'experience') {
+      camera.getWorldDirection(ahead);
+      obsCam.position.copy(camera.position).addScaledVector(ahead, -14).add(new Vector3(0, 6, 0));
+      obsOrbit.target.copy(camera.position);
+      obsCam.lookAt(obsOrbit.target);
+    } else if (was === 'fly' && next === 'orbit') {
+      // L'orbite reprend autour d'un point situé devant la caméra de contrôle.
+      obsCam.getWorldDirection(ahead);
+      obsOrbit.target.copy(obsCam.position).addScaledVector(ahead, 20);
+    }
+    fly.setEnabled(next === 'fly');
+    viewCam = next === 'experience' ? camera : obsCam;
+    gizmo.camera = viewCam;
+    camGizmo.visible = next !== 'experience';
+    restoreControls();
+    if (next === 'orbit') obsOrbit.update();
+    ctx.onViewMode?.(next);
   }
 
   // ---- Aperçus ------------------------------------------------------------------
-  let saved: { position: Vector3; quaternion: Quaternion; fly: boolean } | null = null;
+  let saved: { position: Vector3; quaternion: Quaternion } | null = null;
   function savePose() {
-    if (!saved) saved = { position: camera.position.clone(), quaternion: camera.quaternion.clone(), fly: fly.enabled };
-    fly.setEnabled(false);
+    if (!saved) saved = { position: camera.position.clone(), quaternion: camera.quaternion.clone() };
     controls.enabled = false;
   }
   function stopPreview() {
@@ -561,9 +636,8 @@ export function createEditorTools(ctx: EditorContext) {
     if (!pose) return;
     camera.position.copy(pose.position);
     camera.quaternion.copy(pose.quaternion);
-    fly.setEnabled(pose.fly);
-    controls.enabled = !pose.fly;
-    if (!pose.fly) controls.update();
+    restoreControls();
+    controls.update();
   }
   // Visite quittée autrement (bouton ✕ : retour animé à l'orbite) : l'aperçu est terminé.
   const offTour = tour.onChange((s) => {
@@ -571,17 +645,54 @@ export function createEditorTools(ctx: EditorContext) {
   });
 
   return {
-    /** Le vol libre pilote-t-il la caméra (et la découpe doit-elle être éteinte) ? */
-    get flying() {
-      return fly.enabled;
+    /** Vue de l'aperçu : expérience, ou caméra de contrôle (orbite, vol libre). */
+    get viewMode() {
+      return mode;
     },
+    /** En vue de contrôle (l'expérience continue, vue de l'extérieur). */
+    get observing() {
+      return mode !== 'experience';
+    },
+    /** Caméra qui rend l'aperçu. */
+    get viewCamera() {
+      return viewCam;
+    },
+    /** Point visé par la caméra de contrôle (cible d'orbite, ou devant elle en vol libre). */
+    observerTarget(out = new Vector3()) {
+      if (mode === 'orbit') return out.copy(obsOrbit.target);
+      obsCam.getWorldDirection(out);
+      return out.multiplyScalar(20).add(obsCam.position);
+    },
+    /** Place la caméra de contrôle (aperçu d'un point en vue de contrôle). */
+    placeObserver(position: Vector3, target: Vector3) {
+      obsCam.position.copy(position);
+      obsCam.lookAt(target);
+      obsOrbit.target.copy(target);
+      if (mode === 'orbit') obsOrbit.update();
+    },
+    setViewMode,
+    setFlySpeed(speed: number) {
+      fly.setSpeed(speed);
+    },
+    /** Ligne de la caméra de l'expérience vers le point qu'elle regarde. */
+    setExperienceLook: drawLook,
     get previewing() {
       return saved !== null;
     },
     /** Chaque image : vol libre ; pas d'autoRotate avec un gizmo ; gizmo masqué avec son repère. */
     update(dt: number) {
-      fly.update(dt);
-      if (gizmoKey) controls.autoRotate = false;
+      if (mode !== 'experience') {
+        // Même objectif que la caméra de l'expérience (format de l'aperçu).
+        if (obsCam.aspect !== camera.aspect || obsCam.fov !== camera.fov) {
+          obsCam.aspect = camera.aspect;
+          obsCam.fov = camera.fov;
+          obsCam.updateProjectionMatrix();
+        }
+        if (mode === 'orbit') obsOrbit.update();
+        fly.update(dt);
+        drawCamera();
+      }
+      if (gizmoKey && mode === 'experience') controls.autoRotate = false;
       gizmo.getHelper().visible = !!gizmo.object && visibleInScene(gizmo.object);
       gizmo.enabled = gizmo.getHelper().visible;
     },
@@ -592,7 +703,6 @@ export function createEditorTools(ctx: EditorContext) {
       view = { ...view, ...next };
       applyView();
     },
-    setFly,
     attachGizmo,
     detachGizmo,
     attachObject,
@@ -628,7 +738,7 @@ export function createEditorTools(ctx: EditorContext) {
       const hidden = [tourGroup, orbitGroup, scnGroup, handles, selBox, gizmo.getHelper()].map((o) => [o, o.visible] as const);
       hidden.forEach(([o]) => (o.visible = false));
       try {
-        renderer.render(scene, camera);
+        renderer.render(scene, viewCam);
         const src = renderer.domElement;
         const ratio = 16 / 10;
         const sw = Math.min(src.width, src.height * ratio);
@@ -642,8 +752,8 @@ export function createEditorTools(ctx: EditorContext) {
         hidden.forEach(([o, v]) => (o.visible = v));
       }
     },
-    /** Position actuelle de la caméra (arrondie au cm). */
-    capture: (): Vec3 => camera.position.toArray().map(r2) as Vec3,
+    /** Position actuelle de la caméra de la vue (arrondie au cm). */
+    capture: (): Vec3 => viewCam.position.toArray().map(r2) as Vec3,
     /** Prochain clic sur le scan → point touché (Échap : annulé). */
     pick(): Promise<Vec3 | null> {
       finishPick(null);
@@ -673,6 +783,8 @@ export function createEditorTools(ctx: EditorContext) {
       gizmo.detach();
       gizmo.dispose();
       fly.dispose();
+      obsOrbit.dispose();
+      scene.remove(camGizmo, camTarget);
       scene.remove(tourGroup, orbitGroup, scnGroup, handles, gizmo.getHelper());
       for (const m of badgeCache.values()) {
         m.map?.dispose();

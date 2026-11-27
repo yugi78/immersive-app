@@ -18,6 +18,8 @@ let device: 'desktop' | 'mobile' = 'desktop';
 const workTabs = new Map<string, string>();
 /** Onglet Design UI : mode sélection dans l'aperçu, et élément de l'interface sélectionné. */
 let uiSelectMode = false;
+/** Vue de l'aperçu : l'expérience, ou une caméra de contrôle (orbite, vol libre). */
+let viewMode: 'experience' | 'orbit' | 'fly' = 'experience';
 let uiSelected: string | null = null;
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
@@ -28,6 +30,7 @@ export const bridge = {
   },
   setViewer(v: Viewer | null) {
     viewer = v;
+    viewMode = 'experience';
     // Inspection depuis la console du navigateur (back-office, dev uniquement).
     Object.assign(window, { __adminViewer: v });
     gizmoKey = null;
@@ -78,6 +81,15 @@ export const bridge = {
     device = d;
     notify();
   },
+  get viewMode() {
+    return viewMode;
+  },
+  /** Change la vue de l'aperçu (l'expérience continue en vue de contrôle). */
+  setViewMode(m: 'experience' | 'orbit' | 'fly') {
+    viewMode = m;
+    viewer?.editor?.setViewMode(m);
+    notify();
+  },
   get uiSelectMode() {
     return uiSelectMode;
   },
@@ -116,3 +128,5 @@ export const useWorkTab = (id: string) => useSyncExternalStore(bridge.subscribe,
 export const useUiSelectMode = () => useSyncExternalStore(bridge.subscribe, () => uiSelectMode);
 /** Élément de l'interface sélectionné (data-ui), ou null. */
 export const useUiSelected = () => useSyncExternalStore(bridge.subscribe, () => uiSelected);
+/** Vue de l'aperçu (expérience, orbite de contrôle, vol libre). */
+export const useViewMode = () => useSyncExternalStore(bridge.subscribe, () => viewMode);

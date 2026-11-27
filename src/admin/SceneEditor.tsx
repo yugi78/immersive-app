@@ -10,7 +10,7 @@ import { boundsField, Button, cameraPointsField, focusOffsetField, pointField, p
 import { Icon } from './icons';
 import { blocksField, hotspotsField, imageField, thumbnailField, workTabsField, WorkSummary } from './workFields';
 import { mapViewsField } from './mapFields';
-import { scenarioField } from './scenarioFields';
+import { observerCutField, scenarioField } from './scenarioFields';
 import { cutawayField, tourCutsField, type TourCuts } from './cutawayFields';
 import { designField } from './designFields';
 import type { DesignConfig } from '../viewer/config/design';
@@ -23,7 +23,7 @@ const usePuckState = createUsePuck();
 
 /** Réglages du vol libre : préférences d'édition de ce navigateur (jamais publiées). */
 const FLY_KEY = 'immersive-app:fly';
-type FlyPrefs = Partial<Pick<SceneProps, 'flySpeed' | 'flySphereOn' | 'flySphereRadius' | 'flySphereFeather'>>;
+type FlyPrefs = Partial<Pick<SceneProps, 'flySpeed' | 'observerCut'>>;
 function loadFlyPrefs(): FlyPrefs {
   try {
     return JSON.parse(localStorage.getItem(FLY_KEY) ?? '{}') as FlyPrefs;
@@ -33,7 +33,7 @@ function loadFlyPrefs(): FlyPrefs {
 }
 function saveFlyPrefs(p: SceneProps) {
   try {
-    const prefs: FlyPrefs = { flySpeed: p.flySpeed, flySphereOn: p.flySphereOn, flySphereRadius: p.flySphereRadius, flySphereFeather: p.flySphereFeather };
+    const prefs: FlyPrefs = { flySpeed: p.flySpeed, observerCut: p.observerCut };
     localStorage.setItem(FLY_KEY, JSON.stringify(prefs));
   } catch {
     // Stockage indisponible (navigation privée) : réglages non mémorisés, sans gravité.
@@ -106,11 +106,9 @@ type SceneProps = {
   mapPlanRotMobile: number;
   mapViews: MapView[];
   // Debug (non enregistré).
-  flyEnabled: boolean;
+  // Vue de contrôle (préférences d'édition de ce navigateur, jamais publiées).
   flySpeed: number;
-  flySphereOn: boolean;
-  flySphereRadius: number;
-  flySphereFeather: number;
+  observerCut: string[];
   showTourHelpers: boolean;
 };
 
@@ -177,11 +175,8 @@ const SCENE_KEYS = [
   'tourHub',
   'tourViaHub',
   'tourWorks',
-  'flyEnabled',
   'flySpeed',
-  'flySphereOn',
-  'flySphereRadius',
-  'flySphereFeather',
+  'observerCut',
   'showTourHelpers',
 ] as const satisfies readonly (keyof SceneProps)[];
 
@@ -316,8 +311,8 @@ function ViewerPreview(props: SceneProps) {
     v.setTour(tour);
     v.setUi(uiFromProps(p));
     v.editor?.setHelpers(tour);
-    v.editor?.setFly(p.flyEnabled, p.flySpeed);
-    v.setFlySphere({ enabled: p.flySphereOn !== false, radius: p.flySphereRadius ?? 4, feather: p.flySphereFeather ?? 2 });
+    v.editor?.setFlySpeed(p.flySpeed);
+    v.setObserverCut(p.observerCut ?? []);
     saveFlyPrefs(p);
   };
 
@@ -474,11 +469,8 @@ const config: Config<{}, Record<string, unknown>> = {
           />
         ),
       },
-      flyEnabled: checkbox('Vol libre', 'ZQSD pour avancer, glisser au clic gauche pour regarder, A / E : bas / haut, Maj : vite'),
-      flySpeed: slider('Vitesse (aussi à la molette)', 0.2, 30, 0.1, 'm/s'),
-      flySphereOn: checkbox('Sphère de découpe', 'Efface murs et piliers autour de la caméra pour passer au travers'),
-      flySphereRadius: slider('Rayon de la sphère', 0.5, 30, 0.5),
-      flySphereFeather: slider('Dégradé du bord', 0, 10, 0.5),
+      flySpeed: slider('Vitesse du vol libre (aussi à la molette)', 0.2, 30, 0.1, 'm/s'),
+      observerCut: observerCutField,
       showTourHelpers: checkbox('Afficher les repères de la visite'),
     },
     // Réglages rangés par onglets (Puck FieldTab) ; les clés et le JSON sont inchangés.
@@ -583,12 +575,9 @@ const config: Config<{}, Record<string, unknown>> = {
           </FieldGroup>
         </FieldTab>
         <FieldTab label="Outils">
-          <FieldGroup label="Vol libre" defaultExpanded>
-            {fields.flyEnabled}
+          <FieldGroup label="Vue de contrôle (orbite, vol libre)" defaultExpanded>
+            {fields.observerCut}
             {fields.flySpeed}
-            {fields.flySphereOn}
-            {fields.flySphereRadius}
-            {fields.flySphereFeather}
           </FieldGroup>
           <FieldGroup label="Repères" defaultExpanded>
             {fields.showTourHelpers}
@@ -667,11 +656,8 @@ function initialDataFor(cfg: SceneConfig): Data<{}, Record<string, unknown>> {
       mapPlanRotDesktop: ui.map.planRotationDesktop,
       mapPlanRotMobile: ui.map.planRotationMobile,
       mapViews: ui.map.views,
-      flyEnabled: false,
       flySpeed: flyPrefs.flySpeed ?? 3,
-      flySphereOn: flyPrefs.flySphereOn ?? true,
-      flySphereRadius: flyPrefs.flySphereRadius ?? 4,
-      flySphereFeather: flyPrefs.flySphereFeather ?? 2,
+      observerCut: flyPrefs.observerCut ?? [],
       showTourHelpers: true,
     },
   },

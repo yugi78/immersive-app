@@ -18,6 +18,8 @@ export interface TourUiOptions {
   container: HTMLElement;
   tour: Tour;
   camera: PerspectiveCamera;
+  /** Caméra qui rend l'aperçu, si ce n'est pas celle de l'expérience (vue de contrôle du back-office). */
+  viewCamera?: () => PerspectiveCamera;
   /** Découpe courante (cylindre caméra → cible) : points d'œuvre visibles de l'extérieur. */
   cut: {
     uCutCam: { value: Vector3 };
@@ -91,7 +93,9 @@ function loadFont() {
  */
 export function createTourUi(o: TourUiOptions) {
   loadFont();
-  const { tour, camera } = o;
+  const { tour } = o;
+  /** Caméra de projection des points (celle de l'expérience, ou de la vue de contrôle du back-office). */
+  const cam = () => o.viewCamera?.() ?? o.camera;
   const MOBILE = containerQuery(o.container);
   const root = document.createElement('div');
   root.className = 'pv-ui';
@@ -374,7 +378,7 @@ export function createTourUi(o: TourUiOptions) {
     const H = o.container.clientHeight;
     const k = 1 - Math.exp(-8 * dt);
     for (const d of extDots) {
-      ndc.copy(d.pos).project(camera);
+      ndc.copy(d.pos).project(cam());
       const onScreen = ndc.z < 1 && Math.abs(ndc.x) < 0.95 && Math.abs(ndc.y) < 0.95;
       d.a += ((onScreen && extVisible(d.pos) ? 1 : 0) - d.a) * k;
       d.btn.style.opacity = d.a.toFixed(3);
@@ -574,9 +578,9 @@ export function createTourUi(o: TourUiOptions) {
     const cy = (safe.top + safe.bottom) / 2;
     const k = 1 - Math.exp(-12 * dt);
     spots.forEach((s, j) => {
-      camSpace.copy(s.pos).applyMatrix4(camera.matrixWorldInverse);
+      camSpace.copy(s.pos).applyMatrix4(cam().matrixWorldInverse);
       const behind = camSpace.z > 0;
-      ndc.copy(s.pos).project(camera);
+      ndc.copy(s.pos).project(cam());
       let x = ((ndc.x + 1) / 2) * W;
       let y = ((1 - ndc.y) / 2) * H;
       if (behind) {

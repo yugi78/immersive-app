@@ -87,7 +87,8 @@ export interface Viewer {
   /** Carte interactive : ouvrir une vue (0 : plan, 1–4 : murs), fermer, cadrer une vue depuis la caméra. */
   map: { open(view?: number): void; close(): void; frameFromCamera(): { center: Vec3; yaw: number } };
   /** Sphère de découpe autour de la caméra en vol libre (back-office). */
-  setFlySphere(opts: { enabled: boolean; radius: number; feather: number }): void;
+  /** Découpe de la vue de contrôle du back-office (formes de la bibliothèque). */
+  setObserverCut(ids: string[]): void;
   /** Objets de la scène (outliner) : racines 3D, visibilité, placement. */
   objects: {
     root(id: string): Object3D | null;
@@ -304,7 +305,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     scene.add(scan.root);
   }
   /** Vol libre : sphère de découpe autour de la caméra (traverser murs et piliers). */
-  let flySphere = { enabled: true, radius: 4, feather: 2 };
+  /** Vue de contrôle du back-office : formes de découpe autour de sa caméra. */
+  let observerCut: string[] = [];
   /** Sphère de découpe affichée (intensité, rayon, dégradé), lissée d'une image à l'autre. */
   const sphere: { s: number; r: number; f: number; id: string | null } = { s: 0, r: 4, f: 2, id: null };
   /** Racine 3D de chaque objet, par identifiant (outliner). */
@@ -357,6 +359,13 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
         tour,
         reference,
         pickTargets: rootsWhere((o) => !!o.pick),
+        // Vue de contrôle : l'expérience continue sans recevoir les gestes (la souris
+        // pilote l'autre caméra) ; de retour sur l'expérience, ses commandes reviennent.
+        onViewMode: (m) => {
+          const observing = m !== 'experience';
+          tour.setInput(!observing);
+          orbit.controls.enabled = !observing && scenario.state === 'control' && !tour.active;
+        },
       })
     : null;
   let uiCfg: UiConfig = structuredClone(cfg.ui);
@@ -379,9 +388,9 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     controls: orbit.controls,
     reference,
     config: () => scenarioCfg,
-    busy: () => tour.active || !!editorTools?.flying || mapView.active,
+    busy: () => tour.active || mapView.active,
     skip: opts.skipIntro,
-    flying: () => !!editorTools?.flying,
+    flying: () => !!editorTools?.observing,
     tour: {
       start: (i) => tour.start(i),
       stop: () => tour.stop(),
@@ -413,6 +422,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       map: mapView,
       cut: cutaway.uniforms,
       hash: opts.urlHash ?? true,
+      viewCamera: () => editorTools?.viewCamera ?? camera,
       design: () => designCfg,
     });
     const i = tourUi!.initialIndex();
@@ -497,9 +507,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     } else if (tour.active) {
       // Fin de la sortie : la caméra est à la vue de départ, prise en main.
       if (tour.update(delta)) scenario.resume();
-    } else if (editorTools?.flying) {
-      // Vol libre : caméra pilotée par editorTools.update (ci-dessous).
     } else {
+      // Vue extérieure (l'expérience continue aussi en vue de contrôle du back-office).
       scenario.update(delta);
       orbit.update(delta);
     }
@@ -522,8 +531,6 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       else if (tour.state === 'loop') moment = one(cutFor(cc, 'work'), tour.lookTarget, 1);
       // Entrée / sortie standard de la visite : la découpe de la vue extérieure s'éteint / se rallume.
       else moment = pick(scenarioCfg.orbit.cut, tour.cutTarget, tour.cutScale);
-    } else if (editorTools?.flying) {
-      moment = pick([], orbit.controls.target, 0);
     } else {
       // Partie du scénario en cours ; raccords et passages : fondu au début et à la fin.
       const c = scenario.cutNow();
@@ -536,10 +543,6 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     if (moment.sph) {
       target = { s: moment.scale, r: moment.sph.radius, f: moment.sph.feather };
       sphere.id = moment.sph.id;
-    } else if (editorTools?.flying && flySphere.enabled) {
-      // Vol libre du back-office : ses propres réglages, sur tous les matériaux découpables.
-      target = { s: 1, r: flySphere.radius, f: flySphere.feather };
-      sphere.id = '*';
     }
     const ks = 1 - Math.exp(-8 * delta);
     sphere.s += (target.s - sphere.s) * ks;
@@ -548,11 +551,24 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     // La forme qui s'éteint garde ses matériaux abonnés jusqu'à la fin de son fondu.
     cutaway.setTransit(sphere.s < 0.002 ? 0 : sphere.s, sphere.r, sphere.f, sphere.id);
     camera.updateMatrixWorld();
+    // Point regardé par l'expérience (mise au point, ligne de visée en vue de contrôle).
+    const lookPoint = tour.active ? tour.lookTarget : scenario.driving ? scenario.lookTarget : orbit.controls.target;
+    // Vue de contrôle du back-office : rendu par sa caméra, avec sa propre découpe ; la
+    // caméra de l'expérience est dessinée en filaire.
+    const observing = !!editorTools?.observing;
+    const viewCam = editorTools?.viewCamera ?? camera;
+    if (observing) {
+      const list = observerCut.map((id) => cc.presets.find((x) => x.id === id)).filter((x): x is CutPreset => !!x);
+      const obsTarget = editorTools!.observerTarget();
+      cutaway.setObserver(viewCam.position, obsTarget, list.find((x) => x.kind === 'cylinder') ?? null, list.find((x) => x.kind === 'sphere') ?? null);
+      editorTools!.setExperienceLook(lookPoint);
+    } else cutaway.setObserver(null, null, null, null);
+    viewCam.updateMatrixWorld();
     // En transition, la destination est préchargée en haute définition.
-    scan?.update(camera, tour.active ? tour.lookahead() : null);
-    // Mise au point automatique : sur la cible d'orbite (ou l'œuvre visée), suit le zoom.
-    const focusPoint = tour.active ? tour.lookTarget : scenario.driving ? scenario.lookTarget : orbit.controls.target;
-    dof.render(scene, camera, camera.position.distanceTo(focusPoint));
+    scan?.update(viewCam, tour.active && !observing ? tour.lookahead() : null);
+    // Mise au point automatique : sur le point regardé (ou visé par la vue de contrôle).
+    const focusPoint = observing ? editorTools!.observerTarget() : lookPoint;
+    dof.render(scene, viewCam, viewCam.position.distanceTo(focusPoint));
   }
 
   renderer.domElement.style.visibility = '';
@@ -569,7 +585,7 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       focusOffset.set(x, y, z);
       // On translate cible et caméra ensemble : le cadrage suit, sans saut de distance.
       reference.focus.add(d);
-      if (!tour.active && !editorTools?.flying) {
+      if (!tour.active) {
         orbit.controls.target.add(d);
         camera.position.add(d);
       }
@@ -618,24 +634,28 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
     },
     view: {
       pose() {
-        const p = camera.position;
+        // Caméra de la vue : celle de l'expérience, ou la caméra de contrôle.
+        const observing = !!editorTools?.observing;
+        const p = observing ? editorTools!.viewCamera.position : camera.position;
         let t: Vector3;
-        if (tour.active) t = tour.lookTarget;
+        if (observing) t = editorTools!.observerTarget();
+        else if (tour.active) t = tour.lookTarget;
         else if (scenario.driving) t = scenario.lookTarget;
-        else if (editorTools?.flying) t = p.clone().add(camera.getWorldDirection(new Vector3()).multiplyScalar(20));
         else t = orbit.controls.target;
         const r = (v: Vector3) => v.toArray().map((x) => Math.round(x * 100) / 100) as Vec3;
         return { position: r(p), target: r(t) };
       },
       setPose(position, target) {
-        tour.cancel();
         const t = new Vector3(...target);
+        // Vue de contrôle : c'est elle qui va au point (l'expérience continue).
+        if (editorTools?.observing) return editorTools.placeObserver(new Vector3(...position), t);
+        tour.cancel();
         camera.position.set(...position);
         camera.lookAt(t);
         scenario.placeAt(t);
       },
       orbitStart() {
-        const d = camera.position.clone().sub(reference.focus);
+        const d = (editorTools?.viewCamera ?? camera).position.clone().sub(reference.focus);
         const distance = d.length() || 1;
         const r1 = (x: number) => Math.round(x * 10) / 10;
         return {
@@ -682,8 +702,8 @@ export async function createViewer(container: HTMLElement, opts: ViewerOptions =
       close: () => tourUi?.closeMap(),
       frameFromCamera: () => mapView.frameFromCamera(camera),
     },
-    setFlySphere(opts) {
-      flySphere = { ...opts };
+    setObserverCut(ids) {
+      observerCut = [...ids];
     },
     objects: {
       root: (id) => objectRoots.get(id) ?? null,

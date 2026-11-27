@@ -27,6 +27,15 @@ export function createCutaway(initial: CutawayConfig) {
     uTransitStrength: { value: 0 },
     uCutStrength: { value: 0 },
     uCutColor: { value: new Color(cfg.cutColor) },
+    // Vue de contrôle du back-office : découpe propre à sa caméra (cylindre, sphère).
+    uObsCam: { value: new Vector3() },
+    uObsTarget: { value: new Vector3() },
+    uObsCylR: { value: 0 },
+    uObsCylF: { value: 1 },
+    uObsCylS: { value: 0 },
+    uObsSphR: { value: 0 },
+    uObsSphF: { value: 1 },
+    uObsSphS: { value: 0 },
   };
 
   const vertexPars = /* glsl */ `
@@ -48,6 +57,16 @@ export function createCutaway(initial: CutawayConfig) {
     uniform float uCutStrength;
     uniform float uCutMaskCyl;
     uniform float uCutMaskSph;
+    uniform vec3 uObsCam;
+    uniform vec3 uObsTarget;
+    uniform float uObsCylR;
+    uniform float uObsCylF;
+    uniform float uObsCylS;
+    uniform float uObsSphR;
+    uniform float uObsSphF;
+    uniform float uObsSphS;
+    uniform float uCutMaskObsCyl;
+    uniform float uCutMaskObsSph;
     uniform vec3 uCutColor;
 
     float cutBayer4(vec2 p) {
@@ -88,6 +107,25 @@ export function createCutaway(initial: CutawayConfig) {
       float sphFeather = min(uCutFeather, uCutSphere * 0.5);
       float sph = 1.0 - smoothstep(uCutSphere - sphFeather, uCutSphere, distance(vCutWorld, uCutCam));
       if (sph * cutS > cutBayer4(gl_FragCoord.xy)) discard;
+    }
+    // Vue de contrôle : cylindre caméra de contrôle -> point visé, sphère autour d'elle.
+    float obsCylS = uObsCylS * uCutMaskObsCyl;
+    if (obsCylS > 0.0) {
+      vec3 oAxis = uObsTarget - uObsCam;
+      float oLen = max(length(oAxis), 1e-3);
+      float oT = dot(vCutWorld - uObsCam, oAxis) / (oLen * oLen);
+      if (oT > 0.0 && oT < 1.0) {
+        float oD = distance(vCutWorld, uObsCam + oAxis * oT);
+        float oRadial = 1.0 - smoothstep(uObsCylR - uObsCylF, uObsCylR, oD);
+        float oCap = 1.0 - smoothstep(1.0 - uObsCylF / oLen, 1.0, oT);
+        if (oRadial * oCap * obsCylS > cutBayer4(gl_FragCoord.xy)) discard;
+      }
+    }
+    float obsSphS = uObsSphS * uCutMaskObsSph;
+    if (obsSphS > 0.0 && uObsSphR > 0.0) {
+      float oFeather = min(uObsSphF, uObsSphR);
+      float oSph = 1.0 - smoothstep(uObsSphR - oFeather, uObsSphR, distance(vCutWorld, uObsCam));
+      if (oSph * obsSphS > cutBayer4(gl_FragCoord.xy)) discard;
     }`;
   const fragmentTint = /* glsl */ `
     #include <color_fragment>
@@ -100,14 +138,16 @@ export function createCutaway(initial: CutawayConfig) {
    * à toutes (null). Ses deux interrupteurs (cylindre, sphère) sont des uniforms propres
    * au matériau, mis à jour à chaque image selon les formes actives.
    */
-  const subscribers: { only: string[] | null; cyl: { value: number }; sph: { value: number } }[] = [];
-  let active: { cyl: string | null; sph: string | null } = { cyl: null, sph: null };
+  const subscribers: { only: string[] | null; cyl: { value: number }; sph: { value: number }; ocyl: { value: number }; osph: { value: number } }[] = [];
+  let active: { cyl: string | null; sph: string | null; ocyl: string | null; osph: string | null } = { cyl: null, sph: null, ocyl: null, osph: null };
   /** '*' : forme du vol libre (back-office), sur tous les matériaux découpables. */
   const reacts = (only: string[] | null, id: string | null) => (only === null || id === '*' || (id !== null && only.includes(id)) ? 1 : 0);
   function refreshMasks() {
     for (const sub of subscribers) {
       sub.cyl.value = reacts(sub.only, active.cyl);
       sub.sph.value = reacts(sub.only, active.sph);
+      sub.ocyl.value = reacts(sub.only, active.ocyl);
+      sub.osph.value = reacts(sub.only, active.osph);
     }
   }
 
@@ -116,11 +156,17 @@ export function createCutaway(initial: CutawayConfig) {
    * (MeshBasicMaterial, donc sans éclairage) et le passe en DoubleSide.
    */
   function applyToMaterial(material: Material, only: string[] | null) {
-    const sub = { only, cyl: { value: reacts(only, active.cyl) }, sph: { value: reacts(only, active.sph) } };
+    const sub = {
+      only,
+      cyl: { value: reacts(only, active.cyl) },
+      sph: { value: reacts(only, active.sph) },
+      ocyl: { value: reacts(only, active.ocyl) },
+      osph: { value: reacts(only, active.osph) },
+    };
     subscribers.push(sub);
     material.side = DoubleSide;
     material.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, uniforms, { uCutMaskCyl: sub.cyl, uCutMaskSph: sub.sph });
+      Object.assign(shader.uniforms, uniforms, { uCutMaskCyl: sub.cyl, uCutMaskSph: sub.sph, uCutMaskObsCyl: sub.ocyl, uCutMaskObsSph: sub.osph });
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>
 ${vertexPars}`)
@@ -175,6 +221,32 @@ ${fragmentPars}`)
       MathUtils.clamp(scale, 0, 1);
   }
 
+  /**
+   * Vue de contrôle (back-office) : découpe autour de sa caméra, indépendante de celle de
+   * l'expérience. `cam` null : éteinte.
+   */
+  function setObserver(cam: Vector3 | null, target: Vector3 | null, cyl: CutPreset | null, sph: CutPreset | null) {
+    const ocyl = cam && cyl?.kind === 'cylinder' ? cyl : null;
+    const osph = cam && sph?.kind === 'sphere' ? sph : null;
+    if ((ocyl?.id ?? null) !== active.ocyl || (osph?.id ?? null) !== active.osph) {
+      active = { ...active, ocyl: ocyl?.id ?? null, osph: osph?.id ?? null };
+      refreshMasks();
+    }
+    if (cam) uniforms.uObsCam.value.copy(cam);
+    if (target) uniforms.uObsTarget.value.copy(target);
+    if (ocyl && cam && target) {
+      uniforms.uObsCylR.value = ocyl.radius;
+      uniforms.uObsCylF.value = Math.max(ocyl.feather, 1e-3);
+      const d = cam.distanceTo(target);
+      uniforms.uObsCylS.value = MathUtils.clamp((ocyl.fadeStartDistance - d) / Math.max(ocyl.fadeStartDistance - ocyl.fadeEndDistance, 1e-3), 0, 1);
+    } else uniforms.uObsCylS.value = 0;
+    if (osph) {
+      uniforms.uObsSphR.value = osph.radius;
+      uniforms.uObsSphF.value = osph.feather;
+      uniforms.uObsSphS.value = 1;
+    } else uniforms.uObsSphS.value = 0;
+  }
+
   /** Réglages modifiés à chaud (back-office). */
   function set(next: CutawayConfig) {
     cfg = structuredClone(next);
@@ -203,5 +275,6 @@ ${fragmentPars}`)
     update,
     set,
     setTransit,
+    setObserver,
   };
 }
